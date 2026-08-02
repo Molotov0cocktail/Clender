@@ -16,7 +16,6 @@ jobs:
       - uses: actions/checkout@v6
       - uses: conda-incubator/setup-miniconda@v4
         with:
-          auto-activate: true
           activate-environment: ""
           python-version: "3.12.4"
       - run: python -m pip install --upgrade pip
