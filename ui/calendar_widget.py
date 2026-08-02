@@ -12,6 +12,7 @@ import theme_manager
 from event_service import EventService
 from ui.canvas import WeekCanvas, DayCanvas
 from calendar_logic import build_week_blocks, build_day_blocks
+from typography import build_scale
 
 
 class CalendarWidget(QFrame):
@@ -31,6 +32,10 @@ class CalendarWidget(QFrame):
         self._init_ui()
 
     def _t(self): return theme_manager.get_current_theme()
+
+    def _scale(self):
+        """Derive named application roles from the effective widget pixel font."""
+        return build_scale(self.font().pixelSize())
 
     def _init_ui(self):
         self._main_layout = QVBoxLayout(self)
@@ -108,13 +113,14 @@ class CalendarWidget(QFrame):
     # ─────────── 渲染入口 ───────────
     def _render_view(self):
         t=self._t()
+        scale=self._scale()
         self.setStyleSheet(f"CalendarWidget{{background:{t['frame_bg']};border-radius:8px;}}")
-        self._btn_prev.setStyleSheet(f'QPushButton{{font-size:16px;border:none;background:transparent;color:{t["nav_btn_color"]};}}QPushButton:hover{{color:{t["primary"]};}}')
+        self._btn_prev.setStyleSheet(f'QPushButton{{font-size:{scale.section_title_px}px;border:none;background:transparent;color:{t["nav_btn_color"]};}}QPushButton:hover{{color:{t["primary"]};}}')
         self._btn_next.setStyleSheet(self._btn_prev.styleSheet())
-        self._lbl_title.setStyleSheet(f'font-size:18px;font-weight:bold;color:{t["title_color"]};')
-        ss=f'QPushButton{{border:1px solid {t["input_border"]};border-radius:4px;padding:2px 12px;font-size:13px;background:{t["frame_bg"]};color:{t["switch_btn_text"]};}}QPushButton:checked{{background:{t["switch_btn_checked_bg"]};color:{t["primary_text"]};border-color:{t["switch_btn_checked_bg"]};}}QPushButton:hover{{background:{t["primary_hover"]};color:{t["primary_text"]};}}'
+        self._lbl_title.setStyleSheet(f'font-size:{scale.page_title_px}px;font-weight:bold;color:{t["title_color"]};')
+        ss=f'QPushButton{{border:1px solid {t["input_border"]};border-radius:4px;padding:2px 12px;font-size:{scale.control_px}px;background:{t["frame_bg"]};color:{t["switch_btn_text"]};}}QPushButton:checked{{background:{t["switch_btn_checked_bg"]};color:{t["primary_text"]};border-color:{t["switch_btn_checked_bg"]};}}QPushButton:hover{{background:{t["primary_hover"]};color:{t["primary_text"]};}}'
         for b in (self._btn_month,self._btn_week,self._btn_day): b.setStyleSheet(ss)
-        self._btn_today.setStyleSheet(f'QPushButton{{border:1px solid {t["info"]};border-radius:4px;padding:2px 10px;font-size:13px;background:{t["info"]};color:{t["primary_text"]};}}QPushButton:hover{{background:{t["info_hover"]};}}')
+        self._btn_today.setStyleSheet(f'QPushButton{{border:1px solid {t["info"]};border-radius:4px;padding:2px 10px;font-size:{scale.control_px}px;background:{t["info"]};color:{t["primary_text"]};}}QPushButton:hover{{background:{t["info_hover"]};}}')
         if self._view_mode=='month': self._render_month_view()
         elif self._view_mode=='week': self._render_week_view()
         else: self._render_day_view()
@@ -129,9 +135,9 @@ class CalendarWidget(QFrame):
         else: self._lbl_title.setText(f'{d.year}年{d.month}月{d.day}日  {["周一","周二","周三","周四","周五","周六","周日"][d.weekday()]}')
 
     def _render_month_view(self):
-        t=self._t(); grid=QGridLayout(); grid.setSpacing(3)
+        t=self._t(); scale=self._scale(); grid=QGridLayout(); grid.setSpacing(3)
         hds=['一','二','三','四','五','六','日']
-        hs=f'QLabel{{font-size:14px;font-weight:bold;color:{t["subtitle_color"]};padding:6px;background:{t["header_bg"]};border-radius:4px;}}'
+        hs=f'QLabel{{font-size:{scale.section_title_px}px;font-weight:bold;color:{t["subtitle_color"]};padding:6px;background:{t["header_bg"]};border-radius:4px;}}'
         for c,n in enumerate(hds):
             l=QLabel(n);l.setAlignment(Qt.AlignCenter);l.setStyleSheet(hs);grid.addWidget(l,0,c)
         y,m=self._current_date.year,self._current_date.month
@@ -146,7 +152,7 @@ class CalendarWidget(QFrame):
                     if is_s: bg,bd,tc,bw=t["calendar_selected_bg"],t["calendar_selected_border"],t["calendar_selected_text"],2
                     elif is_t: bg,bd,tc,bw=t["calendar_today_bg"],t["calendar_today_border"],t["calendar_today_text"],2
                     else: bg,bd,tc,bw=t["calendar_cell_bg"],t["calendar_cell_border"],t["calendar_cell_text"],1
-                    btn.setStyleSheet(f'QPushButton{{border:{bw}px solid {bd};border-radius:6px;background:{bg};font-size:13px;color:{tc};min-height:56px;max-height:72px;text-align:left;padding:4px;}}QPushButton:hover{{background:{t["info_hover"]};color:{t["primary_text"]};}}')
+                    btn.setStyleSheet(f'QPushButton{{border:{bw}px solid {bd};border-radius:6px;background:{bg};font-size:{scale.body_px}px;color:{tc};min-height:56px;max-height:72px;text-align:left;padding:4px;}}QPushButton:hover{{background:{t["info_hover"]};color:{t["primary_text"]};}}')
                     if cd in self._event_dates and self._event_dates[cd]>0:
                         btn.setText(f'{dn}\n● {self._event_dates[cd]}项')
                     btn.clicked.connect(lambda _,d=cd: self._on_date_clicked(d))
@@ -156,6 +162,7 @@ class CalendarWidget(QFrame):
     # ─────────── 周视图 事件块画布 ───────────
     def _render_week_view(self):
         t=self._t()
+        scale=self._scale()
         wd=self._current_date.weekday()
         ws=self._current_date-timedelta(days=wd)
         we=ws+timedelta(days=6)
@@ -165,7 +172,10 @@ class CalendarWidget(QFrame):
         container=QVBoxLayout()
         # 列标题
         hdr_row=QHBoxLayout();hdr_row.setSpacing(2)
-        time_spacer=QLabel('');time_spacer.setFixedWidth(30)
+        time_spacer=QLabel('')
+        time_spacer.setFixedWidth(
+            int(WeekCanvas.timeline_gutter_for_metrics(self.fontMetrics()))
+        )
         hdr_row.addWidget(time_spacer)
         for ci in range(7):
             cd=ws+timedelta(days=ci)
@@ -175,7 +185,7 @@ class CalendarWidget(QFrame):
             if is_s: bg,cl=t["calendar_selected_bg"],t["calendar_selected_text"]
             elif is_t: bg,cl=t["calendar_today_bg"],t["calendar_today_text"]
             else: bg,cl=t["header_bg"],t["title_color"]
-            lbl.setStyleSheet(f'font-size:11px;font-weight:bold;color:{cl};background:{bg};padding:4px;border-radius:4px;')
+            lbl.setStyleSheet(f'font-size:{scale.caption_px}px;font-weight:bold;color:{cl};background:{bg};padding:4px;border-radius:4px;')
             hdr_row.addWidget(lbl)
         container.addLayout(hdr_row)
 
@@ -187,6 +197,7 @@ class CalendarWidget(QFrame):
 
         # ── Canvas 绘制（使用 ui/canvas.py 中的 WeekCanvas）──
         canvas = WeekCanvas(blocks, timeline_height, per_hour, t)
+        canvas.setFont(self.font())
         canvas.event_activated.connect(self.event_activated.emit)
         self._active_canvas = canvas
         container.addWidget(canvas)
@@ -196,6 +207,7 @@ class CalendarWidget(QFrame):
     # ─────────── 日视图 事件块画布 ───────────
     def _render_day_view(self):
         t=self._t()
+        scale=self._scale()
         d=self._current_date
         events=EventService.get_events_by_date(d)
         per_hour=30; timeline_height=24*per_hour
@@ -204,13 +216,14 @@ class CalendarWidget(QFrame):
         wd=['周一','周二','周三','周四','周五','周六','周日']
         title=QLabel(f'{d.year}年{d.month}月{d.day}日  {wd[d.weekday()]}')
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet(f'font-size:18px;font-weight:bold;color:{t["title_color"]};padding:4px;')
+        title.setStyleSheet(f'font-size:{scale.page_title_px}px;font-weight:bold;color:{t["title_color"]};padding:4px;')
         container.addWidget(title)
 
         blocks=build_day_blocks(events, per_hour)
 
         # ── Canvas 绘制（使用 ui/canvas.py 中的 DayCanvas）──
         canvas = DayCanvas(blocks, timeline_height, per_hour, t)
+        canvas.setFont(self.font())
         canvas.event_activated.connect(self.event_activated.emit)
         self._active_canvas = canvas
         container.addWidget(canvas)

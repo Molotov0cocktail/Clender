@@ -34,3 +34,50 @@
 - 完整 PyInstaller 构建与隔离 exe 单实例/启动冒烟通过。
 - 构建前后 `dist/data/` 文件数、总大小和哈希摘要一致。
 - Git staged diff 无 data、数据库、日志、对话、Key、exe、缓存或无关改动。
+
+---
+
+# Phase 9 多 Agent 控制提示
+
+## 主 Agent
+
+- 必读 `AGENTS.md`、Phase 9 三层设计、`doc/tasks/progress.md` 和当前 T31–T37 任务文件。
+- 严格按“测试先失败 → 聚焦实现 → 聚焦通过 → diff 审查 → 更新进度”推进。
+- 只把文件边界清晰且不会与其他 agent 同时修改同一生产模块的任务并行分派。
+- 子 agent 不更新共享 `progress.md` 或 `AGENTS.md`；主 agent 复核证据后统一维护。
+- 保护用户已暂存 `.github/workflows/test.yml`；最终使用精确路径提交，禁止普通全量 commit 误带。
+- 发现 bottom/top 平台行为、Conversation 绑定、event_type 转换、字号角色或真实数据边界的新歧义时立即暂停。
+- 主 agent 负责所有 diff 集成、静态字号审计、完整发布验证和最终提交。
+
+## 子 Agent
+
+- 每次只接受一个 T31–T36 任务或其中明确的“仅测试”阶段。
+- 读取 Phase 9 三层设计、分配任务文件、相关源码/测试；不得修改其他任务、`progress.md`、`AGENTS.md`、`.github/workflows/test.yml`。
+- 第一轮只能添加/更新聚焦测试；在旧实现运行并返回失败/错误名称与原因，不得顺手实现。
+- 收到实现 follow-up 后仅修改任务允许文件，运行聚焦检查并返回文件、命令、结果和风险。
+- 不读取真实 `data/`、`dist/data/`、Provider、Key 或 Conversation；所有网络/config/DB 使用 mock/临时目录。
+- 需求不清、文件冲突或测试无法安全隔离时停止并回报。
+
+## 必读上下文
+
+- `doc/floating-ai-typography-proposal.md`
+- `doc/floating-ai-typography-high-level-design.md`
+- `doc/floating-ai-typography-detailed-design.md`
+- `doc/tasks/progress.md`
+- 分配到的 `doc/tasks/T31-*.md` 至 `T36-*.md`
+
+## 实施顺序
+
+1. T31 双字号基础测试失败证据与实现。
+2. T32 字号迁移、T33 Canvas、T34 悬浮壳可在共享基础稳定后按无冲突文件分派。
+3. T35 编辑、T36 AI 桥接在 T34 接口确定后实施。
+4. T37 仅由主 agent 集成和发布。
+
+## 最终验证
+
+- 新增测试在旧实现有明确失败证据，修复后聚焦与全量 unittest 通过。
+- 静态审计禁止遗漏裸字号；Light/Dark × 应用/悬浮 8/20px 覆盖主要组件。
+- 周/日标签与 grid/event 几何至少相隔 8px，lane/marker/overflow 命中回归通过。
+- frameless bottom/top、拖动排除、缩放、双击编辑、current/next、0/100% 和悬浮 AI 当前会话绑定通过。
+- 全模块导入、`build.py --check`、完整 PyInstaller、隔离 exe 启动/双实例通过。
+- `dist/data/` 构建前后逐项一致；提交无用户 CI、data、Key、日志、数据库、对话、exe 或缓存。

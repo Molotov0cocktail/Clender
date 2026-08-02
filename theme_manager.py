@@ -7,6 +7,7 @@
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QPalette, QColor
 import config as cfg_mod
+from typography import app_scale_from_config, apply_application_font
 
 
 # ========== 日间主题（Light）==========
@@ -135,9 +136,13 @@ def get_current_theme() -> ThemeColors:
     return ThemeColors(DARK_THEME if theme_name == 'dark' else LIGHT_THEME)
 
 
-def apply_theme(app: QApplication):
+def apply_theme(app: QApplication, config: dict | None = None):
     """应用当前主题到整个应用程序"""
-    theme = get_current_theme()
+    config_values = cfg_mod.load_config() if config is None else dict(config)
+    theme_name = config_values.get("theme", "light")
+    theme = ThemeColors(DARK_THEME if theme_name == "dark" else LIGHT_THEME)
+    scale = app_scale_from_config(config_values)
+    apply_application_font(app, scale)
 
     # 全局调色板
     palette = QPalette()
@@ -164,7 +169,7 @@ def apply_theme(app: QApplication):
         QStatusBar {{
             background: {theme["statusbar_bg"]};
             color: {theme["text_color"]};
-            font-size: 12px;
+            font-size: {scale.secondary_px}px;
         }}
         QToolTip {{
             background-color: {theme["frame_bg"]};
@@ -203,7 +208,7 @@ def apply_theme(app: QApplication):
         QMenuBar {{
             background-color: {theme["frame_bg"]};
             color: {theme["text_color"]};
-            font-size: 13px;
+            font-size: {scale.control_px}px;
             padding: 2px;
             border-bottom: 1px solid {theme["frame_border"]};
         }}
@@ -231,7 +236,7 @@ def apply_theme(app: QApplication):
             border: 1px solid {theme["input_border"]};
             border-radius: 4px;
             padding: 6px;
-            font-size: 13px;
+            font-size: {scale.body_px}px;
         }}
         QTextEdit {{
             background-color: {theme["input_bg"]};
@@ -239,7 +244,7 @@ def apply_theme(app: QApplication):
             border: 1px solid {theme["input_border"]};
             border-radius: 4px;
             padding: 6px;
-            font-size: 13px;
+            font-size: {scale.body_px}px;
         }}
         QComboBox {{
             background-color: {theme["input_bg"]};
@@ -247,7 +252,7 @@ def apply_theme(app: QApplication):
             border: 1px solid {theme["input_border"]};
             border-radius: 4px;
             padding: 6px;
-            font-size: 13px;
+            font-size: {scale.control_px}px;
         }}
         QComboBox::drop-down {{
             border: none;
@@ -268,7 +273,7 @@ def apply_theme(app: QApplication):
             border: 1px solid {theme["input_border"]};
             border-radius: 4px;
             padding: 6px;
-            font-size: 13px;
+            font-size: {scale.control_px}px;
         }}
         QLabel {{
             color: {theme["text_color"]};
@@ -283,7 +288,7 @@ def apply_theme(app: QApplication):
             border: 1px solid {theme["input_border"]};
             border-radius: 4px;
             padding: 4px 6px;
-            font-size: 13px;
+            font-size: {scale.control_px}px;
         }}
         QSpinBox::up-button, QDoubleSpinBox::up-button {{
             background-color: {theme["header_bg"]};

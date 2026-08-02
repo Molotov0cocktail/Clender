@@ -9,6 +9,8 @@ from PyQt5.QtGui import QColor
 
 from event_service import EventService
 import theme_manager
+from typography import app_scale_from_config
+import config as cfg_mod
 from ui.event_dialog import EventDialog
 from logger import get_logger
 
@@ -23,7 +25,6 @@ class EventManager(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFrameStyle(QFrame.StyledPanel | QFrame.Raised)
-        self.setStyleSheet('EventManager { background-color: #ffffff; border-radius: 8px; }')
         self._current_date = date.today()
         self._init_ui()
 
@@ -32,32 +33,17 @@ class EventManager(QFrame):
         layout.setContentsMargins(10, 10, 10, 10)
 
         # ---- 标题 ----
-        title = QLabel('📋 日程安排')
-        title.setStyleSheet('font-size: 16px; font-weight: bold; color: #2d3436; padding: 4px 0;')
-        layout.addWidget(title)
+        self._title_label = QLabel('📋 日程安排')
+        self._title_label.setObjectName('eventManagerTitle')
+        layout.addWidget(self._title_label)
 
         # ---- 选中日期显示 ----
         self._lbl_date = QLabel()
-        self._lbl_date.setStyleSheet('font-size: 13px; color: #636e72; padding: 2px 0;')
+        self._lbl_date.setObjectName('eventManagerDate')
         layout.addWidget(self._lbl_date)
 
         # ---- 事件列表 ----
         self._list_widget = QListWidget()
-        self._list_widget.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #dfe6e9;
-                border-radius: 6px;
-                background-color: #f8f9fa;
-                font-size: 13px;
-            }
-            QListWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #dfe6e9;
-            }
-            QListWidget::item:hover {
-                background-color: #dfe6e9;
-            }
-        """)
         layout.addWidget(self._list_widget, 1)
 
         # ---- 操作按钮 ----
@@ -65,54 +51,12 @@ class EventManager(QFrame):
         btn_layout.setSpacing(8)
 
         self._btn_add = QPushButton('＋ 添加事项')
-        self._btn_add.setStyleSheet("""
-            QPushButton {
-                background-color: #6c5ce7;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #a29bfe;
-            }
-        """)
         self._btn_add.clicked.connect(self._on_add_clicked)
 
         self._btn_edit = QPushButton('✏️ 编辑选中')
-        self._btn_edit.setStyleSheet("""
-            QPushButton {
-                background-color: #0984e3;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #74b9ff;
-            }
-        """)
         self._btn_edit.clicked.connect(self._on_edit_clicked)
 
         self._btn_delete = QPushButton('🗑 删除选中')
-        self._btn_delete.setStyleSheet("""
-            QPushButton {
-                background-color: #d63031;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #ff7675;
-            }
-        """)
         self._btn_delete.clicked.connect(self._on_delete_clicked)
 
         btn_layout.addWidget(self._btn_add)
@@ -121,6 +65,7 @@ class EventManager(QFrame):
         btn_layout.addStretch()
 
         layout.addLayout(btn_layout)
+        self.apply_theme()
 
     # ---------- 公共方法 ----------
     def set_date(self, d: date):
@@ -192,27 +137,27 @@ class EventManager(QFrame):
     def apply_theme(self):
         """动态应用当前主题样式"""
         t = theme_manager.get_current_theme()
+        scale = app_scale_from_config(cfg_mod.load_config())
         self.setStyleSheet(f'''
             EventManager {{
                 background-color: {t["frame_bg"]};
                 border-radius: 8px;
             }}
         ''')
-        # 找到并更新子控件样式
-        for i in range(self.layout().count()):
-            w = self.layout().itemAt(i).widget()
-            if isinstance(w, QLabel):
-                text = w.text()
-                if '日程安排' in text:
-                    w.setStyleSheet(f'font-size: 16px; font-weight: bold; color: {t["title_color"]}; padding: 4px 0;')
-                elif '年' in text:
-                    w.setStyleSheet(f'font-size: 13px; color: {t["subtitle_color"]}; padding: 2px 0;')
+        self._title_label.setStyleSheet(
+            f'font-size:{scale.section_title_px}px;font-weight:bold;'
+            f'color:{t["title_color"]};padding:4px 0;'
+        )
+        self._lbl_date.setStyleSheet(
+            f'font-size:{scale.secondary_px}px;color:{t["subtitle_color"]};'
+            'padding:2px 0;'
+        )
         self._list_widget.setStyleSheet(f"""
             QListWidget {{
                 border: 1px solid {t["frame_border"]};
                 border-radius: 6px;
                 background-color: {t["list_bg"]};
-                font-size: 13px;
+                font-size: {scale.body_px}px;
                 color: {t["text_color"]};
             }}
             QListWidget::item {{
@@ -230,7 +175,7 @@ class EventManager(QFrame):
                 border: none;
                 border-radius: 6px;
                 padding: 8px 16px;
-                font-size: 13px;
+                font-size: {scale.control_px}px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
@@ -244,7 +189,7 @@ class EventManager(QFrame):
                 border: none;
                 border-radius: 6px;
                 padding: 8px 16px;
-                font-size: 13px;
+                font-size: {scale.control_px}px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
@@ -259,7 +204,7 @@ class EventManager(QFrame):
                 border: none;
                 border-radius: 6px;
                 padding: 8px 16px;
-                font-size: 13px;
+                font-size: {scale.control_px}px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
@@ -282,6 +227,7 @@ class EventManager(QFrame):
         if dialog.exec_() == EventDialog.Accepted:
             data = dialog.get_data()
             EventService.update_event(ev_id,
+                event_type=data['event_type'],
                 title=data['title'], start_time=data['start_time'],
                 end_time=data.get('end_time'), description=data.get('description', ''),
                 estimated_duration=data.get('estimated_duration', 0))

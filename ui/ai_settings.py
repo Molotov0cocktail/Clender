@@ -7,12 +7,14 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QSpinBox, QDoubleSpinBox, QFormLayout,
                              QDialogButtonBox, QDialog, QMessageBox, QCheckBox)
 from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QFontMetrics
 
 import config as cfg_mod
 import theme_manager
 from constants import SYSTEM_PROMPT
 from ai_client import fetch_models_list
 from ai_service import AIService
+from typography import app_scale_from_config, qfont_for
 
 
 class SettingsDialog(QDialog):
@@ -77,19 +79,16 @@ class SettingsDialog(QDialog):
         layout.addRow('   思考强度:', self._cmb_think)
 
         self._lbl_info = QLabel('')
-        t = theme_manager.get_current_theme()
-        self._lbl_info.setStyleSheet(f'color:{t["subtitle_color"]}; font-size:11px;')
         layout.addRow(self._lbl_info)
 
         # ── 系统提示词编辑 ──
         layout.addRow(QLabel(''))
         prompt_header = QHBoxLayout()
-        prompt_lbl = QLabel('📝 系统提示词')
-        prompt_lbl.setStyleSheet(f'font-weight:bold; color:{t["title_color"]}; font-size:13px;')
-        prompt_header.addWidget(prompt_lbl)
+        self._lbl_prompt = QLabel('📝 系统提示词')
+        self._lbl_prompt.setObjectName('aiSettingsPromptTitle')
+        prompt_header.addWidget(self._lbl_prompt)
         prompt_header.addStretch()
         self._btn_reset_prompt = QPushButton('恢复默认')
-        self._btn_reset_prompt.setFixedHeight(24)
         self._btn_reset_prompt.setToolTip('重置为默认系统提示词')
         self._btn_reset_prompt.clicked.connect(self._reset_prompt)
         prompt_header.addWidget(self._btn_reset_prompt)
@@ -103,9 +102,9 @@ class SettingsDialog(QDialog):
         # ── AI人格描述 ──
         layout.addRow(QLabel(''))
         persona_header = QHBoxLayout()
-        persona_lbl = QLabel('🎭 AI 人格设定')
-        persona_lbl.setStyleSheet(f'font-weight:bold; color:{t["title_color"]}; font-size:13px;')
-        persona_header.addWidget(persona_lbl)
+        self._lbl_personality = QLabel('🎭 AI 人格设定')
+        self._lbl_personality.setObjectName('aiSettingsPersonalityTitle')
+        persona_header.addWidget(self._lbl_personality)
         persona_header.addStretch()
         layout.addRow(persona_header)
 
@@ -122,6 +121,26 @@ class SettingsDialog(QDialog):
         layout.addRow(btn)
 
         self._load()
+        self.apply_theme()
+
+    def apply_theme(self):
+        """Apply the current application typography and theme colors."""
+        t = theme_manager.get_current_theme()
+        scale = app_scale_from_config(cfg_mod.load_config())
+        self._lbl_info.setStyleSheet(
+            f'color:{t["subtitle_color"]};font-size:{scale.secondary_px}px;'
+        )
+        title_style = (
+            f'font-weight:bold;color:{t["title_color"]};'
+            f'font-size:{scale.section_title_px}px;'
+        )
+        self._lbl_prompt.setStyleSheet(title_style)
+        self._lbl_personality.setStyleSheet(title_style)
+        reset_height = max(
+            24,
+            QFontMetrics(qfont_for(scale, 'control')).height() + 8,
+        )
+        self._btn_reset_prompt.setMinimumHeight(reset_height)
 
     def _load(self):
         cfg = cfg_mod.load_config()

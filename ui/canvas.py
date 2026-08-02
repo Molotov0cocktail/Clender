@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from math import ceil
 
 from PyQt5.QtCore import QRectF, Qt, pyqtSignal
 from PyQt5.QtGui import QBrush, QColor, QPainter, QPen
@@ -18,11 +19,13 @@ class _BaseCalendarCanvas(QFrame):
     LANE_GAP = 2.0
     MIN_CLICK_WIDTH = 18.0
     MIN_HIT_HEIGHT = 12.0
-    MIN_TEXT_HEIGHT = 20.0
     MIN_TEXT_WIDTH = 28.0
     MARKER_VISUAL_HALF_HEIGHT = 3.0
     OVERLAP_BAND_WIDTH = 6.0
     BLOCK_PADDING = 4.0
+    TIME_LABEL = "00:00"
+    TIME_GAP = 8.0
+    TIME_LEFT_PADDING = 4.0
 
     def __init__(self, blocks, timeline_height, per_hour, theme, parent=None):
         super().__init__(parent)
@@ -38,8 +41,66 @@ class _BaseCalendarCanvas(QFrame):
     def _column_geometry(self, block: dict, width: float) -> tuple[float, float]:
         raise NotImplementedError
 
+    @classmethod
+    def timeline_gutter_for_metrics(cls, metrics) -> float:
+        """Return the shared, whole-pixel gutter for the current font metrics."""
+        label_width = float(metrics.horizontalAdvance(cls.TIME_LABEL))
+        return float(ceil(cls.TIME_LEFT_PADDING + label_width + cls.TIME_GAP))
+
+    def _timeline_gutter(self, painter_or_metrics) -> float:
+        metrics = (
+            painter_or_metrics.fontMetrics()
+            if hasattr(painter_or_metrics, "fontMetrics")
+            else painter_or_metrics
+        )
+        return self.timeline_gutter_for_metrics(metrics)
+
+    def _timeline_geometry(self, metrics, width: float) -> dict:
+        label_width = float(metrics.horizontalAdvance(self.TIME_LABEL))
+        label_height = float(metrics.lineSpacing())
+        grid_start = self.timeline_gutter_for_metrics(metrics)
+        return {
+            "gutter": grid_start,
+            "grid_start": grid_start,
+            "label_rect": QRectF(
+                self.TIME_LEFT_PADDING,
+                0.0,
+                label_width,
+                label_height,
+            ),
+            "available_width": max(0.0, float(width) - grid_start),
+        }
+
     def _draw_timeline(self, painter: QPainter, width: int) -> None:
-        raise NotImplementedError
+        metrics = painter.fontMetrics()
+        geometry = self._timeline_geometry(metrics, width)
+        grid_start = geometry["grid_start"]
+        base_label_rect = geometry["label_rect"]
+        max_label_top = max(
+            0.0,
+            float(self.timeline_height) - base_label_rect.height(),
+        )
+
+        painter.setPen(QPen(QColor(self.theme["muted_color"]), 1, Qt.DashLine))
+        for hour in range(25):
+            y = float(hour * self.per_hour)
+            if hour < 24:
+                painter.drawLine(int(grid_start), int(y), width, int(y))
+            label_top = max(
+                0.0,
+                min(y - base_label_rect.height() / 2.0, max_label_top),
+            )
+            label_rect = QRectF(
+                base_label_rect.x(),
+                label_top,
+                base_label_rect.width(),
+                base_label_rect.height(),
+            )
+            painter.drawText(
+                label_rect,
+                int(Qt.AlignRight | Qt.AlignVCenter),
+                f"{hour:02d}:00",
+            )
 
     @staticmethod
     def _unique_ids(blocks: list[dict]) -> tuple[int, ...]:
@@ -138,10 +199,14 @@ class _BaseCalendarCanvas(QFrame):
         return entry
 
     def _uses_marker(self, block: dict) -> bool:
+        minimum_text_height = float(self.fontMetrics().lineSpacing()) + 4.0
         duration_minutes = block.get("duration_minutes")
         if duration_minutes is None:
-            return bool(block.get("is_reminder")) and block["height"] < self.MIN_TEXT_HEIGHT
-        return duration_minutes / 60 * self.per_hour < self.MIN_TEXT_HEIGHT
+            return (
+                bool(block.get("is_reminder"))
+                and block["height"] < minimum_text_height
+            )
+        return duration_minutes / 60 * self.per_hour < minimum_text_height
 
     def _individual_entry(
         self,
@@ -393,28 +458,25 @@ class WeekCanvas(_BaseCalendarCanvas):
     """Seven-column calendar canvas with responsive overlap lanes."""
 
     def _column_geometry(self, block: dict, width: float) -> tuple[float, float]:
-        column_width = max(1.0, (width - 30.0) / 7.0)
-        return 30.0 + block["col"] * column_width + 2.0, max(1.0, column_width - 4.0)
-
-    def _draw_timeline(self, painter: QPainter, width: int) -> None:
-        painter.setPen(QPen(QColor(self.theme["muted_color"]), 1, Qt.DashLine))
-        for hour in range(25):
-            y = int(hour * self.per_hour)
-            if hour < 24:
-                painter.drawLine(30, y, width, y)
-            painter.drawText(2, y + 10, f"{hour:02d}:00")
+        grid_start = self._timeline_geometry(
+            self.fontMetrics(), width
+        )["grid_start"]
+        column_width = max(1.0, (float(width) - grid_start) / 7.0)
+        return (
+            grid_start + block["col"] * column_width + 2.0,
+            max(1.0, column_width - 4.0),
+        )
 
 
 class DayCanvas(_BaseCalendarCanvas):
     """Single-column calendar canvas with responsive overlap lanes."""
 
     def _column_geometry(self, block: dict, width: float) -> tuple[float, float]:
-        return 44.0, max(1.0, width - 52.0)
-
-    def _draw_timeline(self, painter: QPainter, width: int) -> None:
-        painter.setPen(QPen(QColor(self.theme["muted_color"]), 1, Qt.DashLine))
-        for hour in range(25):
-            y = int(hour * self.per_hour)
-            if hour < 24:
-                painter.drawLine(40, y, width, y)
-            painter.drawText(4, y + 10, f"{hour:02d}:00")
+        grid_start = self._timeline_geometry(
+            self.fontMetrics(), width
+        )["grid_start"]
+        event_left = grid_start + self.BLOCK_PADDING
+        return event_left, max(
+            1.0,
+            float(width) - event_left - self.BLOCK_PADDING * 2.0,
+        )

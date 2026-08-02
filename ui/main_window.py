@@ -2,11 +2,13 @@
 Clender 主窗口 - 日历 + 事项 + AI + 托盘
 从 main.py 迁移到 ui 包，使用 EventService 替代直接 database 调用
 """
-from datetime import date
+from datetime import date, datetime
+import sqlite3
 
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout,
                              QSplitter, QStatusBar, QLabel, QPushButton,
-                             QSystemTrayIcon, QMenu, QInputDialog)
+                             QSystemTrayIcon, QMenu, QInputDialog, QDialog,
+                             QMessageBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 
@@ -22,6 +24,7 @@ from ui.ai_chat_widget import AIChatWidget
 from ui.ai_settings import SettingsDialog
 from ui.daily_floating_window import DailyFloatingWindow
 from ui.event_detail_dialog import EventDetailDialog
+from ui.event_dialog import EventDialog
 
 
 _log = get_logger(__name__)
@@ -48,9 +51,6 @@ class MainWindow(QMainWindow):
         self._connect_signals()
         self._apply_app_settings(cfg_mod.load_config())
         self._refresh_all()
-
-        theme_manager.apply_theme(self._app)
-        self._apply_component_styles()
         self._app.aboutToQuit.connect(self._shutdown_auxiliary_windows)
 
     def _init_ui(self):
@@ -89,14 +89,12 @@ class MainWindow(QMainWindow):
 
         # 设置按钮
         self._btn_settings = QPushButton('⚙')
-        self._btn_settings.setFixedSize(24, 24)
         self._btn_settings.setToolTip('设置')
         self._btn_settings.clicked.connect(self._open_settings_dialog)
         self._status_bar.addPermanentWidget(self._btn_settings)
 
         # 主题切换
         self._theme_btn = QPushButton()
-        self._theme_btn.setFixedSize(24, 24)
         self._theme_btn.setToolTip('切换日间/夜间主题')
         self._theme_btn.clicked.connect(self._toggle_theme)
         self._status_bar.addPermanentWidget(self._theme_btn)
@@ -172,6 +170,8 @@ class MainWindow(QMainWindow):
     def _apply_app_settings(self, config):
         settings = FloatingWindowSettings.from_config(config)
         self._floating_window.apply_settings(settings)
+        theme_manager.apply_theme(self._app, config)
+        self._apply_component_styles()
         self._sync_floating_action()
 
     def _toggle_theme(self):
@@ -195,13 +195,33 @@ class MainWindow(QMainWindow):
         if self._settings_dialog is not None:
             self._settings_dialog.apply_theme()
         self._update_theme_button()
+        self._resize_status_buttons()
+
+    def _resize_status_buttons(self):
+        """Keep status-bar glyph buttons readable across the app font range."""
+        for button in (self._btn_settings, self._theme_btn):
+            metrics = button.fontMetrics()
+            side = max(
+                24,
+                metrics.height() + 10,
+                metrics.horizontalAdvance(button.text()) + 12,
+            )
+            button.setFixedSize(side, side)
 
     def _connect_signals(self):
         self._calendar.date_selected.connect(self._on_date_selected)
         self._calendar.event_activated.connect(self._on_event_activated)
         self._event_mgr.data_changed.connect(self._on_data_changed)
         self._ai_chat.data_changed.connect(self._on_data_changed)
-        self._floating_window.event_activated.connect(self._on_event_activated)
+        self._floating_window.event_edit_requested.connect(
+            self._on_floating_event_edit_requested
+        )
+        self._floating_window.ai_message_submitted.connect(
+            self._ai_chat.submit_external_message
+        )
+        self._ai_chat.external_request_status.connect(
+            self._floating_window.set_ai_request_status
+        )
         self._floating_window.geometry_changed.connect(self._save_floating_geometry)
         self._floating_window.visibility_change_requested.connect(
             self._set_floating_visibility
@@ -262,6 +282,45 @@ class MainWindow(QMainWindow):
                 return
             selected = events[labels.index(choice)]
         self._show_event_detail(selected)
+
+    def _on_floating_event_edit_requested(self, event_id):
+        if (
+            isinstance(event_id, bool)
+            or not isinstance(event_id, int)
+            or event_id <= 0
+        ):
+            return
+
+        event = EventService.get_event_by_id(event_id)
+        if event is None:
+            return
+        try:
+            event_date = datetime.strptime(
+                event.start_time, "%Y-%m-%d %H:%M"
+            ).date()
+        except (AttributeError, TypeError, ValueError):
+            QMessageBox.warning(self, "无法编辑", "事项开始时间无效。")
+            return
+
+        dialog = EventDialog(event_date, parent=self, edit_event=event)
+        if dialog.exec_() != QDialog.Accepted:
+            return
+
+        try:
+            fields = dialog.get_data()
+            updated = EventService.update_event(event_id, **fields)
+        except (TypeError, ValueError) as exc:
+            QMessageBox.warning(self, "保存失败", str(exc))
+            return
+        except (OSError, sqlite3.Error) as exc:
+            _log.warning("悬浮窗事项保存失败：%s", exc)
+            QMessageBox.critical(self, "保存失败", "无法保存事项，请稍后重试。")
+            return
+
+        if not updated:
+            QMessageBox.warning(self, "保存失败", "事项不存在或未更新。")
+            return
+        self._on_data_changed()
 
     def _show_event_detail(self, event):
         dialog = EventDetailDialog(event, self)

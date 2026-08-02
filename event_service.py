@@ -114,7 +114,14 @@ class EventService:
         existing = database.get_event_by_id(event_id)
         if existing is None:
             return 0
-        allowed = {'title', 'start_time', 'end_time', 'description', 'estimated_duration'}
+        allowed = {
+            'event_type',
+            'title',
+            'start_time',
+            'end_time',
+            'description',
+            'estimated_duration',
+        }
         unknown = set(fields) - allowed
         if unknown:
             raise ValueError(f"不允许更新字段: {', '.join(sorted(unknown))}")
@@ -126,9 +133,17 @@ class EventService:
             merged.get('estimated_duration', 0),
         )
         normalized = dict(fields)
+        if 'event_type' in fields:
+            normalized['event_type'] = merged['event_type']
         if 'title' in fields:
             normalized['title'] = title
-        if 'end_time' in fields:
+        if merged['event_type'] == EventType.REMINDER.value and (
+            'event_type' in fields or 'end_time' in fields
+        ):
+            # Type conversion must not retain a stale timespan end.  Passing
+            # None explicitly is part of the database update contract.
+            normalized['end_time'] = None
+        elif 'end_time' in fields:
             normalized['end_time'] = end_time
         if 'description' in fields:
             normalized['description'] = description

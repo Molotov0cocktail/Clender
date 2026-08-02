@@ -36,10 +36,12 @@ class StubEventManager(QWidget):
 
 class StubAIChat(QWidget):
     data_changed = pyqtSignal()
+    external_request_status = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
         self.apply_theme = mock.Mock()
+        self.submit_external_message = mock.Mock(return_value=True)
 
 
 class SignalStub:
@@ -56,12 +58,18 @@ class SignalStub:
 
 class StubFloatingWindow:
     def __init__(self):
+        # Kept only to prove that the Phase 9 MainWindow no longer connects the
+        # floating single-click/read-only-detail path.
         self.event_activated = SignalStub()
+        self.event_edit_requested = SignalStub()
+        self.ai_message_submitted = SignalStub()
         self.geometry_changed = SignalStub()
         self.visibility_change_requested = SignalStub()
         self._visible = False
         self.refresh = mock.Mock()
         self.apply_theme = mock.Mock()
+        self.apply_font_scale = mock.Mock()
+        self.set_ai_request_status = mock.Mock()
         self.shutdown = mock.Mock()
         self.apply_settings = mock.Mock(side_effect=self._apply_settings)
         self.show = mock.Mock(side_effect=lambda: self._set_visible(True))
@@ -176,11 +184,10 @@ class MainWindowFloatingIntegrationTests(unittest.TestCase):
         self.floating.refresh.assert_called_once_with()
         floating_class.assert_called_once_with()
 
-    def test_calendar_and_floating_single_id_open_shared_details(self):
+    def test_calendar_keeps_read_only_detail_but_floating_no_longer_opens_it(self):
         window, _ = self._make_window()
-        first = StubDialog()
-        second = StubDialog()
-        detail_class = mock.Mock(side_effect=[first, second])
+        detail = StubDialog()
+        detail_class = mock.Mock(return_value=detail)
 
         with mock.patch(
             "ui.main_window.EventDetailDialog", detail_class, create=True
@@ -188,10 +195,9 @@ class MainWindowFloatingIntegrationTests(unittest.TestCase):
             window._calendar.event_activated.emit((1,))
             self.floating.event_activated.emit(2)
 
-        self.assertEqual(detail_class.call_args_list[0].args[0].id, 1)
-        self.assertEqual(detail_class.call_args_list[1].args[0].id, 2)
-        first.show.assert_called_once_with()
-        second.show.assert_called_once_with()
+        detail_class.assert_called_once()
+        self.assertEqual(detail_class.call_args.args[0].id, 1)
+        detail.show.assert_called_once_with()
 
     def test_multiple_ids_use_choice_dialog_before_opening_details(self):
         window, _ = self._make_window()

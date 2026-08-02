@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QTextEdit, QTextBrowser, QLineEdit, QFrame,
                              QProgressBar, QMessageBox, QApplication)
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QTextCursor
+from PyQt5.QtGui import QFontMetrics, QTextCursor
 
 import config as cfg_mod
 import theme_manager
@@ -19,12 +19,16 @@ from conversation_store import load_conversations, save_conversations
 from models import Conversation
 from ui.sidebar import ConversationSidebar
 from logger import get_logger
+from typography import app_scale_from_config, qfont_for
 
 _log = get_logger(__name__)
 from ui.ai_settings import SettingsDialog
 
 class AIChatWidget(QFrame):
     data_changed = pyqtSignal()
+    external_request_status = pyqtSignal(str)
+
+    _EXTERNAL_STATUS_LIMIT = 200
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -35,6 +39,7 @@ class AIChatWidget(QFrame):
         self._sidebar_visible = False
         self._think_expanded = {}
         self._pending_conv_id = None
+        self._pending_source = None
 
         if not self._convs:
             c = Conversation.new(title="默认对话")
@@ -64,30 +69,21 @@ class AIChatWidget(QFrame):
         right = QVBoxLayout()
         right.setContentsMargins(0, 0, 0, 0)
         right.setSpacing(3)
-        t = self._t()
 
         title_row = QHBoxLayout()
         self._btn_toggle_sidebar = QPushButton('☰')
-        self._btn_toggle_sidebar.setFixedSize(26, 26)
         self._btn_toggle_sidebar.setToolTip('显示/隐藏对话列表')
         self._btn_toggle_sidebar.clicked.connect(self._toggle_sidebar)
-        self._btn_toggle_sidebar.setStyleSheet(f"""
-            QPushButton{{border:1px solid {t["input_border"]};border-radius:4px;padding:2px 4px;font-size:14px;background:{t["frame_bg"]};color:{t["text_color"]};}}
-            QPushButton:hover{{background:{t["list_item_hover"]};}}
-        """)
 
         self._lbl_conv_title = QLabel('🤖 AI 智能助手')
-        self._lbl_conv_title.setStyleSheet(f'font-size:15px;font-weight:bold;color:{t["title_color"]};')
         title_row.addWidget(self._btn_toggle_sidebar)
         title_row.addWidget(self._lbl_conv_title)
         title_row.addStretch()
         self._btn_settings = QPushButton('⚙')
-        self._btn_settings.setFixedSize(26, 26)
         self._btn_settings.setToolTip('AI设置')
         self._btn_settings.clicked.connect(self._open_settings)
         title_row.addWidget(self._btn_settings)
         self._btn_clear = QPushButton('🗑')
-        self._btn_clear.setFixedSize(26, 26)
         self._btn_clear.setToolTip('清空当前对话')
         self._btn_clear.clicked.connect(self._clear_chat)
         title_row.addWidget(self._btn_clear)
@@ -96,9 +92,6 @@ class AIChatWidget(QFrame):
         self._chat_display = QTextBrowser()
         self._chat_display.setOpenExternalLinks(False)
         self._chat_display.setReadOnly(True)
-        self._chat_display.setStyleSheet(f"""
-            QTextEdit{{border:1px solid {t["frame_border"]};border-radius:6px;background:{t["list_bg"]};font-size:12px;padding:6px;color:{t["text_color"]};}}
-        """)
         right.addWidget(self._chat_display, 1)
 
         # Token 进度条
@@ -108,17 +101,14 @@ class AIChatWidget(QFrame):
         self._token_bar.setRange(0, cfg_mod.load_config().get('context_window', 128000))
         self._token_bar.setValue(0)
         self._token_bar.setTextVisible(True)
-        self._token_bar.setMaximumHeight(14)
         self._token_bar.setFormat('%v / %m')
         token_row.addWidget(QLabel('📊'), 0)
         token_row.addWidget(self._token_bar, 1)
         self._lbl_usage = QLabel('0/0')
-        self._lbl_usage.setStyleSheet(f'font-size:10px; color:{t["subtitle_color"]};')
         token_row.addWidget(self._lbl_usage)
         right.addLayout(token_row)
 
         self._lbl_status = QLabel('')
-        self._lbl_status.setStyleSheet(f'color:{t["subtitle_color"]};font-size:11px;')
         right.addWidget(self._lbl_status)
 
         input_row = QHBoxLayout()
@@ -136,9 +126,8 @@ class AIChatWidget(QFrame):
 
         self._sidebar.refresh(self._convs, self._active_conv.id)
         self._chat_display.anchorClicked.connect(self._on_think_toggle)
-        self._render_conv_messages()
         self._update_send_state()
-        self._update_token_bar()
+        self.apply_theme()
 
     # ──────── 侧栏折叠 ────────
     def _toggle_sidebar(self):
@@ -198,6 +187,7 @@ class AIChatWidget(QFrame):
             self._chat_display.anchorClicked.connect(self._on_think_toggle)
             return
         t = self._t()
+        scale = app_scale_from_config(cfg_mod.load_config())
         for i, msg in enumerate(self._active_conv.messages):
             role = msg.role
             content = msg.content
@@ -222,13 +212,13 @@ class AIChatWidget(QFrame):
                 anchor_name = self._think_anchor_name(think_idx)
                 if is_expanded:
                     header = f'<p><b style="color:{t["warning_text"]}">💭 思考 {time_str}</b> '
-                    header += f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:11px;">收起 ▲</a></p>'
+                    header += f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:{scale.caption_px}px;">收起 ▲</a></p>'
                     body = f'<p style="color:{t["subtitle_color"]}; margin-left:10px; font-style:italic;">{self._esc(content)}</p>'
                 else:
                     short_preview = content[:100].replace('\n', ' ') + ('…' if len(content) > 100 else '')
                     header = f'<p><b style="color:{t["warning_text"]}">💭 思考 {time_str} ({len(content)}字)</b> '
-                    header += f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:11px;">展开 ▼</a></p>'
-                    body = f'<p style="color:{t["muted_color"]}; margin-left:10px; font-size:11px;">💡 {self._esc(short_preview)}</p>'
+                    header += f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:{scale.caption_px}px;">展开 ▼</a></p>'
+                    body = f'<p style="color:{t["muted_color"]}; margin-left:10px; font-size:{scale.caption_px}px;">💡 {self._esc(short_preview)}</p>'
             else:
                 continue
             self._chat_display.insertHtml(header + body + '<hr style="border:0;height:1px;background:#30363d;">')
@@ -294,20 +284,67 @@ class AIChatWidget(QFrame):
         a = chr(38)
         return text.replace('&', a + 'amp;').replace('<', a + 'lt;').replace('>', a + 'gt;').replace('\n', '<br>')
 
+    def submit_external_message(self, text: str) -> bool:
+        """Submit text through the active main conversation without duplicating AI state."""
+        return self._submit_message(text, source="external")
+
     def _send_message(self):
-        txt = self._edit_input.text().strip()
-        if not txt or self._active_conv is None:
-            return
+        return self._submit_message(self._edit_input.text(), source="main")
+
+    def _request_in_flight(self) -> bool:
+        if self._pending_conv_id is not None:
+            return True
+        thread = self._ai_thread
+        is_running = getattr(thread, "isRunning", None) if thread is not None else None
+        if callable(is_running):
+            try:
+                return bool(is_running())
+            except (RuntimeError, TypeError):
+                return False
+        return False
+
+    @classmethod
+    def _bounded_external_error(cls, error) -> str:
+        text = str(error).replace("\r", " ").replace("\n", " ").strip()
+        if not text:
+            text = "AI 请求失败"
+        http_error = re.match(r"API错误\(([0-9]{3})\)", text)
+        if http_error is not None:
+            text = http_error.group(0)
+        elif text.startswith("AI调用异常"):
+            text = "AI 调用失败"
+        prefix = "error:"
+        return prefix + text[:cls._EXTERNAL_STATUS_LIMIT - len(prefix)]
+
+    def _reject_submission(self, source: str, message: str) -> bool:
+        if source == "external":
+            self.external_request_status.emit(self._bounded_external_error(message))
+        return False
+
+    def _submit_message(self, text: str, source: str) -> bool:
+        if source not in ("main", "external"):
+            raise ValueError("未知的 AI 请求来源")
+        if not isinstance(text, str) or not text.strip():
+            return self._reject_submission(source, "请输入内容")
+        if self._active_conv is None:
+            return self._reject_submission(source, "当前没有可用对话")
+        if self._request_in_flight():
+            return self._reject_submission(source, "AI 请求正在处理中")
         if not cfg_mod.is_api_configured():
-            QMessageBox.warning(self, '未配置', '请先在设置中配置API地址和密钥')
-            return
-        self._edit_input.clear()
+            if source == "main":
+                QMessageBox.warning(self, '未配置', '请先在设置中配置API地址和密钥')
+            return self._reject_submission(source, "请先配置 API 地址和密钥")
+
+        txt = text.strip()
+        if source == "main":
+            self._edit_input.clear()
         self._edit_input.setEnabled(False)
         self._btn_send.setEnabled(False)
         self._lbl_status.setText('⏳ AI思考中...')
 
-        self._active_conv.add_message('user', txt)
-        self._recalculate_token_count(self._active_conv)
+        conversation = self._active_conv
+        conversation.add_message('user', txt)
+        self._recalculate_token_count(conversation)
         self._chat_display.clear()
         self._render_conv_messages()
         save_conversations(self._convs)
@@ -315,19 +352,33 @@ class AIChatWidget(QFrame):
 
         cfg = cfg_mod.load_config()
         messages = AIService.build_request_messages(
-            self._active_conv,
+            conversation,
             context_window=cfg.get('context_window', 128000),
             max_output_tokens=cfg.get('max_tokens', 4096),
         )
-        self._pending_conv_id = self._active_conv.id
+        self._pending_conv_id = conversation.id
+        self._pending_source = source
         self._ai_thread = AICallThread(messages=messages)
         self._ai_thread.result_ready.connect(self._on_result)
         self._ai_thread.error_occurred.connect(self._on_error)
+        self.external_request_status.emit("working")
         self._ai_thread.start()
+        return True
+
+    def _finish_request(self):
+        self._pending_conv_id = None
+        self._pending_source = None
+        configured = cfg_mod.is_api_configured()
+        self._edit_input.setEnabled(configured)
+        self._btn_send.setEnabled(configured)
+        if configured:
+            self._edit_input.setFocus()
 
     def _on_result(self, parsed: dict):
+        if self._pending_conv_id is None:
+            return
         self._lbl_status.setText('')
-        conv = self._convs.get(self._pending_conv_id) or self._active_conv
+        conv = self._convs.get(self._pending_conv_id)
         if conv is None:
             self._on_error('对应对话已不存在')
             return
@@ -385,14 +436,14 @@ class AIChatWidget(QFrame):
 
         if has_change:
             self.data_changed.emit()
-        self._edit_input.setEnabled(True)
-        self._btn_send.setEnabled(True)
-        self._edit_input.setFocus()
-        self._pending_conv_id = None
+        self.external_request_status.emit("changed" if has_change else "unchanged")
+        self._finish_request()
 
     def _on_error(self, err: str):
+        if self._pending_conv_id is None:
+            return
         self._lbl_status.setText('')
-        conv = self._convs.get(self._pending_conv_id) or self._active_conv
+        conv = self._convs.get(self._pending_conv_id)
         if conv is not None:
             conv.add_message('assistant', f'❌ 错误: {err}')
             self._recalculate_token_count(conv)
@@ -400,9 +451,8 @@ class AIChatWidget(QFrame):
             self._chat_display.clear()
             self._render_conv_messages()
         save_conversations(self._convs)
-        self._edit_input.setEnabled(True)
-        self._btn_send.setEnabled(True)
-        self._pending_conv_id = None
+        self.external_request_status.emit(self._bounded_external_error(err))
+        self._finish_request()
 
     @staticmethod
     def _recalculate_token_count(conv: Conversation) -> None:
@@ -422,6 +472,7 @@ class AIChatWidget(QFrame):
         pct = f'{used/total*100:.1f}%' if total else '0%'
         self._lbl_usage.setText(f'{used}/{total} ({pct})')
         t = self._t()
+        scale = app_scale_from_config(cfg_mod.load_config())
         ratio = used / max(total, 1)
         if ratio > 0.8:
             chunk = '#e74c3c'
@@ -429,16 +480,27 @@ class AIChatWidget(QFrame):
             chunk = '#d29922'
         else:
             chunk = '#3fb950'
+        token_height = max(
+            14,
+            QFontMetrics(qfont_for(scale, 'caption')).height() + 4,
+        )
+        self._token_bar.setFixedHeight(token_height)
         self._token_bar.setStyleSheet(f"""
-            QProgressBar{{border:1px solid {t["frame_border"]};border-radius:3px;background:{t["list_bg"]};text-align:center;font-size:10px;color:{t["text_color"]};}}
+            QProgressBar{{border:1px solid {t["frame_border"]};border-radius:3px;background:{t["list_bg"]};text-align:center;font-size:{scale.caption_px}px;color:{t["text_color"]};}}
             QProgressBar::chunk{{background:{chunk};border-radius:2px;}}
         """)
 
     def _update_send_state(self):
         ok = cfg_mod.is_api_configured()
-        self._btn_send.setEnabled(ok)
-        self._edit_input.setEnabled(ok)
-        self._lbl_status.setText('⚠️ 请先配置API' if not ok else '✅ 可以开始对话')
+        busy = self._request_in_flight()
+        self._btn_send.setEnabled(ok and not busy)
+        self._edit_input.setEnabled(ok and not busy)
+        if not ok:
+            self._lbl_status.setText('⚠️ 请先配置API')
+        elif busy:
+            self._lbl_status.setText('⏳ AI思考中...')
+        else:
+            self._lbl_status.setText('✅ 可以开始对话')
 
     def _open_settings(self):
         dlg = SettingsDialog(self)
@@ -469,22 +531,36 @@ class AIChatWidget(QFrame):
 
     def apply_theme(self):
         t = self._t()
+        scale = app_scale_from_config(cfg_mod.load_config())
         self.setStyleSheet(f'AIChatWidget{{background:{t["frame_bg"]};border-radius:8px;}}')
-        self._lbl_conv_title.setStyleSheet(f'font-size:15px;font-weight:bold;color:{t["title_color"]};')
+        self._lbl_conv_title.setStyleSheet(
+            f'font-size:{scale.section_title_px}px;font-weight:bold;'
+            f'color:{t["title_color"]};'
+        )
         self._chat_display.setStyleSheet(f"""
-            QTextEdit{{border:1px solid {t["frame_border"]};border-radius:6px;background:{t["list_bg"]};font-size:12px;padding:6px;color:{t["text_color"]};}}
+            QTextEdit{{border:1px solid {t["frame_border"]};border-radius:6px;background:{t["list_bg"]};font-size:{scale.body_px}px;padding:6px;color:{t["text_color"]};}}
         """)
-        self._lbl_status.setStyleSheet(f'color:{t["subtitle_color"]};font-size:11px;')
+        self._lbl_usage.setStyleSheet(
+            f'font-size:{scale.caption_px}px;color:{t["subtitle_color"]};'
+        )
+        self._lbl_status.setStyleSheet(
+            f'color:{t["subtitle_color"]};font-size:{scale.secondary_px}px;'
+        )
         self._edit_input.setStyleSheet(f'''
-            QLineEdit{{padding:6px;font-size:12px;border:1px solid {t["input_border"]};border-radius:6px;background:{t["input_bg"]};color:{t["text_color"]};}}
+            QLineEdit{{padding:6px;font-size:{scale.control_px}px;border:1px solid {t["input_border"]};border-radius:6px;background:{t["input_bg"]};color:{t["text_color"]};}}
         ''')
         self._btn_send.setStyleSheet(f"""
-            QPushButton{{background:{t["primary"]};color:{t["primary_text"]};border:none;border-radius:5px;padding:6px 16px;font-size:12px;font-weight:bold;}}
+            QPushButton{{background:{t["primary"]};color:{t["primary_text"]};border:none;border-radius:5px;padding:6px 16px;font-size:{scale.control_px}px;font-weight:bold;}}
             QPushButton:hover{{background:{t["primary_hover"]};}} QPushButton:disabled{{background:{t["muted_color"]};}}
         """)
+        control_extent = max(
+            26,
+            QFontMetrics(qfont_for(scale, 'control')).height() + 8,
+        )
         for btn in (self._btn_settings, self._btn_clear, self._btn_toggle_sidebar):
+            btn.setFixedSize(control_extent, control_extent)
             btn.setStyleSheet(f"""
-                QPushButton{{border:1px solid {t["input_border"]};border-radius:4px;padding:2px 4px;font-size:13px;background:{t["frame_bg"]};color:{t["text_color"]};}}
+                QPushButton{{border:1px solid {t["input_border"]};border-radius:4px;padding:2px 4px;font-size:{scale.control_px}px;background:{t["frame_bg"]};color:{t["text_color"]};}}
                 QPushButton:hover{{background:{t["list_item_hover"]};}}
             """)
         self._sidebar.apply_theme()

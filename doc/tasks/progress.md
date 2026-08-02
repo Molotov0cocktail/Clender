@@ -253,3 +253,57 @@ Before (巨石架构):                  After (分层架构):
 ### 下一步
 
 - 最终文档复核后再次执行完整构建/隔离双实例冒烟，配置指定全局 Git 代理，完成 staged 安全检查和提交；提交哈希由最终报告给出。
+
+---
+
+## Phase 9：悬浮快捷对话、双字号与日历间距（2026-08-02）
+
+输入文档：`doc/floating-ai-typography-proposal.md`、`doc/floating-ai-typography-high-level-design.md`、`doc/floating-ai-typography-detailed-design.md`、`doc/prompt.md`
+
+| 任务 ID | 任务名称 | 状态 | 依赖 |
+|---|---|---|---|
+| T30 | Phase 9 规划、决策与测试矩阵 | ✅ 已完成 | 无 |
+| T31 | 双字号配置与集中 typography 基础 | ✅ 已完成 | T30 |
+| T32 | 全 UI 字号迁移与遗漏静态门禁 | ✅ 已完成 | T31 |
+| T33 | 周/日时间轴动态 gutter 与间距 | ✅ 已完成 | T31 |
+| T34 | 无边框悬浮壳、拖缩、置底/置顶与时态高亮 | ✅ 已完成 | T31 |
+| T35 | 悬浮事项双击编辑与类型转换 | ✅ 已完成 | T34 |
+| T36 | 悬浮 AI 与主页面当前对话桥接 | ✅ 已完成 | T34 |
+| T37 | 集成、视觉、构建、exe 冒烟与安全提交 | ✅ 已完成 | T31–T36 |
+
+### 已确认决策
+
+- 去除悬浮窗原生标题栏和内部日期标题，保留自定义拖动与边缘/四角缩放。
+- 默认沉在所有普通窗口底层；置顶仅是当前进程状态，不跨重启持久化。
+- 悬浮 AI 写入主页面当前对话历史，复用同一预算、QThread、解析、执行和持久化流程；悬浮窗不显示模型正文。
+- AI 删除和批量操作不增加确认。
+- 单击事项可参与拖动，双击直接编辑；支持 reminder/timespan 类型真实转换。
+- 应用字号与悬浮字号分别为 8–20px；集中角色和静态扫描用于防止遗漏、错改与重复定义。
+- 时间标签按字体度量，和网格/事项至少间隔 8px；保持 30px 每小时。
+- 透明度允许真实 0%；用户既有暂存 CI 改动不纳入本轮提交。
+
+### 当前状态
+
+- 修改前全量基线：89/89 通过。
+- 三个只读审查 subagent 已完成并返回文件触点、风险和测试建议。
+- 所有阻塞性产品决策已由用户确认。
+- Phase 9 三层设计、T30–T37 任务文件和控制提示已完成；生产实现按文件所有权分三批集成。
+- 三个 subagent 分别完成 typography/Canvas、悬浮/AI、测试/服务层的失败用例、实现或独立复核；主 agent 完成桥接审查、发布验证和文档同步。
+- 旧实现失败证据：typography 10 项为 2 failure/8 error；Canvas 动态 gutter 产生 10 个失败子用例；悬浮 logic/interaction 17 项为 8 failure/6 error；编辑/AI 13 项为 6 failure/8 error；Phase 8 兼容测试迁移产生 10 个预期 failure、0 个无关 error。
+- 首轮整套红灯共运行 129 项，26 failure/22 error；既有 89 项基线路径保持绿色，未发现真实配置、数据库或网络隔离污染。
+- Phase 8 旧断言迁移后整套红灯仍为 129 项，最终 36 failure/22 error，所有新增/迁移失败均对应待实现契约。
+- 第一实现批次并行分配 T31 typography 基础、T35 EventService 类型转换基础、T36 AIChatWidget 外部提交基础；文件边界互不重叠。
+- 第一批主审：typography/设置、类型转换、外部 AI、DB/AI/config/单实例共 52/52 通过；T31 完成，T35/T36 基础完成待 UI 接线。
+- 第二批按文件所有权并行：T32 处理 AI/事项/侧栏字号，T33 处理 calendar/canvas 字号与 gutter，T34 处理 floating/app opacity/独立悬浮字号和交互。
+- 主窗口已完成悬浮双击编辑、当前主 Conversation AI 提交和短状态 bridge；成功数据变更只统一刷新一次。
+- 独立审查发现全局 `QLineEdit` QSS 覆盖悬浮输入字号；新增 8/20 与 20/8 双向真实控件回归，旧实现两个子用例失败，局部 objectName QSS 修复后通过。
+- 主页面发起 AI 时的悬浮 busy 状态补充测试在旧实现为 2 failure/1 error；修复后主/悬浮两个入口共享 busy、完成和受限错误状态。
+- 最终 133/133 unittest、全模块导入、`build.py --check`、静态字号门禁和 `git diff --check` 通过。
+- Light/Dark × 8/20px 的周、日、悬浮共 12 张源截图与 4 张联系表人工复核通过；时间轴与事项至少 8px，current/next 和底部快捷输入可辨。
+- 最终 PyInstaller 生成 45,555,401-byte exe，SHA-256 `4093EFFB380165A836815A1C47C024CD81E7DDBCFB5E2976909EE9C9DBBD5854`；隔离首实例存活、次实例退出码 0，最终无进程/临时目录残留。
+- `dist/data` 构建与冒烟前后均为 5 文件、262248 字节、组合摘要 `9213D0AAC7AB2CFDA41AE4EB527E2F96ED677493155C06B2B724579D7DD9ADD6`。
+- 用户预存 staged `.github/workflows/test.yml` 保持原样并从本轮路径限定提交中排除；提交哈希见最终交付报告。
+
+### 最终状态
+
+✅ T30–T37 全部完成。仅保留 Windows 可见桌面下的真正 0% 透明度恢复、置顶/置底、无边框多屏/DPI 拖缩人工风险，以及 current/next 60 秒巡检可能带来的边界延迟。

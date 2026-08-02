@@ -16,8 +16,9 @@ from logger import get_logger
 _log = get_logger(__name__)
 
 # update_event 允许的字段白名单
-_ALLOWED_UPDATE_FIELDS = frozenset({'title', 'start_time', 'end_time',
-                                     'description', 'estimated_duration'})
+_ALLOWED_UPDATE_FIELDS = frozenset({'event_type', 'title', 'start_time',
+                                     'end_time', 'description',
+                                     'estimated_duration'})
 
 
 def get_connection():
@@ -77,7 +78,8 @@ def add_event(event_type: str, title: str, start_time: str,
 def update_event(event_id: int, **fields) -> int:
     """更新事件字段，返回受影响行数
     
-    仅允许更新白名单内的字段：title, start_time, end_time, description, estimated_duration。
+    仅允许更新白名单内的字段：event_type, title, start_time, end_time,
+    description, estimated_duration。
     未知字段名将被静默过滤。
     """
     safe_fields = {

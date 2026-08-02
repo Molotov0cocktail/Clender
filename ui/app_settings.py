@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSlider,
+    QSpinBox,
     QTimeEdit,
     QVBoxLayout,
 )
@@ -16,6 +17,12 @@ from PyQt5.QtWidgets import (
 import config as cfg_mod
 import theme_manager
 from floating_window_logic import FloatingWindowSettings
+from typography import (
+    MAX_FONT_PX,
+    MIN_FONT_PX,
+    app_scale_from_config,
+    floating_scale_from_config,
+)
 
 
 class AppSettingsDialog(QDialog):
@@ -53,9 +60,30 @@ class AppSettingsDialog(QDialog):
         layout.addWidget(self._chk_floating_enabled)
 
         form = QFormLayout()
+        app_scale = app_scale_from_config(self._config)
+        floating_scale = floating_scale_from_config(self._config)
+        self._app_font_slider, self._app_font_spin, app_font_row = (
+            self._make_font_size_row(
+                app_scale.body_px,
+                "appFontSlider",
+                "appFontSpin",
+            )
+        )
+        form.addRow("应用字号：", app_font_row)
+        (
+            self._floating_font_slider,
+            self._floating_font_spin,
+            floating_font_row,
+        ) = self._make_font_size_row(
+            floating_scale.body_px,
+            "floatingFontSlider",
+            "floatingFontSpin",
+        )
+        form.addRow("悬浮窗字号：", floating_font_row)
+
         opacity_row = QHBoxLayout()
         self._opacity_slider = QSlider(Qt.Horizontal)
-        self._opacity_slider.setRange(30, 100)
+        self._opacity_slider.setRange(0, 100)
         self._opacity_slider.setValue(floating.opacity_percent)
         self._lbl_opacity = QLabel(f"{floating.opacity_percent}%")
         self._opacity_slider.valueChanged.connect(
@@ -97,6 +125,29 @@ class AppSettingsDialog(QDialog):
         self._btn_save.clicked.connect(self._save)
         layout.addWidget(self._btn_save)
 
+    @staticmethod
+    def _make_font_size_row(value, slider_name, spin_name):
+        slider = QSlider(Qt.Horizontal)
+        slider.setObjectName(slider_name)
+        slider.setRange(MIN_FONT_PX, MAX_FONT_PX)
+        slider.setSingleStep(1)
+        slider.setValue(value)
+
+        spin = QSpinBox()
+        spin.setObjectName(spin_name)
+        spin.setRange(MIN_FONT_PX, MAX_FONT_PX)
+        spin.setSingleStep(1)
+        spin.setSuffix(" px")
+        spin.setValue(value)
+
+        slider.valueChanged.connect(spin.setValue)
+        spin.valueChanged.connect(slider.setValue)
+
+        row = QHBoxLayout()
+        row.addWidget(slider, 1)
+        row.addWidget(spin)
+        return slider, spin, row
+
     def _save(self):
         start = self._start_time.time()
         end = self._end_time.time()
@@ -107,6 +158,8 @@ class AppSettingsDialog(QDialog):
         updated = cfg_mod.load_config()
         updated.update({
             "close_to_tray": self._chk_close_to_tray.isChecked(),
+            "app_font_size_px": self._app_font_spin.value(),
+            "floating_font_size_px": self._floating_font_spin.value(),
             "floating_window_enabled": self._chk_floating_enabled.isChecked(),
             "floating_window_opacity": self._opacity_slider.value(),
             "floating_window_start_time": start.toString("HH:mm"),
@@ -123,11 +176,13 @@ class AppSettingsDialog(QDialog):
 
     def apply_theme(self):
         theme = theme_manager.get_current_theme()
+        scale = app_scale_from_config(self._config)
         self.setStyleSheet(f'''
             QDialog {{ background: {theme["frame_bg"]}; color: {theme["text_color"]}; }}
             QLabel, QCheckBox {{ color: {theme["text_color"]}; }}
             QLabel#settingsTitle {{
-                color: {theme["title_color"]}; font-size: 16px; font-weight: bold;
+                color: {theme["title_color"]};
+                font-size: {scale.section_title_px}px; font-weight: bold;
             }}
             QPushButton {{
                 background: {theme["primary"]}; color: {theme["primary_text"]};

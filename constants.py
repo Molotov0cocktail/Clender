@@ -54,6 +54,8 @@ DEFAULT_CONFIG = {
     "system_prompt": "",
     "ai_personality": "",
     "close_to_tray": False,
+    "app_font_size_px": 13,
+    "floating_font_size_px": 13,
     "floating_window_enabled": False,
     "floating_window_opacity": 90,
     "floating_window_start_time": "08:00",

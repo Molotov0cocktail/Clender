@@ -56,7 +56,7 @@ class FloatingWindowUITests(unittest.TestCase):
             estimated_duration=25,
         )
 
-    def test_window_applies_opacity_lists_events_and_emits_clicked_id(self):
+    def test_window_applies_opacity_lists_events_and_uses_phase9_activation_contract(self):
         events = [
             self._event(1, "晨会", "2026-08-02 09:00"),
             self._event(2, "开发", "2026-08-02 10:00", "2026-08-02 12:00"),
@@ -71,7 +71,13 @@ class FloatingWindowUITests(unittest.TestCase):
         self.assertAlmostEqual(window.windowOpacity(), 0.65, places=2)
         self.assertTrue(window.isVisible())
         self.assertTrue(window.windowFlags() & Qt.Tool)
-        self.assertTrue(window.windowFlags() & Qt.WindowStaysOnTopHint)
+        flags = window.windowFlags()
+        with self.subTest(flag="frameless"):
+            self.assertTrue(flags & Qt.FramelessWindowHint)
+        with self.subTest(flag="bottom"):
+            self.assertTrue(flags & Qt.WindowStaysOnBottomHint)
+        with self.subTest(flag="not-top"):
+            self.assertFalse(flags & Qt.WindowStaysOnTopHint)
         self.assertEqual(window._event_list.count(), 2)
         self.assertIn("09:00", window._event_list.item(0).text())
         self.assertEqual(window._event_list.item(0).data(Qt.UserRole), 1)
@@ -80,10 +86,22 @@ class FloatingWindowUITests(unittest.TestCase):
             mock.ANY,
         )
 
-        activated = []
-        window.event_activated.connect(activated.append)
+        legacy_activations = []
+        if hasattr(window, "event_activated"):
+            window.event_activated.connect(legacy_activations.append)
+        edit_requests = []
+        has_edit_signal = hasattr(window, "event_edit_requested")
+        with self.subTest(contract="double-click-edit-signal"):
+            self.assertTrue(has_edit_signal)
+        if has_edit_signal:
+            window.event_edit_requested.connect(edit_requests.append)
         window._event_list.itemClicked.emit(window._event_list.item(1))
-        self.assertEqual(activated, [2])
+        with self.subTest(contract="single-click-does-not-open"):
+            self.assertEqual(legacy_activations, [])
+            self.assertEqual(edit_requests, [])
+        if has_edit_signal:
+            window._event_list.itemDoubleClicked.emit(window._event_list.item(1))
+            self.assertEqual(edit_requests, [2])
 
     def test_disabled_window_hides_without_querying_and_shows_empty_state(self):
         window = DailyFloatingWindow()
@@ -189,6 +207,8 @@ class FloatingWindowUITests(unittest.TestCase):
             "floating_window_start_time": "08:00",
             "floating_window_end_time": "22:00",
             "floating_window_geometry": None,
+            "app_font_size_px": 13,
+            "floating_font_size_px": 13,
         }
         with mock.patch(
             "ui.app_settings.cfg_mod.load_config", return_value=dict(base_config)
@@ -215,37 +235,63 @@ class FloatingWindowUITests(unittest.TestCase):
             self.assertEqual(saved, [])
             self.assertTrue(dialog.isVisible())
 
-    def test_app_settings_success_emits_complete_config_and_preserves_geometry(self):
-        base_config = {
-            "theme": "dark",
-            "api_key": "",
-            "close_to_tray": False,
-            "floating_window_enabled": False,
-            "floating_window_opacity": 90,
-            "floating_window_start_time": "08:00",
-            "floating_window_end_time": "22:00",
-            "floating_window_geometry": [10, 20, 320, 400],
-        }
-        with mock.patch(
-            "ui.app_settings.cfg_mod.load_config", return_value=dict(base_config)
-        ), mock.patch("ui.app_settings.cfg_mod.save_config") as save_config:
-            dialog = AppSettingsDialog()
-            self.addCleanup(dialog.close)
-            saved = []
-            dialog.config_saved.connect(saved.append)
-            dialog._chk_close_to_tray.setChecked(True)
-            dialog._chk_floating_enabled.setChecked(True)
-            dialog._opacity_slider.setValue(40)
-            dialog._start_time.setTime(QTime(7, 30))
-            dialog._end_time.setTime(QTime(19, 15))
-            dialog._save()
+    def test_app_settings_success_emits_complete_phase9_config_at_opacity_boundaries(self):
+        for opacity in (0, 100):
+            with self.subTest(opacity=opacity):
+                base_config = {
+                    "theme": "dark",
+                    "api_key": "",
+                    "close_to_tray": False,
+                    "floating_window_enabled": False,
+                    "floating_window_opacity": 90,
+                    "floating_window_start_time": "08:00",
+                    "floating_window_end_time": "22:00",
+                    "floating_window_geometry": [10, 20, 320, 400],
+                    "app_font_size_px": 13,
+                    "floating_font_size_px": 13,
+                }
+                with mock.patch(
+                    "ui.app_settings.cfg_mod.load_config",
+                    return_value=dict(base_config),
+                ), mock.patch("ui.app_settings.cfg_mod.save_config") as save_config:
+                    dialog = AppSettingsDialog()
+                    self.addCleanup(dialog.close)
+                    saved = []
+                    dialog.config_saved.connect(saved.append)
+                    opacity_range = (
+                        dialog._opacity_slider.minimum(),
+                        dialog._opacity_slider.maximum(),
+                    )
+                    with self.subTest(contract="opacity-range"):
+                        self.assertEqual(opacity_range, (0, 100))
+                    missing_font_controls = [
+                        name
+                        for name in ("_app_font_spin", "_floating_font_spin")
+                        if not hasattr(dialog, name)
+                    ]
+                    with self.subTest(contract="font-controls"):
+                        self.assertEqual(missing_font_controls, [])
+                    if opacity_range != (0, 100) or missing_font_controls:
+                        continue
+                    dialog._chk_close_to_tray.setChecked(True)
+                    dialog._chk_floating_enabled.setChecked(True)
+                    dialog._opacity_slider.setValue(opacity)
+                    dialog._app_font_spin.setValue(8)
+                    dialog._floating_font_spin.setValue(20)
+                    dialog._start_time.setTime(QTime(7, 30))
+                    dialog._end_time.setTime(QTime(19, 15))
+                    dialog._save()
 
-        self.assertEqual(len(saved), 1)
-        self.assertEqual(saved[0]["floating_window_opacity"], 40)
-        self.assertEqual(saved[0]["floating_window_start_time"], "07:30")
-        self.assertEqual(saved[0]["floating_window_end_time"], "19:15")
-        self.assertEqual(saved[0]["floating_window_geometry"], [10, 20, 320, 400])
-        save_config.assert_called_once_with(saved[0])
+                self.assertEqual(len(saved), 1)
+                self.assertEqual(saved[0]["floating_window_opacity"], opacity)
+                self.assertEqual(saved[0]["app_font_size_px"], 8)
+                self.assertEqual(saved[0]["floating_font_size_px"], 20)
+                self.assertEqual(saved[0]["floating_window_start_time"], "07:30")
+                self.assertEqual(saved[0]["floating_window_end_time"], "19:15")
+                self.assertEqual(
+                    saved[0]["floating_window_geometry"], [10, 20, 320, 400]
+                )
+                save_config.assert_called_once_with(saved[0])
 
 
 if __name__ == "__main__":
