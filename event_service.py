@@ -27,6 +27,15 @@ class EventService:
         return database.get_events_date_range(start, end)
 
     @staticmethod
+    def get_events_overlapping_range(start: datetime, end: datetime) -> list[Event]:
+        """获取与半开时间区间 ``[start, end)`` 相交的事件。"""
+        if not isinstance(start, datetime) or not isinstance(end, datetime):
+            raise TypeError("start 和 end 必须是 datetime")
+        if end <= start:
+            raise ValueError("end 必须晚于 start")
+        return database.get_events_overlapping_range(start, end)
+
+    @staticmethod
     def get_all_events() -> list:
         """获取所有事件"""
         return database.get_all_events()

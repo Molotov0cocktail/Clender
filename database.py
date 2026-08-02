@@ -5,7 +5,7 @@ init_db() 需显式调用，不在模块导入时自动执行
 """
 import sqlite3
 from contextlib import closing
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, List
 import os
 
@@ -135,6 +135,32 @@ def get_events_date_range(start_date: date, end_date: date) -> List[Event]:
         cursor.execute(
             'SELECT * FROM events WHERE start_time >= ? AND start_time <= ? ORDER BY start_time ASC',
             (start_date.isoformat() + ' 00:00', end_date.isoformat() + ' 23:59')
+        )
+        rows = cursor.fetchall()
+    return [Event.from_row(dict(row)) for row in rows]
+
+
+def get_events_overlapping_range(start: datetime, end: datetime) -> List[Event]:
+    """Return events intersecting the half-open datetime range ``[start, end)``."""
+    start_text = start.strftime('%Y-%m-%d %H:%M')
+    end_text = end.strftime('%Y-%m-%d %H:%M')
+    with closing(get_connection()) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            '''
+            SELECT * FROM events
+            WHERE (
+                event_type = 'reminder'
+                AND start_time >= ?
+                AND start_time < ?
+            ) OR (
+                event_type = 'timespan'
+                AND start_time < ?
+                AND end_time > ?
+            )
+            ORDER BY start_time ASC, id ASC
+            ''',
+            (start_text, end_text, end_text, start_text),
         )
         rows = cursor.fetchall()
     return [Event.from_row(dict(row)) for row in rows]

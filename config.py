@@ -8,7 +8,6 @@ import sys
 import tempfile
 from constants import DEFAULT_CONFIG
 from logger import get_logger
-import secret_store
 
 _log = get_logger(__name__)
 
@@ -51,26 +50,14 @@ def _write_config_file(config: dict) -> None:
 
 
 def load_config():
-    """Load non-secret JSON config and inject the API key at runtime."""
+    """Load the JSON config and merge it with application defaults."""
     cfg_data = {}
-    legacy_key = ""
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 cfg_data = json.load(f)
             if not isinstance(cfg_data, dict):
                 raise ValueError("配置根节点必须是对象")
-
-            # One-time migration: scrub legacy plaintext regardless of backend result.
-            had_legacy_key = "api_key" in cfg_data
-            legacy_key = str(cfg_data.pop("api_key", "") or "").strip()
-            if legacy_key:
-                try:
-                    secret_store.set_api_key(legacy_key)
-                except secret_store.SecretStoreError as exc:
-                    _log.error("旧 API Key 无法迁移到安全存储，已从 JSON 清除: %s", exc)
-            if had_legacy_key:
-                _write_config_file(cfg_data)
         except (json.JSONDecodeError, IOError) as e:
             _log.warning(f"配置加载失败: {e}")
             cfg_data = {}
@@ -80,16 +67,12 @@ def load_config():
 
     merged = DEFAULT_CONFIG.copy()
     merged.update(cfg_data)
-    merged["api_key"] = legacy_key or secret_store.get_api_key()
     return merged
 
 
 def save_config(config: dict):
-    """Persist config while keeping the API key outside JSON."""
-    sanitized = dict(config)
-    if "api_key" in sanitized:
-        secret_store.set_api_key(str(sanitized.pop("api_key") or ""))
-    _write_config_file(sanitized)
+    """Atomically persist the complete config, including the API key."""
+    _write_config_file(dict(config))
 
 
 def is_api_configured():

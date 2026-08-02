@@ -17,6 +17,7 @@ from calendar_logic import build_week_blocks, build_day_blocks
 class CalendarWidget(QFrame):
 
     date_selected = pyqtSignal(date)
+    event_activated = pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -26,6 +27,7 @@ class CalendarWidget(QFrame):
         self._selected_date = date.today()
         self._view_mode = 'month'
         self._event_dates = {}
+        self._active_canvas = None
         self._init_ui()
 
     def _t(self): return theme_manager.get_current_theme()
@@ -83,6 +85,7 @@ class CalendarWidget(QFrame):
         self._clear_content();self._render_view()
 
     def _clear_content(self):
+        self._active_canvas = None
         while self._content_layout.count():
             item=self._content_layout.takeAt(0)
             if item is not None:
@@ -162,7 +165,8 @@ class CalendarWidget(QFrame):
         container=QVBoxLayout()
         # 列标题
         hdr_row=QHBoxLayout();hdr_row.setSpacing(2)
-        hdr_row.addWidget(QLabel(''))
+        time_spacer=QLabel('');time_spacer.setFixedWidth(30)
+        hdr_row.addWidget(time_spacer)
         for ci in range(7):
             cd=ws+timedelta(days=ci)
             wdn=['一','二','三','四','五','六','日'][ci]
@@ -183,6 +187,8 @@ class CalendarWidget(QFrame):
 
         # ── Canvas 绘制（使用 ui/canvas.py 中的 WeekCanvas）──
         canvas = WeekCanvas(blocks, timeline_height, per_hour, t)
+        canvas.event_activated.connect(self.event_activated.emit)
+        self._active_canvas = canvas
         container.addWidget(canvas)
         self._content_layout.addLayout(container)
         self._content_layout.addStretch()
@@ -205,6 +211,8 @@ class CalendarWidget(QFrame):
 
         # ── Canvas 绘制（使用 ui/canvas.py 中的 DayCanvas）──
         canvas = DayCanvas(blocks, timeline_height, per_hour, t)
+        canvas.event_activated.connect(self.event_activated.emit)
+        self._active_canvas = canvas
         container.addWidget(canvas)
         self._content_layout.addLayout(container)
         self._content_layout.addStretch()

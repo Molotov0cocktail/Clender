@@ -2,6 +2,7 @@
 AI 对话主组件 - 聊天界面、对话管理、消息收发
 从 ai_chat.py 提取为独立 UI 组件
 """
+import re
 from datetime import datetime
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -182,7 +183,12 @@ class AIChatWidget(QFrame):
             save_conversations(self._convs)
             self._sidebar.refresh(self._convs, self._active_conv.id if self._active_conv else None)
 
-    def _render_conv_messages(self):
+    def _render_conv_messages(self, scroll_mode="bottom", anchor=None):
+        scroll_bar = self._chat_display.verticalScrollBar()
+        previous_scroll = scroll_bar.value() if scroll_bar is not None else 0
+        previous_anchor_y = None
+        if scroll_mode == "preserve" and anchor:
+            previous_anchor_y = self._anchor_document_y(anchor)
         try:
             self._chat_display.anchorClicked.disconnect(self._on_think_toggle)
         except TypeError:
@@ -211,32 +217,77 @@ class AIChatWidget(QFrame):
                 body = f'<p style="color:{t["text_color"]}; margin-left:10px;">{self._esc(content)}</p>'
             elif role == 'think':
                 think_idx = sum(1 for m in self._active_conv.messages[:i] if m.role == 'think')
-                is_expanded = self._think_expanded.get(think_idx, False)
+                expansion_key = (self._active_conv.id, think_idx)
+                is_expanded = self._think_expanded.get(expansion_key, False)
+                anchor_name = self._think_anchor_name(think_idx)
                 if is_expanded:
                     header = f'<p><b style="color:{t["warning_text"]}">💭 思考 {time_str}</b> '
-                    header += f'<a href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:11px;">收起 ▲</a></p>'
+                    header += f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:11px;">收起 ▲</a></p>'
                     body = f'<p style="color:{t["subtitle_color"]}; margin-left:10px; font-style:italic;">{self._esc(content)}</p>'
                 else:
                     short_preview = content[:100].replace('\n', ' ') + ('…' if len(content) > 100 else '')
                     header = f'<p><b style="color:{t["warning_text"]}">💭 思考 {time_str} ({len(content)}字)</b> '
-                    header += f'<a href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:11px;">展开 ▼</a></p>'
+                    header += f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:11px;">展开 ▼</a></p>'
                     body = f'<p style="color:{t["muted_color"]}; margin-left:10px; font-size:11px;">💡 {self._esc(short_preview)}</p>'
             else:
                 continue
             self._chat_display.insertHtml(header + body + '<hr style="border:0;height:1px;background:#30363d;">')
-        self._chat_display.moveCursor(QTextCursor.End)
-        sb = self._chat_display.verticalScrollBar()
-        if sb:
-            sb.setValue(sb.maximum())
+        if scroll_mode == "preserve" and scroll_bar is not None:
+            current_anchor_y = self._anchor_document_y(anchor) if anchor else None
+            if previous_anchor_y is None or current_anchor_y is None:
+                target_scroll = previous_scroll
+            else:
+                target_scroll = previous_scroll + current_anchor_y - previous_anchor_y
+            target_scroll = max(
+                scroll_bar.minimum(), min(scroll_bar.maximum(), int(target_scroll))
+            )
+            scroll_bar.setValue(target_scroll)
+        else:
+            self._chat_display.moveCursor(QTextCursor.End)
+            if scroll_bar is not None:
+                scroll_bar.setValue(scroll_bar.maximum())
         self._chat_display.anchorClicked.connect(self._on_think_toggle)
 
+    @staticmethod
+    def _think_anchor_name(think_idx):
+        return f'think_anchor_{think_idx}'
+
+    def _anchor_document_y(self, anchor):
+        document = self._chat_display.document()
+        layout = document.documentLayout()
+        block = document.begin()
+        while block.isValid():
+            iterator = block.begin()
+            while not iterator.atEnd():
+                fragment = iterator.fragment()
+                if fragment.isValid() and anchor in fragment.charFormat().anchorNames():
+                    return layout.blockBoundingRect(block).top()
+                iterator += 1
+            block = block.next()
+        return None
+
     def _on_think_toggle(self, url):
+        if self._active_conv is None:
+            return
         href = url.toString()
-        if href.startswith('toggle_think_'):
-            think_idx = int(href.split('_')[-1])
-            self._think_expanded[think_idx] = not self._think_expanded.get(think_idx, False)
-            self._chat_display.clear()
-            self._render_conv_messages()
+        match = re.fullmatch(r'toggle_think_([0-9]+)', href)
+        if match is None:
+            return
+        think_idx = int(match.group(1))
+        think_count = sum(
+            1 for message in self._active_conv.messages if message.role == 'think'
+        )
+        if think_idx >= think_count:
+            return
+        expansion_key = (self._active_conv.id, think_idx)
+        if self._think_expanded.get(expansion_key, False):
+            self._think_expanded.pop(expansion_key, None)
+        else:
+            self._think_expanded[expansion_key] = True
+        self._render_conv_messages(
+            scroll_mode="preserve",
+            anchor=self._think_anchor_name(think_idx),
+        )
 
     def _esc(self, text: str) -> str:
         """安全转义HTML特殊字符, 使用chr()避免XML实体冲突"""
@@ -398,6 +449,12 @@ class AIChatWidget(QFrame):
     def _clear_chat(self):
         if self._active_conv is None:
             return
+        active_conversation_id = self._active_conv.id
+        self._think_expanded = {
+            key: value
+            for key, value in self._think_expanded.items()
+            if key[0] != active_conversation_id
+        }
         self._active_conv.messages.clear()
         self._active_conv.token_count = 0
         self._active_conv.title = '新对话'

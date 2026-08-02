@@ -8,23 +8,31 @@ from PyQt5.QtGui import QFont
 import database
 import config
 from logger import configure_logging
+from single_instance import SingleInstanceCoordinator
 from ui.main_window import MainWindow
 
 
-def main():
-    config.ensure_app_data_dir()
-    configure_logging(config.APP_DATA_DIR)
-    app = QApplication(sys.argv)
+def main(argv=None) -> int:
+    app = QApplication(sys.argv if argv is None else argv)
     app.setApplicationName('Clender')
     app.setOrganizationName('ClenderApp')
     app.setQuitOnLastWindowClosed(False)
+
+    coordinator = SingleInstanceCoordinator(parent=app)
+    if not coordinator.acquire():
+        return 0
+
+    config.ensure_app_data_dir()
+    configure_logging(config.APP_DATA_DIR)
     database.init_db()
     font = QFont('Microsoft YaHei', 10)
     app.setFont(font)
     window = MainWindow(app)
+    coordinator.activation_requested.connect(window.activate_existing_instance)
+    app.aboutToQuit.connect(coordinator.close)
     window.show()
-    sys.exit(app.exec_())
+    return app.exec_()
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

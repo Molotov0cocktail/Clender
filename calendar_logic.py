@@ -10,6 +10,10 @@ from constants import EVENT_COLORS
 DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 
 
+def _block_bottom(block: dict) -> float:
+    return block["top"] + block.get("_collision_height", block["height"])
+
+
 def merge_ranges(ranges: Iterable[tuple[float, float]]) -> list[tuple[float, float]]:
     """Merge overlapping or touching numeric ranges."""
     merged: list[tuple[float, float]] = []
@@ -30,8 +34,8 @@ def _add_overlap_ranges(blocks: list[dict]) -> None:
         for second in blocks[index + 1:]:
             if first["col"] != second["col"]:
                 continue
-            first_bottom = first["top"] + first["height"]
-            second_bottom = second["top"] + second["height"]
+            first_bottom = _block_bottom(first)
+            second_bottom = _block_bottom(second)
             if first["top"] < second_bottom and second["top"] < first_bottom:
                 overlap = (
                     max(first["top"], second["top"]),
@@ -41,6 +45,51 @@ def _add_overlap_ranges(blocks: list[dict]) -> None:
                 second["overlap_ranges"].append(overlap)
     for block in blocks:
         block["overlap_ranges"] = merge_ranges(block["overlap_ranges"])
+
+
+def _assign_lanes(blocks: list[dict]) -> None:
+    """Assign stable lanes to connected overlap clusters in each day column."""
+    cluster_id = 0
+    by_column: dict[int, list[tuple[int, dict]]] = {}
+    for order, block in enumerate(blocks):
+        by_column.setdefault(block["col"], []).append((order, block))
+
+    for column in sorted(by_column):
+        ordered = sorted(
+            by_column[column],
+            key=lambda item: (item[1]["top"], item[0]),
+        )
+        active: list[tuple[float, int]] = []
+        cluster_blocks: list[dict] = []
+        cluster_lane_count = 0
+
+        def finish_cluster() -> None:
+            nonlocal cluster_id, cluster_blocks, cluster_lane_count
+            if not cluster_blocks:
+                return
+            for cluster_block in cluster_blocks:
+                cluster_block["lane_count"] = cluster_lane_count
+            cluster_id += 1
+            cluster_blocks = []
+            cluster_lane_count = 0
+
+        for _, block in ordered:
+            start = block["top"]
+            active = [(end, lane) for end, lane in active if end > start]
+            if not active:
+                finish_cluster()
+
+            used_lanes = {lane for _, lane in active}
+            lane = 0
+            while lane in used_lanes:
+                lane += 1
+            block["lane"] = lane
+            block["cluster_id"] = cluster_id
+            cluster_blocks.append(block)
+            active.append((_block_bottom(block), lane))
+            cluster_lane_count = max(cluster_lane_count, len(active))
+
+        finish_cluster()
 
 
 def _build_blocks(
@@ -87,12 +136,15 @@ def _build_blocks(
                 continue
             if end <= start:
                 continue
-            height = (end - start).total_seconds() / 3600 * per_hour
+            duration_minutes = (end - start).total_seconds() / 60
+            height = duration_minutes / 60 * per_hour
             time_label = f"{start:%H:%M}-{end:%H:%M}"
         elif duration > 0:
+            duration_minutes = duration
             height = duration / 60 * per_hour
             time_label = f"{start:%H:%M}"
         else:
+            duration_minutes = 0
             height = per_hour * marker_ratio
             time_label = f"{start:%H:%M}"
 
@@ -109,9 +161,12 @@ def _build_blocks(
             "event_type": event_type,
             "is_reminder": event_type == "reminder",
             "id": event_id,
+            "duration_minutes": duration_minutes,
+            "_collision_height": height,
         })
 
     _add_overlap_ranges(blocks)
+    _assign_lanes(blocks)
     return blocks
 
 

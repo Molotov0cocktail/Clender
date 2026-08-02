@@ -1,5 +1,5 @@
 import json
-import logging
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,7 +9,7 @@ import config
 import logger
 
 
-class ConfigSecurityTests(unittest.TestCase):
+class ConfigPersistenceTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
@@ -24,47 +24,55 @@ class ConfigSecurityTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    @mock.patch("config.secret_store.set_api_key")
-    def test_save_config_stores_secret_outside_json(self, set_api_key):
-        config.save_config({"theme": "dark", "api_key": "top-secret"})
+    def test_save_config_round_trips_non_empty_key_in_json(self):
+        expected = {"theme": "dark", "api_key": "top-secret"}
+
+        config.save_config(expected)
 
         saved = self.config_file.read_text(encoding="utf-8")
-        self.assertNotIn("top-secret", saved)
-        self.assertNotIn("api_key", json.loads(saved))
-        set_api_key.assert_called_once_with("top-secret")
+        self.assertEqual(json.loads(saved), expected)
+        self.assertEqual(config.load_config()["api_key"], "top-secret")
 
-    @mock.patch(
-        "config.secret_store.set_api_key",
-        side_effect=config.secret_store.SecretStoreError("backend unavailable"),
-    )
-    def test_secret_backend_failure_does_not_write_plaintext(self, set_api_key):
-        with self.assertRaises(config.secret_store.SecretStoreError):
-            config.save_config({"theme": "dark", "api_key": "top-secret"})
-        self.assertFalse(self.config_file.exists())
+    def test_save_config_round_trips_empty_key(self):
+        config.save_config({"api_key": "", "theme": "light"})
 
-    @mock.patch("config.secret_store.get_api_key", return_value="credential-secret")
-    def test_load_config_injects_secret_at_runtime(self, get_api_key):
+        self.assertEqual(config.load_config()["api_key"], "")
+        self.assertIn(
+            "api_key", json.loads(self.config_file.read_text(encoding="utf-8"))
+        )
+
+    def test_unicode_and_long_key_round_trip(self):
+        value = "密钥-🔐-" + "x" * 4096
+        config.save_config({"api_key": value})
+
+        self.assertEqual(config.load_config()["api_key"], value)
+
+    def test_json_is_only_key_source(self):
+        self.data_dir.mkdir(parents=True)
+        self.config_file.write_text(
+            '{"theme":"dark","api_key":"json-secret"}', encoding="utf-8"
+        )
+
+        with mock.patch.dict(os.environ, {"CLENDER_API_KEY": "environment-secret"}):
+            loaded = config.load_config()
+
+        self.assertEqual(loaded["api_key"], "json-secret")
+        self.assertEqual(loaded["theme"], "dark")
+
+    def test_missing_fields_are_merged_with_defaults(self):
         self.data_dir.mkdir(parents=True)
         self.config_file.write_text('{"theme":"dark"}', encoding="utf-8")
 
         loaded = config.load_config()
 
-        self.assertEqual(loaded["api_key"], "credential-secret")
         self.assertEqual(loaded["theme"], "dark")
+        self.assertEqual(loaded["api_key"], "")
 
-    @mock.patch("config.secret_store.get_api_key", return_value="")
-    @mock.patch("config.secret_store.set_api_key")
-    def test_plaintext_key_is_migrated_and_scrubbed(self, set_api_key, get_api_key):
-        self.data_dir.mkdir(parents=True)
-        self.config_file.write_text(
-            '{"theme":"light","api_key":"legacy-secret"}', encoding="utf-8"
-        )
-
+    def test_missing_file_returns_defaults(self):
         loaded = config.load_config()
 
-        set_api_key.assert_called_once_with("legacy-secret")
-        self.assertEqual(loaded["api_key"], "legacy-secret")
-        self.assertNotIn("api_key", json.loads(self.config_file.read_text(encoding="utf-8")))
+        self.assertEqual(loaded["theme"], "light")
+        self.assertEqual(loaded["api_key"], "")
 
     def test_import_does_not_create_data_directory(self):
         self.assertFalse(self.data_dir.exists())
@@ -72,16 +80,30 @@ class ConfigSecurityTests(unittest.TestCase):
     def test_malformed_json_falls_back_to_defaults(self):
         self.data_dir.mkdir(parents=True)
         self.config_file.write_text("{broken", encoding="utf-8")
-        with mock.patch("config.secret_store.get_api_key", return_value=""):
-            loaded = config.load_config()
+        loaded = config.load_config()
         self.assertEqual(loaded["theme"], "light")
+        self.assertEqual(loaded["api_key"], "")
 
-    @mock.patch("config.secret_store.get_api_key", return_value="")
-    def test_empty_legacy_key_field_is_scrubbed(self, get_api_key):
+    def test_non_object_json_falls_back_to_defaults(self):
         self.data_dir.mkdir(parents=True)
-        self.config_file.write_text('{"api_key":"","theme":"light"}', encoding="utf-8")
-        config.load_config()
-        self.assertNotIn("api_key", json.loads(self.config_file.read_text(encoding="utf-8")))
+        self.config_file.write_text('["not", "an", "object"]', encoding="utf-8")
+
+        loaded = config.load_config()
+
+        self.assertEqual(loaded["theme"], "light")
+        self.assertEqual(loaded["api_key"], "")
+
+    def test_replace_failure_preserves_previous_config(self):
+        self.data_dir.mkdir(parents=True)
+        original = '{"theme":"light","api_key":"old-key"}'
+        self.config_file.write_text(original, encoding="utf-8")
+
+        with mock.patch("config.os.replace", side_effect=OSError("replace failed")):
+            with self.assertRaises(OSError):
+                config.save_config({"theme": "dark", "api_key": "new-key"})
+
+        self.assertEqual(self.config_file.read_text(encoding="utf-8"), original)
+        self.assertEqual(list(self.data_dir.glob("config-*.tmp")), [])
 
     def test_logging_is_created_only_when_configured(self):
         log_dir = Path(self.temp_dir.name) / "logs"

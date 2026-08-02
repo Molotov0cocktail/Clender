@@ -54,6 +54,11 @@ DEFAULT_CONFIG = {
     "system_prompt": "",
     "ai_personality": "",
     "close_to_tray": False,
+    "floating_window_enabled": False,
+    "floating_window_opacity": 90,
+    "floating_window_start_time": "08:00",
+    "floating_window_end_time": "22:00",
+    "floating_window_geometry": None,
 }
 
 # ── 应用信息 ──
