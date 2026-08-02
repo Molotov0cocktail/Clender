@@ -13,6 +13,7 @@ import theme_manager
 from constants import SYSTEM_PROMPT
 from ai_client import fetch_models_list
 from ai_service import AIService
+from secret_store import SecretStoreError
 
 
 class SettingsDialog(QDialog):
@@ -157,7 +158,11 @@ class SettingsDialog(QDialog):
             current = cfg_mod.load_config()
             current['api_endpoint'] = ep
             current['api_key'] = key
-            cfg_mod.save_config(current)
+            try:
+                cfg_mod.save_config(current)
+            except (SecretStoreError, OSError) as exc:
+                self._lbl_info.setText(f'❌ 无法保存 API 配置: {exc}')
+                return
         models, err = fetch_models_list()
         if err:
             self._lbl_info.setText(f'❌ {err}')
@@ -190,7 +195,11 @@ class SettingsDialog(QDialog):
             'system_prompt': self._edit_prompt.toPlainText().strip(),
             'ai_personality': self._edit_personality.toPlainText().strip(),
         })
-        cfg_mod.save_config(current)
+        try:
+            cfg_mod.save_config(current)
+        except (SecretStoreError, OSError) as exc:
+            QMessageBox.critical(self, '保存失败', f'设置未保存：{exc}')
+            return
+        QMessageBox.information(self, '成功', '设置已保存！')
         self.config_saved.emit()
         self.accept()
-        QMessageBox.information(self, '成功', '设置已保存！')

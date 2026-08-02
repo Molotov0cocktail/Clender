@@ -131,8 +131,73 @@ Before (巨石架构):                  After (分层架构):
 - ✅ .gitignore 生效
 - ✅ 日志输出到 data/clender.log
 
-### 剩余事项
+### 剩余事项（历史记录）
 
-- Clender.spec 被 .gitignore 排除，若需要版本管理打包配置需手动调整
-- 建议后续添加自动化单元测试覆盖核心模块
+- 下列事项已在 2026-08-02 的 Phase 6 完成：生成 spec 不再版本管理；自动化测试与 CI 已建立。
+---
+
+## Phase 6：Python 3.12 现代化与工程加固（2026-08-02）
+
+输入文档：`doc/modernization-proposal.md`、`doc/modernization-design.md`
+
+| 任务 ID | 任务名称 | 状态 | 依赖 |
+|---|---|---|---|
+| T16 | 统一 Miniconda Python 3.12.4 与标准构建 | ✅ 已完成 | T17 后清理 |
+| T17 | 自动化测试与 CI 基线 | ✅ 已完成 | 无 |
+| T18 | 配置安全与数据库加固 | ✅ 已完成 | T17 |
+| T19 | AI 与对话链路加固 | ✅ 已完成 | T17、T18 |
+| T20 | 日历逻辑提取与 UI 回归 | ✅ 已完成 | T17、T18 |
+| T21 | 集成验证、清理与文档同步 | ✅ 已完成 | T16–T20 |
+
+### 当前决策
+
+- 唯一支持环境为 Miniconda base Python 3.12.4；移除 Win7/Python 3.8 全部资产。
+- 使用标准库 `unittest` 建立测试，不新增测试框架依赖。
+- Windows API Key 使用 Credential Manager（pywin32），非 Windows 仅支持 `CLENDER_API_KEY` 环境变量，禁止明文 JSON。
+- 不修改或读取输出真实用户数据；测试全部使用临时目录和 mock。
+
+### 修改前测试矩阵
+
+- 模型/持久化：旧 JSON、UTF-8、空/坏数据、往返、单一 Conversation 表示。
+- 配置/秘密：缺文件、坏 JSON、默认合并、旧明文迁移、凭据失败、不落盘。
+- 数据库/服务：新旧 schema、CRUD、非法字段/时间、清空 end_time、索引、异常关闭。
+- AI：JSON 变体、action/ID/时间验证、Token 预算、HTTP 成功/错误/重试/超时。
+- 日历/UI：提醒/时间段、边界时间、相邻/重叠、空视图、信号、主题、offscreen。
+- 构建/环境：Python 3.12.4、精确依赖、无 data 打包、无 Win7/3.8 残留、exe 冒烟。
+
+### 已执行命令与结果
+
+- 首轮 `unittest discover`：23 项中 9 失败、15 错误，证明回归用例覆盖现存问题。
+- 修复后 `unittest discover`：35 项全部通过。
+- 全部源码模块导入：通过。
+- `python build.py --check`：通过。
+- PyInstaller 标准构建：首次捕获用户 site-packages 权限问题，第二次捕获 conda DLL PATH 问题；隔离环境修复后通过。
+- `dist/Clender.exe` offscreen 启动冒烟：运行 5 秒未退出，通过；测试数据已清理。
+
+### Phase 6 最终状态
+
+✅ T16–T21 全部完成。最终基线为 Miniconda base Python 3.12.4、35 项自动化测试、单一标准 PyInstaller 构建与安全运行时数据边界。
+
+---
+
+## Phase 7：API Key 保存与安全交付（2026-08-02）
+
+| 任务 ID | 任务名称 | 状态 | 依赖 |
+|---|---|---|---|
+| T22 | API Key 保存、构建数据保护与 Git 提交 | ✅ 已完成 | T16–T21 |
+
+### 修改前约束与测试
+
+- 已建立正常、边界、异常、回归、构建数据保护和提交安全测试矩阵，详见 `T22-api-key-build-commit.md`。
+- 不读取真实用户数据内容；只允许只读比较 `dist/data/` 的路径、大小、时间和哈希以证明构建未修改。
+- 提交只包含工程文件；`data/`、`dist/data/`、日志、数据库、对话与生成物必须保持忽略且不得暂存。
+
+### 实施与验证结果
+
+- 修改前 9 项聚焦测试得到 2 失败、1 错误；修复后聚焦 11/11、全量 39/39 通过。
+- pywin32 真实临时凭据测试确认字符串写入、UTF-16LE bytes 读取，以及持久凭据错误 1312 到会话凭据的安全降级；临时目标均已删除，现有 `Clender/API` 未触碰。
+- 全模块导入、`build.py --check`、完整 PyInstaller 构建和隔离目录 exe offscreen 冒烟全部通过。
+- `dist/data/` 构建前后保持 5 个文件、244469 字节；最终摘要为 `1DA6AFDF420E3F3F68C84062399C1DA4F0C5FA5BA36D6D504B628D8F74F87CB7`。
+- `AGENTS.md` 已增加每次更改后完整构建、exe 冒烟、Git 提交和保护 `dist/data/` 的强制规则。
+
 </task_progress>

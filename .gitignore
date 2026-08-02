@@ -6,11 +6,14 @@ data/
 __pycache__/
 *.py[cod]
 *.egg-info/
+.conda/
+.wheels/
 
 # 打包产物
 build/
 dist/
 *.spec
+*.exe
 
 # IDE
 .vscode/

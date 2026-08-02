@@ -3,7 +3,6 @@ import requests
 from PyQt5.QtCore import QThread, pyqtSignal
 
 import config as cfg_mod
-from constants import MODEL_CAPABILITIES
 from logger import get_logger
 from ai_service import AIService
 
@@ -48,15 +47,10 @@ class AICallThread(QThread):
     result_ready = pyqtSignal(dict)
     error_occurred = pyqtSignal(str)
 
-    def __init__(self, user_msg: str = "", conv=None, messages: list = None, parent=None):
-        """两种构造方式：
-        1. (user_msg, conv) — 兼容旧版 ai_chat.py 调用（T12 前）
-        2. (messages=messages) — 新版，调用方预先构建消息列表
-        """
+    def __init__(self, messages: list[dict], parent=None):
+        """Create a worker for an already validated and budgeted message list."""
         super().__init__(parent)
-        self._msg = user_msg
-        self._conv = conv
-        self._messages = messages
+        self._messages = list(messages)
 
     def run(self):
         """执行 API 调用"""
@@ -68,26 +62,12 @@ class AICallThread(QThread):
             temp = cfg.get('temperature', 0.7)
             max_tok = cfg.get('max_tokens', 4096)
             think_eff = cfg.get('think_effort', 'max')
-            ctx_win = cfg.get('context_window', 128000)
             if not ep or not key:
                 self.error_occurred.emit('请先配置API地址和密钥')
                 return
 
-            # 如果传入了预构建的消息列表，直接使用
-            if self._messages is not None:
-                full = self._messages
-            else:
-            # 兼容旧版：在 run 内部构建上下文
-                base_msgs, _ = AIService.build_context_messages()
-                base_tok = AIService.count_messages_tokens(base_msgs) + AIService.estimate_tokens(self._msg)
-                avail = max(ctx_win - base_tok - max_tok, 4096)
-                hist = [m for m in self._conv.messages[:] if m.get('role') != 'think']
-                while AIService.count_messages_tokens(hist) > avail and len(hist) > 2:
-                    hist.pop(0)
-                full = base_msgs + hist + [{"role": "user", "content": self._msg}]
-
             headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {key}'}
-            payload = {'model': model, 'messages': full, 'temperature': temp, 'max_tokens': max_tok}
+            payload = {'model': model, 'messages': self._messages, 'temperature': temp, 'max_tokens': max_tok}
             
             # DeepSeek thinking 模式控制
             thinking_enabled = cfg.get('thinking_enabled', True)
@@ -105,13 +85,23 @@ class AICallThread(QThread):
                 url = f'{ep}/v1/chat/completions'
 
             resp = requests.post(url, headers=headers, json=payload, timeout=180)
+            if resp.status_code in (400, 422) and thinking_enabled:
+                # OpenAI-compatible providers may reject DeepSeek extensions.
+                fallback_payload = dict(payload)
+                fallback_payload.pop('reasoning_effort', None)
+                fallback_payload.pop('extra_body', None)
+                resp = requests.post(
+                    url, headers=headers, json=fallback_payload, timeout=180
+                )
             if resp.status_code != 200:
                 self.error_occurred.emit(f'API错误({resp.status_code}): {resp.text[:300]}')
                 return
 
             data = resp.json()
-            choice = data['choices'][0]
-            msg = choice['message']
+            choices = data.get('choices')
+            if not isinstance(choices, list) or not choices:
+                raise ValueError('API 响应缺少 choices')
+            msg = choices[0].get('message', {})
             content = msg.get('content', '') or ''
             think = msg.get('reasoning_content', '') or ''
             usage = data.get('usage', {})

@@ -11,7 +11,6 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout,
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont, QIcon, QColor
 
-import database
 import config as cfg_mod
 import theme_manager
 from event_service import EventService

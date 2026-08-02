@@ -5,8 +5,10 @@
 import json
 import os
 import sys
+import tempfile
 from constants import DEFAULT_CONFIG
 from logger import get_logger
+import secret_store
 
 _log = get_logger(__name__)
 
@@ -21,9 +23,7 @@ def get_app_data_dir():
     return os.path.join(base, 'data')
 
 
-# 确保数据目录存在
 APP_DATA_DIR = get_app_data_dir()
-os.makedirs(APP_DATA_DIR, exist_ok=True)
 
 # 配置文件路径
 CONFIG_FILE = os.path.join(APP_DATA_DIR, 'config.json')
@@ -31,25 +31,65 @@ CONFIG_FILE = os.path.join(APP_DATA_DIR, 'config.json')
 DB_PATH = os.path.join(APP_DATA_DIR, 'clender.db')
 
 
+def ensure_app_data_dir() -> str:
+    """Create the runtime data directory explicitly and return its path."""
+    os.makedirs(APP_DATA_DIR, exist_ok=True)
+    return APP_DATA_DIR
+
+
+def _write_config_file(config: dict) -> None:
+    """Atomically write a sanitized config dictionary."""
+    ensure_app_data_dir()
+    fd, temp_path = tempfile.mkstemp(prefix="config-", suffix=".tmp", dir=APP_DATA_DIR)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            json.dump(config, handle, ensure_ascii=False, indent=2)
+        os.replace(temp_path, CONFIG_FILE)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
 
 def load_config():
-    """从本地JSON文件加载配置，文件不存在则返回默认配置"""
+    """Load non-secret JSON config and inject the API key at runtime."""
+    cfg_data = {}
+    legacy_key = ""
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                cfg = json.load(f)
-            merged = DEFAULT_CONFIG.copy()
-            merged.update(cfg)
-            return merged
+                cfg_data = json.load(f)
+            if not isinstance(cfg_data, dict):
+                raise ValueError("配置根节点必须是对象")
+
+            # One-time migration: scrub legacy plaintext regardless of backend result.
+            had_legacy_key = "api_key" in cfg_data
+            legacy_key = str(cfg_data.pop("api_key", "") or "").strip()
+            if legacy_key:
+                try:
+                    secret_store.set_api_key(legacy_key)
+                except secret_store.SecretStoreError as exc:
+                    _log.error("旧 API Key 无法迁移到安全存储，已从 JSON 清除: %s", exc)
+            if had_legacy_key:
+                _write_config_file(cfg_data)
         except (json.JSONDecodeError, IOError) as e:
             _log.warning(f"配置加载失败: {e}")
-    return DEFAULT_CONFIG.copy()
+            cfg_data = {}
+        except ValueError as e:
+            _log.warning(f"配置加载失败: {e}")
+            cfg_data = {}
+
+    merged = DEFAULT_CONFIG.copy()
+    merged.update(cfg_data)
+    merged["api_key"] = legacy_key or secret_store.get_api_key()
+    return merged
 
 
 def save_config(config: dict):
-    """保存配置到本地JSON文件"""
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+    """Persist config while keeping the API key outside JSON."""
+    sanitized = dict(config)
+    if "api_key" in sanitized:
+        secret_store.set_api_key(str(sanitized.pop("api_key") or ""))
+    _write_config_file(sanitized)
 
 
 def is_api_configured():

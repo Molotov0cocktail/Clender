@@ -3,7 +3,7 @@ import json
 import os
 
 import config as cfg_mod
-from models import Conversation, Message
+from models import Conversation
 from logger import get_logger
 
 _log = get_logger(__name__)

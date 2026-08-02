@@ -6,10 +6,14 @@ import sys
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QFont
 import database
+import config
+from logger import configure_logging
 from ui.main_window import MainWindow
 
 
 def main():
+    config.ensure_app_data_dir()
+    configure_logging(config.APP_DATA_DIR)
     app = QApplication(sys.argv)
     app.setApplicationName('Clender')
     app.setOrganizationName('ClenderApp')

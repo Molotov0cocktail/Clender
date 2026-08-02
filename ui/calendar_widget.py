@@ -3,20 +3,15 @@
 周/日视图使用连续时间轴 + 事件色块 + 重叠竖线标记
 """
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QLabel, QGridLayout, QFrame, QScrollArea, QSizePolicy)
-from PyQt5.QtCore import Qt, QDate, pyqtSignal, QRectF
-from PyQt5.QtGui import QFont, QColor, QPalette, QPainter, QPen, QBrush
-from datetime import date, timedelta, datetime, time
+                             QLabel, QGridLayout, QFrame, QScrollArea)
+from PyQt5.QtCore import Qt, pyqtSignal
+from datetime import date, timedelta
 import calendar
-import math
 
 import theme_manager
 from event_service import EventService
-from constants import EVENT_COLORS as COLORS
 from ui.canvas import WeekCanvas, DayCanvas
-from logger import get_logger
-
-_log = get_logger(__name__)
+from calendar_logic import build_week_blocks, build_day_blocks
 
 
 class CalendarWidget(QFrame):
@@ -184,91 +179,7 @@ class CalendarWidget(QFrame):
         timeline_height=720  # 24h * 30px per hour
         per_hour=30
 
-        # ── 构建事件区块列表 ──
-        # 每个事件: {col, top, height(px), title, time_label, color_idx}
-        blocks=[]
-        color_idx=0
-        ev_color_map={}
-        for ev in events:
-            # 计算显示列
-            ev_date=ev['start_time'][:10]
-            try: col=(datetime.strptime(ev_date,'%Y-%m-%d').date()-ws).days
-            except Exception:
-                _log.warning(f"无效事件日期: {ev_date}")
-                continue
-            if col<0 or col>6: continue
-
-            # 计算top和height
-            st=ev['start_time']
-            et=ev['end_time']
-            ev_type=ev['event_type']
-            est_dur=ev.get('estimated_duration',0) or 0
-
-            if ev_type=='timespan' and et:
-                try:
-                    sd=datetime.strptime(st,'%Y-%m-%d %H:%M')
-                    ed=datetime.strptime(et,'%Y-%m-%d %H:%M')
-                    top_m=(sd.hour*60+sd.minute)/60*per_hour
-                    ht_m=(ed-sd).total_seconds()/3600*per_hour
-                except Exception:
-                    _log.warning(f"无效时间段事件数据: {st} ~ {et}")
-                    continue
-            elif ev_type=='reminder' and est_dur>0:
-                try:
-                    sd=datetime.strptime(st,'%Y-%m-%d %H:%M')
-                    top_m=(sd.hour*60+sd.minute)/60*per_hour
-                    ht_m=(est_dur/60)*per_hour if est_dur else per_hour
-                except Exception:
-                    _log.warning(f"无效提醒事件数据: {st}")
-                    continue
-            else:
-                # reminder without duration → 只画一条红线
-                try:
-                    sd=datetime.strptime(st,'%Y-%m-%d %H:%M')
-                    top_m=(sd.hour*60+sd.minute)/60*per_hour
-                    ht_m=per_hour*0.22  # short block for markers
-                except Exception:
-                    _log.warning(f"无效提醒数据: {st}")
-                    continue
-
-            if ev['id'] not in ev_color_map:
-                ev_color_map[ev['id']]=color_idx; color_idx=(color_idx+1)%len(COLORS)
-            ci=ev_color_map[ev['id']]
-
-            # 时间标签
-            if ev_type=='timespan' and et:
-                try:
-                    tl_start=datetime.strptime(st,'%Y-%m-%d %H:%M').strftime('%H:%M')
-                    tl_end=datetime.strptime(et,'%Y-%m-%d %H:%M').strftime('%H:%M')
-                    tl=f'{tl_start}-{tl_end}'
-                except Exception:
-                    _log.warning(f"无效时间段标签: {st} ~ {et}")
-                    tl=st[-5:]
-            elif ev_type=='reminder':
-                try: tl=datetime.strptime(st,'%Y-%m-%d %H:%M').strftime('%H:%M')
-                except Exception:
-                    _log.warning(f"无效提醒时间标签: {st}")
-                    tl=st[-5:]
-            else: tl=''
-
-            blocks.append({'col':col,'top':top_m,'height':max(ht_m,12),'title':ev['title'],'tlabel':tl,'color_idx':ci,'event_type':ev_type,'is_reminder':ev_type=='reminder','id':ev['id']})
-
-        # 重叠检测 - 计算每个事件的重叠区间（仅重叠部分，而非整个事件）
-        for i in range(len(blocks)):
-            blocks[i].setdefault('overlap_ranges', [])
-        for i in range(len(blocks)):
-            for j in range(i+1,len(blocks)):
-                a,b = blocks[i],blocks[j]
-                # 同一列且时间范围重叠
-                if a['col']==b['col']:
-                    a_top,a_bot = a['top'], a['top']+a['height']
-                    b_top,b_bot = b['top'], b['top']+b['height']
-                    if a_top < b_bot and b_top < a_bot:
-                        # 精确计算重叠区间
-                        overlap_top = max(a_top, b_top)
-                        overlap_bot = min(a_bot, b_bot)
-                        a['overlap_ranges'].append((overlap_top, overlap_bot))
-                        b['overlap_ranges'].append((overlap_top, overlap_bot))
+        blocks=build_week_blocks(events, ws, per_hour)
 
         # ── Canvas 绘制（使用 ui/canvas.py 中的 WeekCanvas）──
         canvas = WeekCanvas(blocks, timeline_height, per_hour, t)
@@ -290,48 +201,7 @@ class CalendarWidget(QFrame):
         title.setStyleSheet(f'font-size:18px;font-weight:bold;color:{t["title_color"]};padding:4px;')
         container.addWidget(title)
 
-        blocks=[]; color_idx=0; ev_color_map={}
-        for ev in events:
-            st=ev['start_time']; et=ev['end_time']; ev_type=ev['event_type']
-            est_dur=ev.get('estimated_duration',0) or 0
-            try: sd=datetime.strptime(st,'%Y-%m-%d %H:%M')
-            except Exception:
-                _log.warning(f"无效事件时间: {st}")
-                continue
-            top_m=(sd.hour*60+sd.minute)/60*per_hour
-            if ev_type=='timespan' and et:
-                try:
-                    ed=datetime.strptime(et,'%Y-%m-%d %H:%M')
-                    ht_m=(ed-sd).total_seconds()/3600*per_hour
-                except Exception:
-                    _log.warning(f"无效结束时间: {et}")
-                    continue
-                tl=f'{sd.strftime("%H:%M")}-{ed.strftime("%H:%M")}'
-            elif ev_type=='reminder' and est_dur>0:
-                ht_m=(est_dur/60)*per_hour if est_dur else per_hour*0.3
-                tl=sd.strftime('%H:%M')
-            else:
-                ht_m=per_hour*0.3
-                tl=sd.strftime('%H:%M')
-            if ev['id'] not in ev_color_map:
-                ev_color_map[ev['id']]=color_idx; color_idx=(color_idx+1)%len(COLORS)
-            ci=ev_color_map[ev['id']]
-            blocks.append({'top':top_m,'height':max(ht_m,14),'title':ev['title'],'tlabel':tl,'color_idx':ci,'event_type':ev_type,'is_reminder':ev_type=='reminder','id':ev['id'],'col':0})
-
-        # 重叠检测 - 计算每个事件的重叠区间（仅重叠部分，而非整个事件）
-        for i in range(len(blocks)):
-            blocks[i].setdefault('overlap_ranges', [])
-        for i in range(len(blocks)):
-            for j in range(i+1,len(blocks)):
-                a,b = blocks[i],blocks[j]
-                a_top,a_bot = a['top'], a['top']+a['height']
-                b_top,b_bot = b['top'], b['top']+b['height']
-                if a_top < b_bot and b_top < a_bot:
-                    # 精确计算重叠区间
-                    overlap_top = max(a_top, b_top)
-                    overlap_bot = min(a_bot, b_bot)
-                    a['overlap_ranges'].append((overlap_top, overlap_bot))
-                    b['overlap_ranges'].append((overlap_top, overlap_bot))
+        blocks=build_day_blocks(events, per_hour)
 
         # ── Canvas 绘制（使用 ui/canvas.py 中的 DayCanvas）──
         canvas = DayCanvas(blocks, timeline_height, per_hour, t)

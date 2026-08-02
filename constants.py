@@ -2,8 +2,6 @@
 应用级常量定义
 从 ai_chat.py、config.py、calendar_widget.py 提取集中管理
 """
-import os
-
 # ── 系统提示词（从 ai_chat.py 提取）──
 SYSTEM_PROMPT = """你是智能日程管理助手。当前所有事件以 JSON 提供。
 

@@ -3,7 +3,7 @@
 所有事件相关的业务逻辑（查询、创建、修改、删除）均通过本服务调用
 """
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 import database
@@ -43,11 +43,51 @@ class EventService:
         return dict(counts)
 
     @staticmethod
+    def validate_event(
+        title: str,
+        event_type: str,
+        start_time: str,
+        end_time: Optional[str],
+        description: str,
+        estimated_duration: int,
+    ) -> tuple[str, Optional[str], str, int]:
+        if not isinstance(title, str) or not title.strip():
+            raise ValueError("事件标题不能为空")
+        if event_type not in (EventType.REMINDER.value, EventType.TIMESPAN.value):
+            raise ValueError(f"未知事件类型: {event_type}")
+        if not isinstance(description, str):
+            raise ValueError("事件描述必须是字符串")
+        if isinstance(estimated_duration, bool) or not isinstance(estimated_duration, int):
+            raise ValueError("预计时长必须是整数")
+        if estimated_duration < 0:
+            raise ValueError("预计时长不能为负数")
+        try:
+            start = datetime.strptime(start_time, "%Y-%m-%d %H:%M")
+        except (TypeError, ValueError) as exc:
+            raise ValueError("开始时间格式必须为 YYYY-MM-DD HH:MM") from exc
+
+        normalized_end = None
+        if event_type == EventType.TIMESPAN.value:
+            if not end_time:
+                raise ValueError("时间段事件必须包含结束时间")
+            try:
+                end = datetime.strptime(end_time, "%Y-%m-%d %H:%M")
+            except (TypeError, ValueError) as exc:
+                raise ValueError("结束时间格式必须为 YYYY-MM-DD HH:MM") from exc
+            if end <= start:
+                raise ValueError("结束时间必须晚于开始时间")
+            normalized_end = end_time
+        return title.strip(), normalized_end, description, estimated_duration
+
+    @staticmethod
     def add_event(title: str, event_type: str, start_time: str,
                   end_time: Optional[str] = None,
                   description: str = "",
                   estimated_duration: int = 0) -> int:
         """添加事件，返回新事件 ID"""
+        title, end_time, description, estimated_duration = EventService.validate_event(
+            title, event_type, start_time, end_time, description, estimated_duration
+        )
         return database.add_event(
             event_type=event_type,
             title=title,
@@ -60,11 +100,38 @@ class EventService:
     @staticmethod
     def update_event(event_id: int, **fields) -> int:
         """更新事件字段，返回受影响行数"""
-        return database.update_event(event_id, **fields)
+        if isinstance(event_id, bool) or not isinstance(event_id, int) or event_id <= 0:
+            raise ValueError("event_id 必须是正整数")
+        existing = database.get_event_by_id(event_id)
+        if existing is None:
+            return 0
+        allowed = {'title', 'start_time', 'end_time', 'description', 'estimated_duration'}
+        unknown = set(fields) - allowed
+        if unknown:
+            raise ValueError(f"不允许更新字段: {', '.join(sorted(unknown))}")
+        merged = existing.to_dict()
+        merged.update(fields)
+        title, end_time, description, estimated_duration = EventService.validate_event(
+            merged['title'], merged['event_type'], merged['start_time'],
+            merged.get('end_time'), merged.get('description', ''),
+            merged.get('estimated_duration', 0),
+        )
+        normalized = dict(fields)
+        if 'title' in fields:
+            normalized['title'] = title
+        if 'end_time' in fields:
+            normalized['end_time'] = end_time
+        if 'description' in fields:
+            normalized['description'] = description
+        if 'estimated_duration' in fields:
+            normalized['estimated_duration'] = estimated_duration
+        return database.update_event(event_id, **normalized)
 
     @staticmethod
     def delete_event(event_id: int) -> bool:
         """删除事件，返回是否成功"""
+        if isinstance(event_id, bool) or not isinstance(event_id, int) or event_id <= 0:
+            raise ValueError("event_id 必须是正整数")
         return database.delete_event(event_id)
 
     @staticmethod

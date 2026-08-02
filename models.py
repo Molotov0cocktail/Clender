@@ -5,7 +5,8 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
-from datetime import date
+from datetime import date, datetime
+from uuid import uuid4
 
 
 class EventType(Enum):
@@ -107,9 +108,13 @@ class Conversation:
     created_at: str = ""
     token_count: int = 0
 
+    @classmethod
+    def new(cls, title: str = "新对话") -> "Conversation":
+        """Create a conversation with a collision-resistant short ID."""
+        return cls(id=uuid4().hex[:12], title=title, created_at=datetime.now().isoformat())
+
     def add_message(self, role: str, content: str) -> None:
         """添加一条消息到对话中"""
-        from datetime import datetime
         self.messages.append(Message(
             role=role,
             content=content,
@@ -126,6 +131,7 @@ class Conversation:
                 for m in self.messages
             ],
             "created_at": self.created_at,
+            "token_count": self.token_count,
         }
 
     @classmethod
@@ -135,6 +141,7 @@ class Conversation:
             id=d["id"],
             title=d["title"],
             created_at=d.get("created_at", ""),
+            token_count=int(d.get("token_count", 0) or 0),
         )
         for msg in d.get("messages", []):
             c.messages.append(Message(

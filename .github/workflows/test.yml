@@ -1,0 +1,26 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows-python-312:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v6
+      - uses: conda-incubator/setup-miniconda@v4
+        with:
+          auto-activate: true
+          activate-environment: ""
+          python-version: "3.12.4"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+      - run: python -c "import main, models, config, database, event_service, ai_service, ai_client, theme_manager; import ui.main_window, ui.calendar_widget, ui.canvas, ui.event_manager, ui.event_dialog, ui.ai_chat_widget, ui.ai_settings, ui.sidebar; print('imports ok')"
+      - run: python build.py --check

@@ -2,8 +2,6 @@
 AI 对话主组件 - 聊天界面、对话管理、消息收发
 从 ai_chat.py 提取为独立 UI 组件
 """
-import hashlib
-import time
 from datetime import datetime
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -16,76 +14,13 @@ import config as cfg_mod
 import theme_manager
 from ai_client import AICallThread
 from ai_service import AIService
-from conversation_store import load_conversations as _load_convs, save_conversations as _save_convs
+from conversation_store import load_conversations, save_conversations
+from models import Conversation
 from ui.sidebar import ConversationSidebar
 from logger import get_logger
 
 _log = get_logger(__name__)
 from ui.ai_settings import SettingsDialog
-
-# ── 兼容别名（与 ai_chat.py 保持一致）──
-get_current_date_context = AIService.get_current_date_context
-get_effective_system_prompt = AIService.get_effective_system_prompt
-build_context_messages = AIService.build_context_messages
-estimate_tokens = AIService.estimate_tokens
-count_messages_tokens = AIService.count_messages_tokens
-guess_model_capabilities = AIService.guess_model_capabilities
-parse_ai_response = AIService.parse_ai_response
-execute_operations = AIService.execute_operations
-
-
-class Conversation:
-    """对话模型 - dict-based（兼容旧版 AICallThread 和渲染逻辑）"""
-
-    def __init__(self, cid=None, title="新对话"):
-        self.id = cid or hashlib.md5(str(time.time()).encode()).hexdigest()[:12]
-        self.title = title
-        self.messages = []
-        self.created_at = datetime.now().isoformat()
-        self.token_count = 0
-
-    def add_message(self, role, content):
-        self.messages.append({"role": role, "content": content, "timestamp": datetime.now().isoformat()})
-        self.token_count = count_messages_tokens(self.messages)
-
-    def to_dict(self):
-        return {"id": self.id, "title": self.title, "messages": self.messages, "created_at": self.created_at}
-
-    @staticmethod
-    def from_dict(d):
-        c = Conversation(d["id"], d["title"])
-        c.messages = d.get("messages", [])
-        c.created_at = d.get("created_at", "")
-        c.token_count = count_messages_tokens(c.messages)
-        return c
-
-
-def load_conversations() -> dict:
-    """加载对话 - 转换 models.Conversation → 本地 Conversation（兼容层）"""
-    saved = _load_convs()
-    result = {}
-    for cid, conv in saved.items():
-        c = Conversation(conv.id, conv.title)
-        c.messages = [{"role": m.role, "content": m.content, "timestamp": m.timestamp}
-                      for m in conv.messages]
-        c.created_at = conv.created_at
-        c.token_count = count_messages_tokens(c.messages)
-        result[cid] = c
-    return result
-
-
-def save_conversations(convs: dict):
-    """保存对话 - 转换本地 Conversation → models.Conversation → JSON"""
-    from models import Conversation as MConv, Message as MMsg
-    saved = {}
-    for cid, c in convs.items():
-        mc = MConv(id=c.id, title=c.title, created_at=c.created_at)
-        mc.messages = [MMsg(role=m["role"], content=m["content"], timestamp=m.get("timestamp", ""))
-                       for m in c.messages]
-        mc.token_count = c.token_count
-        saved[cid] = mc
-    _save_convs(saved)
-
 
 class AIChatWidget(QFrame):
     data_changed = pyqtSignal()
@@ -98,9 +33,10 @@ class AIChatWidget(QFrame):
         self._ai_thread = None
         self._sidebar_visible = False
         self._think_expanded = {}
+        self._pending_conv_id = None
 
         if not self._convs:
-            c = Conversation(title="默认对话")
+            c = Conversation.new(title="默认对话")
             self._convs[c.id] = c
             save_conversations(self._convs)
         self._active_conv = next(iter(self._convs.values()))
@@ -218,7 +154,7 @@ class AIChatWidget(QFrame):
             self._update_token_bar()
 
     def _new_conv(self):
-        c = Conversation(title=f'对话 {len(self._convs)+1}')
+        c = Conversation.new(title=f'对话 {len(self._convs)+1}')
         self._convs[c.id] = c
         save_conversations(self._convs)
         self._active_conv = c
@@ -257,9 +193,9 @@ class AIChatWidget(QFrame):
             return
         t = self._t()
         for i, msg in enumerate(self._active_conv.messages):
-            role = msg['role']
-            content = msg['content']
-            ts = msg.get('timestamp', '')
+            role = msg.role
+            content = msg.content
+            ts = msg.timestamp
             time_str = ''
             if ts:
                 try:
@@ -274,7 +210,7 @@ class AIChatWidget(QFrame):
                 header = f'<p><b style="color:{t["chat_ai_color"]}">🤖 AI {time_str}</b></p>'
                 body = f'<p style="color:{t["text_color"]}; margin-left:10px;">{self._esc(content)}</p>'
             elif role == 'think':
-                think_idx = sum(1 for m in self._active_conv.messages[:i] if m['role'] == 'think')
+                think_idx = sum(1 for m in self._active_conv.messages[:i] if m.role == 'think')
                 is_expanded = self._think_expanded.get(think_idx, False)
                 if is_expanded:
                     header = f'<p><b style="color:{t["warning_text"]}">💭 思考 {time_str}</b> '
@@ -320,78 +256,110 @@ class AIChatWidget(QFrame):
         self._lbl_status.setText('⏳ AI思考中...')
 
         self._active_conv.add_message('user', txt)
+        self._recalculate_token_count(self._active_conv)
         self._chat_display.clear()
         self._render_conv_messages()
         save_conversations(self._convs)
         self._update_token_bar()
 
-        self._ai_thread = AICallThread(txt, self._active_conv)
+        cfg = cfg_mod.load_config()
+        messages = AIService.build_request_messages(
+            self._active_conv,
+            context_window=cfg.get('context_window', 128000),
+            max_output_tokens=cfg.get('max_tokens', 4096),
+        )
+        self._pending_conv_id = self._active_conv.id
+        self._ai_thread = AICallThread(messages=messages)
         self._ai_thread.result_ready.connect(self._on_result)
         self._ai_thread.error_occurred.connect(self._on_error)
         self._ai_thread.start()
 
     def _on_result(self, parsed: dict):
         self._lbl_status.setText('')
+        conv = self._convs.get(self._pending_conv_id) or self._active_conv
+        if conv is None:
+            self._on_error('对应对话已不存在')
+            return
         think = parsed.get('think', '')
         ops = parsed.get('operations', [])
         reply_text = parsed.get('reply_text', '')
 
         if think:
-            self._active_conv.add_message('think', think)
-            self._chat_display.clear()
-            self._render_conv_messages()
+            conv.add_message('think', think)
 
         has_change = False
         if ops:
-            op_results = execute_operations(ops)
-            replies = [op.get('message', '') for op in ops if op.get('action') == 'reply']
+            op_results = AIService.execute_operations(ops)
+            replies = [
+                op.get('message', '') for op in ops
+                if isinstance(op, dict) and op.get('action') == 'reply'
+                and isinstance(op.get('message'), str)
+            ]
             if op_results:
-                self._active_conv.add_message('assistant', '\n'.join(op_results))
-                self._chat_display.clear()
-                self._render_conv_messages()
+                conv.add_message('assistant', '\n'.join(op_results))
             if replies:
-                self._active_conv.add_message('assistant', '\n'.join(replies))
-                self._chat_display.clear()
-                self._render_conv_messages()
-            if any(op['action'] in ('add', 'update', 'delete') for op in ops):
-                has_change = True
+                conv.add_message('assistant', '\n'.join(replies))
+            has_change = any(
+                result.startswith(('✅ 已添加', '✅ 已更新', '✅ 已删除'))
+                for result in op_results
+            )
         elif reply_text:
-            self._active_conv.add_message('assistant', reply_text)
-            self._chat_display.clear()
-            self._render_conv_messages()
+            conv.add_message('assistant', reply_text)
         else:
             raw = parsed.get('raw', '')
             if raw:
-                self._active_conv.add_message('assistant', raw)
-                self._chat_display.clear()
-                self._render_conv_messages()
+                conv.add_message('assistant', raw)
+
+        self._recalculate_token_count(conv)
+        usage_total = parsed.get('usage', {}).get('total_tokens')
+        if isinstance(usage_total, int) and usage_total >= 0:
+            conv.token_count = max(conv.token_count, usage_total)
+
+        if self._active_conv is conv:
+            self._chat_display.clear()
+            self._render_conv_messages()
 
         save_conversations(self._convs)
         self._update_token_bar()
 
-        if self._active_conv.title.startswith('对话') or self._active_conv.title == '新对话':
-            msgs = self._active_conv.messages
+        if conv.title.startswith('对话') or conv.title == '新对话':
+            msgs = conv.messages
             if msgs:
-                first = msgs[0]['content']
-                self._active_conv.title = first[:30] + ('…' if len(first) > 30 else '')
+                first = msgs[0].content
+                conv.title = first[:30] + ('…' if len(first) > 30 else '')
                 save_conversations(self._convs)
-                self._sidebar.refresh(self._convs, self._active_conv.id)
-                self._lbl_conv_title.setText(f'💬 {self._active_conv.title}')
+                self._sidebar.refresh(self._convs, self._active_conv.id if self._active_conv else None)
+                if self._active_conv is conv:
+                    self._lbl_conv_title.setText(f'💬 {conv.title}')
 
         if has_change:
             self.data_changed.emit()
         self._edit_input.setEnabled(True)
         self._btn_send.setEnabled(True)
         self._edit_input.setFocus()
+        self._pending_conv_id = None
 
     def _on_error(self, err: str):
         self._lbl_status.setText('')
-        self._active_conv.add_message('assistant', f'❌ 错误: {err}')
-        self._chat_display.clear()
-        self._render_conv_messages()
+        conv = self._convs.get(self._pending_conv_id) or self._active_conv
+        if conv is not None:
+            conv.add_message('assistant', f'❌ 错误: {err}')
+            self._recalculate_token_count(conv)
+        if self._active_conv is conv:
+            self._chat_display.clear()
+            self._render_conv_messages()
         save_conversations(self._convs)
         self._edit_input.setEnabled(True)
         self._btn_send.setEnabled(True)
+        self._pending_conv_id = None
+
+    @staticmethod
+    def _recalculate_token_count(conv: Conversation) -> None:
+        messages = [
+            {"role": message.role, "content": message.content}
+            for message in conv.messages
+        ]
+        conv.token_count = AIService.count_messages_tokens(messages)
 
     def _update_token_bar(self):
         if self._active_conv is None:

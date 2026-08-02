@@ -3,10 +3,9 @@ AI 业务服务层 - 上下文构建、Token 估算、响应解析、操作执�
 不依赖 PyQt5，不直接访问 database
 """
 import json
+import math
 import re
 from datetime import datetime
-from typing import Optional
-
 import config as cfg_mod
 from constants import SYSTEM_PROMPT, MODEL_CAPABILITIES
 from event_service import EventService
@@ -68,17 +67,89 @@ class AIService:
 
     @staticmethod
     def estimate_tokens(text: str) -> int:
-        """估算文本的 Token 数量（中文约 0.6 token/字，英文约 0.3 token/字符）"""
+        """Conservatively estimate tokens from UTF-8 bytes.
+
+        Provider tokenizers differ. One token per three UTF-8 bytes plus message
+        overhead intentionally overestimates most Chinese and English content.
+        """
         if not text:
             return 0
-        cn = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
-        en = len(text) - cn
-        return int(cn * 0.6 + en * 0.3)
+        return max(1, math.ceil(len(text.encode("utf-8")) / 3))
 
     @staticmethod
     def count_messages_tokens(msgs: list) -> int:
-        """估算消息列表的总 Token 数"""
-        return sum(AIService.estimate_tokens(json.dumps(m, ensure_ascii=False)) for m in msgs)
+        """Estimate messages including conservative per-message framing overhead."""
+        return sum(
+            AIService.estimate_tokens(json.dumps(message, ensure_ascii=False)) + 4
+            for message in msgs
+        )
+
+    @staticmethod
+    def _truncate_message(message: dict, max_tokens: int) -> dict | None:
+        """Return a content-truncated copy that fits an estimated token budget."""
+        if max_tokens <= 4:
+            return None
+        content = str(message.get("content", ""))
+        candidate = dict(message)
+        low, high = 0, len(content)
+        while low < high:
+            middle = (low + high + 1) // 2
+            candidate["content"] = content[-middle:]
+            if AIService.count_messages_tokens([candidate]) <= max_tokens:
+                low = middle
+            else:
+                high = middle - 1
+        if low == 0:
+            return None
+        candidate["content"] = content[-low:]
+        return candidate
+
+    @staticmethod
+    def build_request_messages(
+        conversation: Conversation,
+        context_window: int,
+        max_output_tokens: int,
+    ) -> list[dict]:
+        """Build a bounded request using system context and newest conversation turns."""
+        base_messages, _ = AIService.build_context_messages()
+        safety_margin = max(32, int(context_window * 0.1))
+        budget = max(context_window - max_output_tokens - safety_margin, 1)
+
+        selected_base: list[dict] = []
+        used = 0
+        for message in base_messages:
+            cost = AIService.count_messages_tokens([message])
+            if used + cost <= budget:
+                selected_base.append(message)
+                used += cost
+                continue
+            truncated = AIService._truncate_message(message, budget - used)
+            if truncated:
+                selected_base.append(truncated)
+                used += AIService.count_messages_tokens([truncated])
+            break
+
+        history = [
+            {"role": message.role, "content": message.content}
+            for message in conversation.messages
+            if message.role != "think"
+        ]
+        selected_history: list[dict] = []
+        for message in reversed(history):
+            remaining = budget - used
+            cost = AIService.count_messages_tokens([message])
+            if cost <= remaining:
+                selected_history.append(message)
+                used += cost
+            elif not selected_history:
+                truncated = AIService._truncate_message(message, remaining)
+                if truncated:
+                    selected_history.append(truncated)
+                    used += AIService.count_messages_tokens([truncated])
+            if used >= budget:
+                break
+
+        return selected_base + list(reversed(selected_history))
 
     # ── 模型能力推断 ──
 
@@ -164,27 +235,36 @@ class AIService:
         """
         results = []
         for op in ops:
+            if not isinstance(op, dict):
+                results.append('❌ 操作必须是 JSON 对象')
+                continue
             action = op.get('action', '')
             try:
                 if action == 'add':
                     et = op.get('event_type', 'reminder')
-                    if et not in ('reminder', 'timespan'):
-                        results.append(f'❌ 未知类型: {et}')
-                        continue
+                    title, end_time, description, estimated_duration = EventService.validate_event(
+                        op.get('title', ''), et, op.get('start_time', ''),
+                        op.get('end_time'), op.get('description', ''),
+                        op.get('estimated_duration', 0),
+                    )
                     nid = EventService.add_event(
                         event_type=et,
-                        title=op.get('title', '未命名'),
+                        title=title,
                         start_time=op.get('start_time', ''),
-                        end_time=op.get('end_time') if et == 'timespan' else None,
-                        description=op.get('description', ''),
+                        end_time=end_time,
+                        description=description,
+                        estimated_duration=estimated_duration,
                     )
-                    results.append(f'✅ 已添加: {op.get("title", "未命名")} (ID:{nid})')
+                    results.append(f'✅ 已添加: {title} (ID:{nid})')
                 elif action == 'update':
                     eid = op.get('event_id')
-                    if not eid:
-                        results.append('❌ 缺少event_id')
-                        continue
-                    flds = {k: op[k] for k in ('title', 'start_time', 'end_time', 'description') if k in op}
+                    if isinstance(eid, bool) or not isinstance(eid, int) or eid <= 0:
+                        raise ValueError('event_id 必须是正整数')
+                    flds = {
+                        key: op[key]
+                        for key in ('title', 'start_time', 'end_time', 'description', 'estimated_duration')
+                        if key in op
+                    }
                     if flds:
                         r = EventService.update_event(eid, **flds)
                         results.append(f'✅ 已更新 ID{eid}' if r > 0 else f'⚠️ 未找到ID{eid}')
@@ -192,17 +272,20 @@ class AIService:
                         results.append('⚠️ 无修改字段')
                 elif action == 'delete':
                     eid = op.get('event_id')
-                    if not eid:
-                        results.append('❌ 缺少event_id')
-                        continue
+                    if isinstance(eid, bool) or not isinstance(eid, int) or eid <= 0:
+                        raise ValueError('event_id 必须是正整数')
                     results.append(
                         f'✅ 已删除 ID{eid}' if EventService.delete_event(eid)
                         else f'⚠️ 未找到ID{eid}'
                     )
                 elif action == 'reply':
-                    pass  # 纯文本回复，不执行操作
+                    if not isinstance(op.get('message'), str):
+                        raise ValueError('reply.message 必须是字符串')
                 else:
                     results.append(f'❌ 未知操作: {action}')
+            except (TypeError, ValueError) as e:
+                _log.warning(f"拒绝非法操作 [{action}]: {e}")
+                results.append(f'❌ [{action}]无效: {e}')
             except Exception as e:
                 _log.warning(f"执行操作失败 [{action}]: {e}")
                 results.append(f'❌ [{action}]失败: {e}')
