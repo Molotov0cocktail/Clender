@@ -17,6 +17,7 @@ import theme_manager
 from event_service import EventService
 from floating_window_logic import FloatingWindowSettings
 from logger import get_logger
+from sync_controller import SyncController
 from ui.app_settings import AppSettingsDialog
 from ui.calendar_widget import CalendarWidget
 from ui.event_manager import EventManager
@@ -46,6 +47,7 @@ class MainWindow(QMainWindow):
 
         self._init_ui()
         self._floating_window = DailyFloatingWindow()
+        self._sync_controller = SyncController(self)
         self._init_tray()
         self._load_sample_data_if_empty()
         self._connect_signals()
@@ -116,12 +118,18 @@ class MainWindow(QMainWindow):
         self._floating_action = tray_menu.addAction('显示今日悬浮窗')
         self._floating_action.setCheckable(True)
         self._floating_action.triggered.connect(self._set_floating_visibility)
+        self._sync_action = tray_menu.addAction('立即同步日程')
+        self._sync_action.triggered.connect(self._manual_sync)
         tray_menu.addSeparator()
         quit_action = tray_menu.addAction('退出')
         quit_action.triggered.connect(self._quit_app)
         self._tray_icon.setContextMenu(tray_menu)
         self._tray_icon.activated.connect(self._on_tray_activated)
         self._tray_icon.show()
+
+    def has_system_tray(self) -> bool:
+        """Return whether this window owns a usable tray icon."""
+        return hasattr(self, '_tray_icon') and self._tray_icon.isVisible()
 
     def _on_tray_activated(self, reason):
         if reason == QSystemTrayIcon.DoubleClick:
@@ -158,6 +166,8 @@ class MainWindow(QMainWindow):
         dlg.config_saved.connect(self._apply_app_settings)
         dlg.theme_toggle_requested.connect(self._toggle_theme)
         dlg.ai_settings_requested.connect(lambda: self._open_ai_settings(dlg))
+        dlg.webdav_test_requested.connect(self._sync_controller.test_connection)
+        dlg.webdav_sync_requested.connect(self._manual_sync)
         try:
             dlg.exec_()
         finally:
@@ -226,6 +236,13 @@ class MainWindow(QMainWindow):
         self._floating_window.visibility_change_requested.connect(
             self._set_floating_visibility
         )
+        self._sync_controller.status_changed.connect(self._on_sync_status)
+        self._sync_controller.schedules_changed.connect(
+            self._on_remote_data_changed
+        )
+        self._sync_controller.test_finished.connect(
+            self._on_webdav_test_finished
+        )
 
     def _on_date_selected(self, d: date):
         self._event_mgr.set_date(d)
@@ -235,6 +252,26 @@ class MainWindow(QMainWindow):
     def _on_data_changed(self):
         self._refresh_all()
         self._status_label.setText('日程已更新 ✓')
+        self._sync_controller.request_sync('local-change')
+
+    def _on_remote_data_changed(self):
+        self._refresh_all()
+        self._status_label.setText('已应用 WebDAV 远端日程 ✓')
+
+    def _manual_sync(self):
+        self._sync_controller.request_sync('manual')
+
+    def _on_sync_status(self, status):
+        text = str(status)
+        if ':' in text:
+            _kind, text = text.split(':', 1)
+        self._status_label.setText(text[:200])
+        if self._settings_dialog is not None:
+            self._settings_dialog.set_webdav_status(status)
+
+    def _on_webdav_test_finished(self, ok, message):
+        if self._settings_dialog is not None:
+            self._settings_dialog.set_webdav_test_result(bool(ok), message)
 
     def _refresh_all(self):
         events_by_date = self._get_event_counts()
@@ -373,6 +410,7 @@ class MainWindow(QMainWindow):
         if self._shutting_down:
             return
         self._shutting_down = True
+        self._sync_controller.shutdown()
         self._floating_window.shutdown()
         for dialog in tuple(self._detail_dialogs):
             dialog.close()

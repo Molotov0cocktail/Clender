@@ -11,6 +11,7 @@ from constants import APP_NAME
 
 
 _ACTIVATE_MESSAGE = b"activate\n"
+_PROBE_MESSAGE = b"probe\n"
 
 
 def _default_service_name() -> str:
@@ -36,20 +37,23 @@ class SingleInstanceCoordinator(QObject):
         self._connections: set[QLocalSocket] = set()
         self._buffers: dict[QLocalSocket, bytearray] = {}
 
-    def acquire(self, timeout_ms: int = 500) -> bool:
+    def acquire(
+        self, timeout_ms: int = 500, *, activate_existing: bool = True
+    ) -> bool:
         """Return True for the primary process; notify and reject a secondary."""
         if self._owns_server:
             return True
 
         timeout_ms = max(0, int(timeout_ms))
-        if self._notify_existing(timeout_ms):
+        message = _ACTIVATE_MESSAGE if activate_existing else _PROBE_MESSAGE
+        if self._notify_existing(timeout_ms, message):
             return False
         if self._listen():
             return True
 
         # A competing process may have won the listen race after our first
         # connection attempt. Recheck before treating the endpoint as stale.
-        if self._notify_existing(timeout_ms):
+        if self._notify_existing(timeout_ms, message):
             return False
 
         QLocalServer.removeServer(self.service_name)
@@ -58,7 +62,7 @@ class SingleInstanceCoordinator(QObject):
 
         # Never start a second full application when local IPC cannot be
         # acquired. A final notification also covers a late race winner.
-        self._notify_existing(timeout_ms)
+        self._notify_existing(timeout_ms, message)
         return False
 
     def close(self) -> None:
@@ -79,7 +83,7 @@ class SingleInstanceCoordinator(QObject):
             return True
         return False
 
-    def _notify_existing(self, timeout_ms: int) -> bool:
+    def _notify_existing(self, timeout_ms: int, message: bytes) -> bool:
         socket = QLocalSocket(self)
         socket.connectToServer(self.service_name)
         if not socket.waitForConnected(timeout_ms):
@@ -87,7 +91,7 @@ class SingleInstanceCoordinator(QObject):
             socket.deleteLater()
             return False
 
-        socket.write(_ACTIVATE_MESSAGE)
+        socket.write(message)
         socket.flush()
         socket.waitForBytesWritten(timeout_ms)
         socket.disconnectFromServer()

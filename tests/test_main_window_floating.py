@@ -5,7 +5,7 @@ from unittest import mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QWidget
 
 from constants import DEFAULT_CONFIG
@@ -42,6 +42,18 @@ class StubAIChat(QWidget):
         super().__init__()
         self.apply_theme = mock.Mock()
         self.submit_external_message = mock.Mock(return_value=True)
+
+
+class StubSyncController(QObject):
+    status_changed = pyqtSignal(str)
+    schedules_changed = pyqtSignal()
+    test_finished = pyqtSignal(bool, str)
+
+    def __init__(self):
+        super().__init__()
+        self.request_sync = mock.Mock(return_value=True)
+        self.test_connection = mock.Mock(return_value=True)
+        self.shutdown = mock.Mock()
 
 
 class SignalStub:
@@ -92,11 +104,15 @@ class StubDialog:
         self.config_saved = SignalStub()
         self.theme_toggle_requested = SignalStub()
         self.ai_settings_requested = SignalStub()
+        self.webdav_test_requested = SignalStub()
+        self.webdav_sync_requested = SignalStub()
         self.finished = SignalStub()
         self.exec_ = mock.Mock(return_value=0)
         self.show = mock.Mock()
         self.raise_ = mock.Mock()
         self.apply_theme = mock.Mock()
+        self.set_webdav_status = mock.Mock()
+        self.set_webdav_test_result = mock.Mock()
         self.close = mock.Mock()
 
 
@@ -108,6 +124,7 @@ class MainWindowFloatingIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.config = dict(DEFAULT_CONFIG)
         self.floating = StubFloatingWindow()
+        self.sync = StubSyncController()
         self.saved_configs = []
         self.events = {
             1: Event(
@@ -131,6 +148,7 @@ class MainWindowFloatingIntegrationTests(unittest.TestCase):
             mock.patch("ui.main_window.CalendarWidget", StubCalendar),
             mock.patch("ui.main_window.EventManager", StubEventManager),
             mock.patch("ui.main_window.AIChatWidget", StubAIChat),
+            mock.patch("ui.main_window.SyncController", return_value=self.sync),
             mock.patch(
                 "ui.main_window.DailyFloatingWindow",
                 floating_class,
@@ -183,6 +201,20 @@ class MainWindowFloatingIntegrationTests(unittest.TestCase):
         window._ai_chat.data_changed.emit()
         self.floating.refresh.assert_called_once_with()
         floating_class.assert_called_once_with()
+        self.assertEqual(
+            self.sync.request_sync.call_args_list,
+            [mock.call("local-change"), mock.call("local-change")],
+        )
+
+    def test_remote_refresh_does_not_start_a_second_sync_loop(self):
+        window, _ = self._make_window()
+        self.floating.refresh.reset_mock()
+        self.sync.request_sync.reset_mock()
+
+        self.sync.schedules_changed.emit()
+
+        self.floating.refresh.assert_called_once_with()
+        self.sync.request_sync.assert_not_called()
 
     def test_calendar_keeps_read_only_detail_but_floating_no_longer_opens_it(self):
         window, _ = self._make_window()

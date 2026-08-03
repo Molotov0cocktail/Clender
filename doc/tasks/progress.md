@@ -204,6 +204,44 @@ Before (巨石架构):                  After (分层架构):
 
 ---
 
+## Phase 10：WebDAV 日程同步与静默自启动（2026-08-03）
+
+输入文档：`doc/webdav-autostart-proposal.md`、`doc/webdav-autostart-high-level-design.md`、`doc/webdav-autostart-detailed-design.md`、`doc/prompt.md`
+
+| 任务 ID | 任务名称 | 状态 | 依赖 |
+|---|---|---|---|
+| T38 | WebDAV 同步数据契约与核心服务 | ✅ 已完成 | 无 |
+| T39 | 设置 UI、开机自启动与静默入口 | ✅ 已完成 | T38 controller 接口 |
+| T40 | 集成、构建、exe 冒烟与提交 | ✅ 已完成 | T38–T39 |
+
+### 已确认决策
+
+- 仅在本地日程成功变更或用户手动同步时同步；不做启动同步和五分钟轮询。
+- WebDAV 目录下固定使用 `clender-events.json`，仅 HTTPS + Basic Authentication。
+- 密码明文保存在被忽略且视为敏感的 `config.json`；远端日程为未加密 JSON。
+- 使用跨设备 UUID、UTC 更新时间、删除墓碑、逐事件 LWW 和 ETag 条件写。
+- 自启动仅支持 frozen exe 的当前用户 HKCU Run；`--silent` 隐藏主窗口但保留托盘和已启用悬浮窗。
+- 本轮按用户指示不使用 subagent。
+
+### 测试门禁
+
+- 严格正常、边界、异常和回归矩阵见 T38、T39 与详细设计第 10 节。
+- 所有自动化先取得旧实现失败/缺失证据；HTTP、DB、注册表、配置均隔离或 mock。
+
+### 当前证据
+
+- 旧实现聚焦 23 项得到 3 failure、12 error，失败对应全部新增契约。
+- 修复后同步/设置/入口集成聚焦 50/50；补强后最终全量 171/171。
+- 全模块导入、`build.py --check`、静态与敏感扫描通过；未访问真实 WebDAV、配置、数据库、注册表或对话内容。
+- PyInstaller 生成 45,582,138-byte exe（SHA-256 `FBCB0BAA…610CD`）；普通/静默双向 primary-secondary 隔离冒烟通过。
+- `dist/data` 前后保持 5 文件、45619 字节、摘要 `3CBFF264…ED3E`。
+
+### 下一步
+
+- Phase 10 已完成；提交哈希见最终交付报告。
+
+---
+
 ## Phase 8：桌面体验修复与今日悬浮窗（2026-08-02）
 
 输入文档：`doc/desktop-experience-proposal.md`、`doc/desktop-experience-high-level-design.md`、`doc/desktop-experience-detailed-design.md`、`doc/prompt.md`

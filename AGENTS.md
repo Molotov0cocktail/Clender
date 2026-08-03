@@ -2,7 +2,7 @@
 
 > **适用范围：** 本文件位于工程根目录，规则适用于整个仓库。若子目录以后出现更具体的 `AGENTS.md`，子目录规则只能补充本文件，不得降低这里的质量、测试和维护要求。
 >
-> **当前基线：** 2026-08-02，按 Phase 9 悬浮快捷对话、双字号与日历间距后的实际代码整理。`doc/` 中的旧文档保留历史背景，代码现状、本文件与 `doc/floating-ai-typography-*.md` 优先。
+> **当前基线：** 2026-08-03，按 Phase 10 WebDAV 日程同步与静默自启动后的实际代码整理。`doc/` 中的旧文档保留历史背景，代码现状、本文件与 `doc/webdav-autostart-*.md` 优先。
 
 ## 🚨 强制维护门禁（所有代理和开发者必须遵守）
 
@@ -46,6 +46,8 @@ Clender 是 Windows 桌面智能日程管理应用，使用 Python 3.12.4、PyQt
 - 多对话 AI 助手，将经过验证的模型 JSON 操作转换成日程 CRUD；
 - 日间/夜间主题、系统托盘、同用户单实例、JSON 运行时配置和日志；
 - 可选的今日桌面悬浮窗：0%–100% 透明度、时间范围、默认桌面底层/临时置顶、位置大小记忆、拖动缩放、current/next 高亮、双击编辑和复用当前 AI 对话的快捷输入；
+- 基于 HTTPS + Basic Authentication 的 WebDAV 日程双向同步，使用逐事件 UUID、更新时间、删除墓碑、ETag 条件写与后台 QThread；不上传对话；
+- 当前 Windows 用户级开机自启动，打包版使用 `--silent` 隐藏主窗口并保留托盘及已启用悬浮窗；
 - PyInstaller Windows 单文件构建。
 
 唯一支持的开发、测试和构建环境是本机 Miniconda base Python 3.12.4。不再维护项目内 Python 环境、离线 wheel 集合或旧版 Windows 兼容构建。
@@ -80,6 +82,9 @@ Clender/
 ├─ ai_client.py               # 模型列表请求、Chat Completions QThread
 ├─ calendar_logic.py          # 周/日 block、真实碰撞、lane/cluster 与重叠区间纯函数
 ├─ floating_window_logic.py   # 悬浮设置校验、日期窗口、时间标签与 current/next 分类纯函数
+├─ webdav_sync.py             # WebDAV 设置/文档校验、LWW 合并、HTTP 与同步服务
+├─ sync_controller.py         # WebDAV QThread、busy/pending、状态与刷新编排
+├─ startup_manager.py         # Windows HKCU Run 自启动启停与命令构造
 ├─ typography.py              # 8px–20px 双字号校验、集中语义角色与 QFont 工厂
 ├─ single_instance.py         # 同用户 QLocalServer/QLocalSocket 协调器
 ├─ theme_manager.py           # Light/Dark 配色与全局主题应用
@@ -98,7 +103,7 @@ Clender/
 │  ├─ ai_settings.py          # API、模型、Token、Thinking、提示词设置
 │  ├─ sidebar.py              # 对话选择/新建/删除/重命名信号
 │  └─ __init__.py
-├─ tests/                     # 133 项 unittest：模型、配置、DB、AI、单实例、字号、日历、悬浮、构建、Qt
+├─ tests/                     # 171 项 unittest：既有能力 + WebDAV、同步 DB/controller、自启动与静默入口
 ├─ .github/workflows/test.yml # Windows + Python 3.12.4 CI
 ├─ data/                      # 真实运行数据；被忽略，视为敏感数据
 │  ├─ clender.db
@@ -144,6 +149,16 @@ Clender/
 
 `DailyFloatingWindow.ai_message_submitted(str)` → `MainWindow` → `AIChatWidget.submit_external_message(text)` 复用同一 Conversation、预算、单 worker、QThread、解析、执行和持久化链路。主页面与悬浮输入共享 busy 状态；悬浮窗只消费 `working/changed/unchanged/error:` 短状态，不渲染模型正文。
 
+### WebDAV 日程同步
+
+`EventManager.data_changed` / `AIChatWidget.data_changed` / 悬浮编辑成功 → `MainWindow._on_data_changed()` → 刷新 UI → `SyncController.request_sync("local-change")`。设置页或托盘的手动入口使用同一 controller；应用启动和空闲期间不自动同步，也没有周期定时器。
+
+`SyncController` 将网络工作放入单个 `SyncWorker(QThread)`，运行中再次发生本地变化只记录一次 pending，当前任务结束后补跑。`SyncService` 读取包含墓碑的本地快照，GET 远端 `clender-events.json`，按 `sync_uid` 与 UTC `updated_at` 逐事件 LWW 合并，通过数据库单事务应用，并使用 ETag 的 `If-Match` / `If-None-Match` 条件 PUT；412 最多重新拉取合并一次。远端改变本地后只发 `schedules_changed` 刷新 UI，不再次触发同步循环。
+
+### 静默开机自启动
+
+设置保存通过 `startup_manager` 写入/删除当前用户 `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` 的 `Clender` 值；只允许 frozen exe 注册，命令为当前 exe 加 `--silent`。`main.main()` 移除内部参数后创建 QApplication；静默 primary 不显示主窗口，但托盘和已启用悬浮窗正常初始化，无托盘时回退显示主窗口。静默 secondary 只向单实例端点发送 `probe`，不会激活已有窗口。
+
 ### 日历绘制
 
 `CalendarWidget` 查询 `EventService` → `calendar_logic.build_week_blocks()` / `build_day_blocks()` → lane/cluster/真实碰撞 block → `WeekCanvas` / `DayCanvas`。Canvas 根据宽度分栏，窄栏聚合为多 ID 命中块，短事项只画可点击 marker，重叠纹理只占右缘。点击经 `CalendarWidget.event_activated(tuple IDs)` 交给主窗口显示单项详情或选择后详情。
@@ -183,6 +198,7 @@ Clender/
 - `save_config(config)`：临时文件加 `os.replace()` 原子保存完整字典，包括空或非空 `api_key`。
 - `is_api_configured()`、`get_theme()`、`set_theme(theme)`。
 - `app_font_size_px` 与 `floating_font_size_px` 是相互独立的整数配置，合法范围均为 8–20px；缺失或非法值回退 13px。悬浮 pin 状态不属于配置。
+- `webdav_enabled`、`webdav_url`、`webdav_username`、`webdav_password` 与 `startup_enabled` 随完整 JSON 原子保存；密码按用户决策明文保存并视为高敏感字段。启用/测试/手动同步时 URL 必须为无 query/fragment/内嵌凭据的 HTTPS 目录，用户名和密码非空。
 
 `logger.configure_logging(data_dir)` 显式安装 DEBUG 文件 handler 和 WARNING 控制台 handler；`shutdown_logging()` 用于测试/关闭；`get_logger(name)` 无文件副作用。绝不记录 Key 或 Authorization header。
 
@@ -193,8 +209,10 @@ Clender/
 - `init_db()` 显式建表、迁移 `estimated_duration`、创建 `idx_events_start_time`。
 - `add_event(...) -> int`、`update_event(id, **fields) -> int`、`delete_event(id) -> bool`。
 - `get_events_by_date()`、`get_events_date_range()`、`get_events_overlapping_range(start, end)`、`get_all_events()`、`get_event_by_id()`。
+- `get_sync_records()` 返回包含墓碑的同步记录；`apply_sync_records(records) -> bool` 按 UUID/更新时间在单事务应用并报告可见日程是否改变。
 - 所有连接使用上下文管理，在成功与异常路径关闭；值参数化，动态更新字段使用白名单。
 - `update_event(event_type=...)` 支持 `reminder`/`timespan` 类型转换；转换为 reminder 时服务层显式传入 `end_time=None` 清除旧结束时间。其他可空字段仍遵循显式清空契约。
+- 本地 add 生成 `sync_uid` 与 UTC `updated_at`；update 刷新 `updated_at`；delete 软删除并令 `deleted_at == updated_at`。所有普通查询过滤墓碑，只有同步接口读取墓碑。
 
 `get_events_overlapping_range()` 使用半开区间 `[start, end)`：reminder 的开始时刻落入区间；timespan 与区间相交且结束晚于起点。`EventService` 在查询前验证参数必须是递增的 `datetime`。
 
@@ -212,6 +230,9 @@ Clender/
 | `description` | 默认空字符串 |
 | `estimated_duration` | 非负整数分钟，默认 0（业务层保证） |
 | `created_at` | 默认 CURRENT_TIMESTAMP |
+| `sync_uid` | 32 位小写 UUID hex；业务保证非空唯一，`idx_events_sync_uid` 唯一索引 |
+| `updated_at` | UTC RFC3339 微秒时间戳，以 `Z` 结尾 |
+| `deleted_at` | 可空；非空为同步删除墓碑 |
 
 Schema 变化必须有幂等迁移、旧库测试和回滚说明；禁止在真实 `data/clender.db` 上试验。
 
@@ -266,15 +287,16 @@ Qt 信号：
 | `EventManager` | `data_changed()`；`set_date()`、`refresh()`、`apply_theme()` |
 | `AIChatWidget` | `data_changed()`、`external_request_status(str)`；`submit_external_message(text) -> bool`、`refresh_api_state()`、`apply_theme()` |
 | `SettingsDialog` | `config_saved()` |
-| `AppSettingsDialog` | `config_saved(dict)`、`theme_toggle_requested()`、`ai_settings_requested()` |
+| `AppSettingsDialog` | `config_saved(dict)`、`theme_toggle_requested()`、`ai_settings_requested()`、`webdav_test_requested(dict)`、`webdav_sync_requested()`；`set_webdav_test_result()`、`set_webdav_status()` |
 | `DailyFloatingWindow` | `event_edit_requested(int)`、`ai_message_submitted(str)`、`geometry_changed(tuple)`、`visibility_change_requested(bool)`；`set_ai_request_status(str)`、`apply_settings()`、`refresh()`、`apply_theme()`、`shutdown()`。旧 `event_activated` 仅为兼容保留且不再发射 |
+| `SyncController` | `status_changed(str)`、`schedules_changed()`、`test_finished(bool,str)`；`request_sync()`、`test_connection()`、`shutdown()` |
 | `ConversationSidebar` | selected/new/delete/rename 四类信号 |
 
 `SettingsDialog._save()` 只有在完整 JSON 配置成功写入后才提示成功、发射 `config_saved` 并关闭；IO 失败必须留在窗口内显示错误。获取模型前 endpoint 与 Key 都必须来自当前表单且非空，先保存再请求；任一为空或保存失败时不得沿用磁盘旧连接发起请求。
 
 ### 5.6 单实例
 
-`SingleInstanceCoordinator.acquire(timeout_ms=500) -> bool` 使用按当前 Windows 用户摘要命名的 `QLocalServer`。primary 监听并接收严格的 `activate\n`；secondary 连接、发送后返回 `False`。监听竞争时先复查已有实例，只有确认不可通信才清理陈旧端点；无法确认所有权时保守退出，禁止双开。`MainWindow.activate_existing_instance()` 保留最大化状态并优先置前活动 modal。
+`SingleInstanceCoordinator.acquire(timeout_ms=500, activate_existing=True) -> bool` 使用按当前 Windows 用户摘要命名的 `QLocalServer`。普通 secondary 发送严格的 `activate\n`；静默 secondary 发送 `probe\n`，只确认现有实例而不置前。监听竞争时先复查已有实例，只有确认不可通信才清理陈旧端点；无法确认所有权时保守退出，禁止双开。`MainWindow.activate_existing_instance()` 保留最大化状态并优先置前活动 modal。
 
 ## 6. 运行、测试和构建
 
@@ -303,7 +325,7 @@ $env:QT_QPA_PLATFORM = 'offscreen'
 & 'C:\Users\30910\Miniconda3\python.exe' -m unittest discover -s tests -v
 Remove-Item Env:QT_QPA_PLATFORM
 
-& 'C:\Users\30910\Miniconda3\python.exe' -c "import main, models, config, database, event_service, conversation_store, ai_service, ai_client, calendar_logic, floating_window_logic, single_instance, theme_manager, typography; import ui.main_window, ui.calendar_widget, ui.canvas, ui.event_manager, ui.event_dialog, ui.event_detail_dialog, ui.daily_floating_window, ui.app_settings, ui.ai_chat_widget, ui.ai_settings, ui.sidebar; print('imports ok')"
+& 'C:\Users\30910\Miniconda3\python.exe' -c "import main, models, config, database, event_service, conversation_store, ai_service, ai_client, calendar_logic, floating_window_logic, single_instance, startup_manager, webdav_sync, sync_controller, theme_manager, typography; import ui.main_window, ui.calendar_widget, ui.canvas, ui.event_manager, ui.event_dialog, ui.event_detail_dialog, ui.daily_floating_window, ui.app_settings, ui.ai_chat_widget, ui.ai_settings, ui.sidebar; print('imports ok')"
 
 & 'C:\Users\30910\Miniconda3\python.exe' .\build.py --check
 ```
@@ -334,6 +356,8 @@ Remove-Item Env:QT_QPA_PLATFORM
 | 日历/Canvas | 空值、00:00/23:59、动态 gutter、lane/cluster、短相邻 marker、N 重叠/overflow、坏数据、命中 | 月/周/日、Light/Dark、8/20px、至少 8px 时间轴间距 |
 | 单实例 | primary/secondary、合法/非法消息、竞争、陈旧端点、入口早退 | 打包 exe 双实例、托盘/modal/最大化恢复 |
 | 悬浮窗/UI | 配置校验、跨日查询、0/100% 透明度、geometry、current/next、拖缩、top/bottom、双击编辑、AI bridge/busy、午夜 | Windows DWM、置顶/置底、无边框拖缩、托盘、多屏/DPI |
+| WebDAV 同步 | URL/schema/UUID/LWW/墓碑、旧库迁移、事务、GET/PUT/PROPFIND、ETag/412、busy/pending | 仅 mock 网络；两个隔离 DB 合并与真实服务兼容留发布后验证 |
+| 自启动/静默 | HKCU 启停/失败补偿、quoted command、普通/silent/secondary/无托盘 | 打包 exe `--silent` 隔离冒烟；不改真实 Run 值 |
 | 构建 | 精确环境、无 `--add-data`、用户 site 隔离、DLL PATH、暂存发布路径 | PyInstaller + exe 隐藏启动冒烟；`dist/data/` 构建前后完整性一致 |
 
 Bug 修复必须包含一个修复前失败、修复后通过的用例。若无法复现失败态，任务文件必须记录输入、预期/实际结果和限制。
@@ -341,6 +365,7 @@ Bug 修复必须包含一个修复前失败、修复后通过的用例。若无�
 ## 8. 安全与数据约束
 
 - `data/` 与 `dist/data/` 都属于用户，不得清空、覆盖、复制、纳入测试或提交。只有用户运行应用时才允许就地迁移；数据库结构修改前必须备份方案。
+- WebDAV 密码与 API Key 同级敏感；不得记录 Basic Authorization、URL 内嵌凭据、密码或远端日程正文。远端 JSON 未端到端加密，只允许 HTTPS。
 - 用户已明确接受 `config.json` 明文保存 `api_key`；因此 `data/config.json` 与 `dist/data/config.json` 必须始终被忽略、视为高敏感文件，不得读取进测试、打印、复制、打包或提交。
 - 所有 SQL 值参数化，字段名白名单；连接与事务必须在异常路径关闭。
 - AI 输出是不可信输入，不得扩展为文件、命令、任意 SQL 或未确认的外部操作。
@@ -357,6 +382,8 @@ Bug 修复必须包含一个修复前失败、修复后通过的用例。若无�
 6. CI 配置已加入仓库，但远程工作流结果需在推送到 GitHub 后确认。
 7. 单实例依赖本地 IPC；若端点在受限系统中不可用，当前为防双开会保守退出且没有启动前图形诊断。
 8. 依赖锁定针对当前 Windows Miniconda base；升级需重新运行完整测试和 exe 构建冒烟。
+9. WebDAV 冲突使用设备 UTC 时钟的 LWW，明显时钟偏差可能令错误设备获胜；墓碑首版不清理，远端整体 JSON 会随历史删除增长，并受 5 MiB/100000 条上限约束。
+10. WebDAV 自动化只使用 mock，未连接真实服务；服务端对 PROPFIND、ETag、重定向和 Basic 应用密码的细节仍可能存在 Provider 差异。
 
 ## 10. 文档与提交约定
 
@@ -376,5 +403,6 @@ Bug 修复必须包含一个修复前失败、修复后通过的用例。若无�
 | 2026-08-02 | T22 API Key 保存、构建数据保护与 Git 提交 | CredentialBlob 遵循 pywin32 字符串写入契约并对错误 1312 降级会话凭据；设置保存失败保留窗口并提示；构建改为 staging 后仅发布 exe；新增“每次修改后重新构建、提交且保护 `dist/data/`”强制规则 | 修改前 9 项聚焦测试出现 2 失败、1 错误；修复后 39 项全量测试、真实临时凭据、导入、环境检查、完整构建及隔离 exe 冒烟通过；`dist/data/` 完整性不变 |
 | 2026-08-02 | T23–T29 桌面体验修复与今日悬浮窗 | Key 改为完整 JSON 原子保存并删除秘密存储；Thinking 视觉锚定；同用户单实例；日历 lane/marker/聚合点击；新增相交查询、应用设置、只读详情和今日悬浮窗；新增规划澄清、多 agent 与 Git 代理规则 | 各 Bug 均先取得旧实现失败；89 项 unittest、全模块导入、build `--check`、独立代码/敏感扫描和 Light/Dark 离屏截图通过；PyInstaller 生成 45,538,690-byte exe，隔离双实例/启动冒烟通过；`dist/data` 前后保持 5 文件、261367 字节、摘要 `1CC055FB…8864`；提交哈希见最终报告 |
 | 2026-08-02 | T30–T37 悬浮快捷对话、双字号与日历间距 | 新增集中 `typography` 与独立应用/悬浮 8–20px 设置；日历时间轴动态 gutter；悬浮窗改为无边框默认置底、临时置顶、拖缩、current/next、双击编辑与 AI 当前对话 bridge；类型转换可持久化；透明度支持 0% | 所有契约先取得旧实现失败证据；三批 subagent 实现与独立复核；133 项 unittest、全模块导入、build `--check`、静态字号/敏感扫描和 Light/Dark × 8/20px 视觉矩阵通过；最终 PyInstaller 生成 45,555,401-byte exe（SHA-256 `4093EFFB…D5854`），隔离首/次实例冒烟通过；`dist/data` 前后保持 5 文件、262248 字节、摘要 `9213D0AA…9ADD6`；提交哈希见最终报告 |
+| 2026-08-03 | T38–T40 WebDAV 日程同步与静默自启动 | 事件新增 UUID/UTC 更新时间/删除墓碑并以事务迁移旧库；新增 HTTPS Basic WebDAV schema v1、确定性 LWW、ETag 条件写、QThread controller；设置页新增连接/手动同步与 frozen exe HKCU Run；入口新增 `--silent` 和 probe-only secondary | 旧实现 23 项聚焦为 3 failure/12 error；修复后 171 项 unittest、全模块导入、`build.py --check`、静态/敏感扫描通过；PyInstaller 生成 45,582,138-byte exe（SHA-256 `FBCB0BAA…610CD`），普通/静默 primary-secondary 隔离冒烟通过；`dist/data` 前后保持 5 文件、45619 字节、摘要 `3CBFF264…ED3E`；未访问真实 WebDAV/注册表/运行数据内容，提交哈希见最终报告 |
 
 后续每次工程修改都必须在此追加一行，并同时更新受影响章节。维护记录用于定位，完整实施细节和测试证据保存在对应 `doc/tasks/` 文件中。

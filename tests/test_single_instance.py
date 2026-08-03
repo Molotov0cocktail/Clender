@@ -57,6 +57,24 @@ class SingleInstanceCoordinatorTests(unittest.TestCase):
             QTest.qWait(10)
         self.assertEqual(activations, [True])
 
+    def test_silent_secondary_only_probes_and_does_not_activate_primary(self):
+        primary = self.module.SingleInstanceCoordinator(self.service_name)
+        secondary = self.module.SingleInstanceCoordinator(self.service_name)
+        self.addCleanup(primary.close)
+        self.addCleanup(secondary.close)
+        activations = []
+        primary.activation_requested.connect(lambda: activations.append(True))
+
+        self.assertTrue(primary.acquire(timeout_ms=100))
+        self.assertFalse(
+            secondary.acquire(timeout_ms=100, activate_existing=False)
+        )
+
+        for _ in range(10):
+            self.app.processEvents()
+            QTest.qWait(10)
+        self.assertEqual(activations, [])
+
     def test_invalid_message_does_not_request_activation(self):
         primary = self.module.SingleInstanceCoordinator(self.service_name)
         self.addCleanup(primary.close)

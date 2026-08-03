@@ -47,6 +47,16 @@ class ConfigPersistenceTests(unittest.TestCase):
 
         self.assertEqual(config.load_config()["api_key"], value)
 
+    def test_webdav_password_round_trips_only_through_ignored_json_config(self):
+        value = "同步密码-🔐-" + "x" * 1024
+        config.save_config({
+            "webdav_url": "https://dav.example.test/root",
+            "webdav_username": "用户",
+            "webdav_password": value,
+        })
+
+        self.assertEqual(config.load_config()["webdav_password"], value)
+
     def test_json_is_only_key_source(self):
         self.data_dir.mkdir(parents=True)
         self.config_file.write_text(

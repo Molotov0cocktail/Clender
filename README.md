@@ -9,7 +9,8 @@ Clender 是一个面向 Windows 的桌面智能日程管理应用。它使用 Py
 - 多会话 AI 助手，可将已验证的模型操作转换为日程 CRUD；
 - 日间/夜间主题，以及独立的应用与悬浮窗字号设置（8–20px）；
 - 今日桌面悬浮窗：时间范围筛选、当前/下一事项提示、拖动缩放、双击编辑，以及复用当前 AI 会话的快捷输入；
-- 同一 Windows 用户单实例、系统托盘和 PyInstaller 单文件构建。
+- WebDAV 日程双向同步：按事件合并新增、修改与删除，不同步 AI 对话；
+- 同一 Windows 用户单实例、系统托盘、静默开机自启动和 PyInstaller 单文件构建。
 
 ## 环境要求
 
@@ -32,6 +33,10 @@ $ClenderPython = 'C:\Users\30910\Miniconda3\python.exe'
 首次运行会在 `data/` 创建本地数据库、配置和对话记录。该目录可能含 API Key 与私人日程，已被 Git 忽略，不能提交或共享。
 
 在应用的 AI 设置中填写 OpenAI 兼容 API 的 endpoint、API Key 和模型后，即可使用 AI 对话。模型输出只会执行受限且经过校验的日程操作。
+
+在应用设置中可启用 WebDAV，填写 HTTPS 目录 URL、用户名和密码。Clender 会在该目录读写 `clender-events.json`，仅在本地日程变更或手动请求时后台同步。WebDAV 密码明文保存在已忽略的本机 `config.json`；远端日程 JSON 未端到端加密，请只使用可信 HTTPS 服务和专用应用密码。
+
+打包版可为当前 Windows 用户启用开机自启动。自启动使用 `--silent`：主窗口不弹出，托盘仍可恢复；已启用的今日悬浮窗会照常显示。
 
 ## 测试与检查
 
@@ -64,6 +69,9 @@ ai_service.py            AI 上下文、响应解析与操作校验
 ai_client.py             OpenAI 兼容网络线程
 calendar_logic.py        周/日视图纯布局逻辑
 floating_window_logic.py 悬浮窗设置与状态逻辑
+webdav_sync.py          WebDAV 协议、文档验证与事件合并
+sync_controller.py      WebDAV 后台线程与触发编排
+startup_manager.py      Windows 当前用户开机自启动
 ui/                      PyQt5 界面
 tests/                   unittest 与 Qt offscreen 测试
 doc/                     设计文档和任务记录
@@ -78,4 +86,4 @@ doc/                     设计文档和任务记录
 
 ## 安全说明
 
-`data/` 和 `dist/data/` 是用户运行数据，可能含明文 API Key、日程和对话记录。它们必须始终保持在版本控制之外；请勿将其附加到 issue、日志或发布包。
+`data/` 和 `dist/data/` 是用户运行数据，可能含明文 API Key、WebDAV 密码、日程和对话记录。它们必须始终保持在版本控制之外；请勿将其附加到 issue、日志或发布包。

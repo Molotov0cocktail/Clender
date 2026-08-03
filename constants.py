@@ -61,6 +61,11 @@ DEFAULT_CONFIG = {
     "floating_window_start_time": "08:00",
     "floating_window_end_time": "22:00",
     "floating_window_geometry": None,
+    "webdav_enabled": False,
+    "webdav_url": "",
+    "webdav_username": "",
+    "webdav_password": "",
+    "startup_enabled": False,
 }
 
 # ── 应用信息 ──

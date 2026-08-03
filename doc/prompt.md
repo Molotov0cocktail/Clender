@@ -81,3 +81,32 @@
 - frameless bottom/top、拖动排除、缩放、双击编辑、current/next、0/100% 和悬浮 AI 当前会话绑定通过。
 - 全模块导入、`build.py --check`、完整 PyInstaller、隔离 exe 启动/双实例通过。
 - `dist/data/` 构建前后逐项一致；提交无用户 CI、data、Key、日志、数据库、对话、exe 或缓存。
+
+---
+
+# Phase 10 单 Agent 控制提示
+
+## 主 Agent
+
+- 必读 `AGENTS.md`、Phase 10 三层设计、T38–T40 与 `doc/tasks/progress.md`。
+- 用户已明确本轮不需要 subagent；主 agent 按“规划 → 失败测试 → 小步实现 → 聚焦验证 → 全量发布验证”串行完成。
+- 仅在本地日程成功变更或手动请求后同步；不得加入启动同步或定时轮询。
+- WebDAV 密码只允许进入被忽略的运行时配置或测试 mock，不得进入日志、文档示例真实值、远端错误文本或提交。
+- 所有 HTTP 都必须在 QThread；所有 Qt 控件更新都必须在主线程；远端内容视为不可信输入。
+- schema 迁移和同步事务只用临时数据库验证，不读取或复制真实 `data/`。
+- 发现远端协议、迁移、冲突、删除、自启动或静默可见性出现新歧义时立即暂停询问。
+
+## 实施顺序
+
+1. T38 先添加数据库/协议/HTTP/controller 失败测试，再实现核心。
+2. T39 先添加设置/注册表/入口失败测试，再实现 UI 与接线。
+3. T40 统一进行全量、构建、隔离 exe、数据完整性与提交。
+
+## 最终验证
+
+- 本地/远端新增、修改、墓碑删除与同时间戳确定性合并通过。
+- HTTPS/Basic、PROPFIND、GET/PUT/ETag/412、超时、非 2xx、畸形/过大 JSON均有 mock 覆盖。
+- 同步只由本地变化/手动触发，remote refresh 不循环，busy/pending/shutdown 稳定。
+- HKCU Run 启停和失败补偿通过；普通、silent、secondary、无托盘入口通过。
+- 全量 unittest、导入、offscreen、build check、完整 PyInstaller 与隔离 exe 冒烟通过。
+- `dist/data/` 前后逐项一致；提交无 data、密码、日志、数据库、对话、exe、缓存或无关文件。

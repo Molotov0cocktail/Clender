@@ -13,13 +13,16 @@ from ui.main_window import MainWindow
 
 
 def main(argv=None) -> int:
-    app = QApplication(sys.argv if argv is None else argv)
+    raw_args = list(sys.argv if argv is None else argv)
+    silent = "--silent" in raw_args[1:]
+    qt_args = [arg for arg in raw_args if arg != "--silent"]
+    app = QApplication(qt_args)
     app.setApplicationName('Clender')
     app.setOrganizationName('ClenderApp')
     app.setQuitOnLastWindowClosed(False)
 
     coordinator = SingleInstanceCoordinator(parent=app)
-    if not coordinator.acquire():
+    if not coordinator.acquire(activate_existing=not silent):
         return 0
 
     config.ensure_app_data_dir()
@@ -29,7 +32,8 @@ def main(argv=None) -> int:
     window = MainWindow(app)
     coordinator.activation_requested.connect(window.activate_existing_instance)
     app.aboutToQuit.connect(coordinator.close)
-    window.show()
+    if not silent or not window.has_system_tray():
+        window.show()
     return app.exec_()
 
 
