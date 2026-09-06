@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108">
+<title>Clender — original calendar and check mark</title>
+<defs><linearGradient id="brand" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4968E8"/><stop offset="1" stop-color="#6851CB"/></linearGradient></defs>
+<rect x="2" y="2" width="104" height="104" rx="25" fill="url(#brand)"/>
+<g transform="translate(5.4 5.4) scale(0.9)" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M 72 33 L 36 33 Q 29 33 29 40 L 29 72 Q 29 79 36 79 L 72 79 Q 79 79 79 72 L 79 40 Q 79 33 72 33" stroke="#FFFFFF" stroke-width="4.5" />
+<path d="M 41 27 L 41 39 M 67 27 L 67 39" stroke="#FFFFFF" stroke-width="4.5" />
+<path d="M 30 47 L 78 47" stroke="#FFFFFF" stroke-width="3.0" />
+<path d="M 42 62 L 51 70 L 67 55" stroke="#70F0D5" stroke-width="5.5" /></g>
+</svg>

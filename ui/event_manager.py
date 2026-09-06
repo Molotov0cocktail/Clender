@@ -34,7 +34,7 @@ class EventManager(QFrame):
         layout.setContentsMargins(10, 10, 10, 10)
 
         # ---- 标题 ----
-        self._title_label = QLabel('📋 日程安排')
+        self._title_label = QLabel('日程安排')
         self._title_label.setObjectName('eventManagerTitle')
         layout.addWidget(self._title_label)
 
@@ -58,10 +58,10 @@ class EventManager(QFrame):
         self._btn_add = QPushButton('＋ 添加事项')
         self._btn_add.clicked.connect(self._on_add_clicked)
 
-        self._btn_edit = QPushButton('✏️ 编辑选中')
+        self._btn_edit = QPushButton('编辑选中')
         self._btn_edit.clicked.connect(self._on_edit_clicked)
 
-        self._btn_delete = QPushButton('🗑 删除选中')
+        self._btn_delete = QPushButton('删除选中')
         self._btn_delete.clicked.connect(self._on_delete_clicked)
 
         btn_layout.addWidget(self._btn_add)
@@ -105,7 +105,7 @@ class EventManager(QFrame):
                     time_str = dt.strftime('%H:%M')
                 except ValueError:
                     time_str = start_time
-                display_text = f'🔔 {time_str}  {title}'
+                display_text = f'提醒 {time_str}  {title}'
             else:
                 try:
                     dt_start = datetime.strptime(start_time, '%Y-%m-%d %H:%M')
@@ -114,10 +114,11 @@ class EventManager(QFrame):
                     time_str = f'{dt_start.strftime(fmt)} - {dt_end.strftime(fmt)}'
                 except (ValueError, TypeError):
                     time_str = f'{start_time} - {end_time}'
-                display_text = f'📅 {time_str}  {title}'
+                display_text = f'时段 {time_str}  {title}'
 
             item = QListWidgetItem(display_text)
             item.setData(Qt.UserRole, ev_id)
+            item.setData(Qt.UserRole + 1, ev_type)
             if ev_type == 'reminder':
                 item.setForeground(QColor(t["event_reminder_color"]))
             else:
@@ -146,6 +147,14 @@ class EventManager(QFrame):
         """动态应用当前主题样式"""
         t = theme_manager.get_current_theme()
         scale = app_scale_from_config(cfg_mod.load_config())
+        for row in range(self._list_widget.count()):
+            item = self._list_widget.item(row)
+            event_type = item.data(Qt.UserRole + 1)
+            color_key = {
+                'reminder': 'event_reminder_color',
+                'timespan': 'event_timespan_color',
+            }.get(event_type, 'muted_color')
+            item.setForeground(QColor(t[color_key]))
         self.setStyleSheet(f'''
             EventManager {{
                 background-color: {t["frame_bg"]};

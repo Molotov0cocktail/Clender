@@ -9,6 +9,7 @@ import config
 import theme_manager
 from logger import configure_logging
 from single_instance import SingleInstanceCoordinator
+from app_icon import create_app_icon
 from ui.main_window import MainWindow
 
 
@@ -25,6 +26,7 @@ def main(argv=None) -> int:
     if not coordinator.acquire(activate_existing=not silent):
         return 0
 
+    app.setWindowIcon(create_app_icon())
     config.ensure_app_data_dir()
     configure_logging(config.APP_DATA_DIR)
     database.init_db()

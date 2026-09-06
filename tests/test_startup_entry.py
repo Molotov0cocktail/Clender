@@ -14,6 +14,7 @@ class StartupEntryTests(unittest.TestCase):
         window.has_system_tray.return_value = tray_available
         patches = [
             mock.patch.object(main, "QApplication", return_value=app),
+            mock.patch.object(main, "create_app_icon", return_value="brand-icon"),
             mock.patch.object(main, "SingleInstanceCoordinator", return_value=coordinator),
             mock.patch.object(main.config, "ensure_app_data_dir"),
             mock.patch.object(main, "configure_logging"),
@@ -32,6 +33,7 @@ class StartupEntryTests(unittest.TestCase):
             ["Clender.exe", "--silent"], tray_available=True
         )
         self.assertEqual(result, 0)
+        _app.setWindowIcon.assert_called_once_with("brand-icon")
         coordinator.acquire.assert_called_once_with(activate_existing=False)
         window.show.assert_not_called()
 

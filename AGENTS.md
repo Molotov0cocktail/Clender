@@ -2,7 +2,7 @@
 
 > **适用范围：** 本文件位于工程根目录，规则适用于整个仓库。若子目录以后出现更具体的 `AGENTS.md`，子目录规则只能补充本文件，不得降低这里的质量、测试和维护要求。
 >
-> **当前基线：** 2026-09-06，Phase 11 PC 日程体验。`doc/` 中的旧文档保留历史背景，代码现状、本文件、`doc/pc-experience-design.md` 与 `doc/webdav-autostart-*.md` 优先。
+> **当前基线：** 2026-09-06，双端外观与背景（T60–T63）。`doc/` 中的旧文档保留历史背景，代码现状、本文件、`doc/appearance-design.md`、`doc/pc-experience-design.md` 与 Android 子契约优先。
 
 ## 🚨 强制维护门禁（所有代理和开发者必须遵守）
 
@@ -50,7 +50,7 @@ Clender 是 Windows 桌面智能日程管理应用，使用 Python 3.12.4、PyQt
 - 当前 Windows 用户级开机自启动，打包版使用 `--silent` 隐藏主窗口并保留托盘及已启用悬浮窗；
 - PyInstaller Windows 单文件构建。
 
-唯一支持的开发、测试和构建环境是本机 Miniconda base Python 3.12.4。不再维护项目内 Python 环境、离线 wheel 集合或旧版 Windows 兼容构建。
+Windows 唯一支持的开发、测试和构建环境是本机 Miniconda base Python 3.12.4。不再维护项目内 Python 环境、离线 wheel 集合或旧版 Windows 兼容构建。Android 原生 Compose 子工程独立位于 `android/`，沿用其隔离 JDK 17/21、Gradle 8.13、API 26–36 契约，详见 `android/AGENTS.md`。
 
 ## 2. 技术栈与环境
 
@@ -88,6 +88,10 @@ Clender/
 ├─ typography.py              # 8px–20px 双字号校验、集中语义角色与 QFont 工厂
 ├─ single_instance.py         # 同用户 QLocalServer/QLocalSocket 协调器
 ├─ theme_manager.py           # Light/Dark 配色与全局主题应用
+├─ background.py              # 本地背景校验、有界解码/缓存、cover绘制与日夜遮罩
+├─ app_icon.py                # 原创日历勾选QPainter图标，窗口/托盘统一
+├─ assets/                    # 原创SVG与generate_icons.py；icon.ico用于PyInstaller
+├─ android/                   # 独立Compose应用/Gradle/测试，私有背景与adaptive图标
 ├─ build.py                   # Python 3.12.4 环境检查、PyInstaller 构建、可选快捷方式
 ├─ requirements.txt           # Miniconda base 已验证版本锁定
 ├─ ui/
@@ -105,7 +109,7 @@ Clender/
 │  ├─ ai_settings.py          # API、模型、Token、Thinking、提示词设置
 │  ├─ sidebar.py              # 对话选择/新建/删除/重命名信号
 │  └─ __init__.py
-├─ tests/                     # 209 项 unittest：既有能力 + Phase 11 表单/跨日/视图/输入/重试
+├─ tests/                     # 252 项 unittest：既有能力、隔离exe工具、背景/图标/动作文字/对比度
 ├─ .github/workflows/test.yml # Windows + Python 3.12.4 CI
 ├─ data/                      # 真实运行数据；被忽略，视为敏感数据
 │  ├─ clender.db
@@ -176,6 +180,10 @@ Clender/
 ### 主题
 
 `MainWindow._toggle_theme()` → `theme_manager.switch_theme()` 原子保存完整配置并应用全局 Palette/QSS → 日历、事件、AI、悬浮窗、设置和打开的详情对话框 `apply_theme()`。`typography.py` 从独立的 `app_font_size_px` 与 `floating_font_size_px` 构建命名语义角色；全局应用字号不得覆盖悬浮窗的事项、状态、输入和 pin 字号。
+
+主窗口中央 `BackgroundWidget` 使用 `BackgroundSettings.from_config()`，本机 `background_image` 路径与 `background_strength`（整数0–100，默认60）随完整配置保存。输入限制32MiB/2400万像素，最长边解码到1920，按路径/mtime/大小缓存；失效回退纯色。日间/夜间最低55%/60%蒙板，文字与悬浮透明度不跟随图片透明；calendar背景属性在刷新/月周日切换后保留。设置选择/移除仅改草稿，保存成功才生效，取消不保存；图片移动删除后下次应用外观或启动回退。首次有界解码在主线程，极慢磁盘仍可能短暂等待。
+
+`app_icon.create_app_icon()` 只在 QApplication 存在后调用；入口在单实例primary确定后设置，secondary仍早退。`assets/generate_icons.py` 用同一原创路径生成7尺寸PNG-in-ICO、SVG与Android adaptive/monochrome；无需资源打包数据参数。事项列表切换主题原位更新颜色并保留选择。
 
 ## 5. 核心接口与契约
 
@@ -419,3 +427,12 @@ Bug 修复必须包含一个修复前失败、修复后通过的用例。若无�
 | 2026-08-03 | T38–T40 WebDAV 日程同步与静默自启动 | 事件新增 UUID/UTC 更新时间/删除墓碑并以事务迁移旧库；新增 HTTPS Basic WebDAV schema v1、确定性 LWW、ETag 条件写、QThread controller；设置页新增连接/手动同步与 frozen exe HKCU Run；入口新增 `--silent` 和 probe-only secondary | 旧实现 23 项聚焦为 3 failure/12 error；修复后 171 项 unittest、全模块导入、`build.py --check`、静态/敏感扫描通过；PyInstaller 生成 45,582,138-byte exe（SHA-256 `FBCB0BAA…610CD`），普通/静默 primary-secondary 隔离冒烟通过；`dist/data` 前后保持 5 文件、45619 字节、摘要 `3CBFF264…ED3E`；未访问真实 WebDAV/注册表/运行数据内容，提交哈希见最终报告 |
 
 后续每次工程修改都必须在此追加一行，并同时更新受影响章节。维护记录用于定位，完整实施细节和测试证据保存在对应 `doc/tasks/` 文件中。
+
+### T60–T63 双端外观任务启动（2026-09-06）
+用户本轮授权PC与Android外观、背景及图标美化，非功能细节自主决策，独立子agent实施。当前设计为doc/appearance-design.md，任务T60–T63；先行测试矩阵已建立。Android源码从本地6e5b525的386个跟踪路径恢复，逐路径不存在检查通过，不覆盖原有工具链/签名/缓存；本轮允许Android外观修改，取代Phase11中仅适用于上一任务的“android保持原样”。PC继续保留main Phase11实现，不整体合并旧PC分支。Android使用其独立JDK/Gradle/Compose契约，背景不进入日程同步或Room。根指南与Android指南中的旧任务冻结/Windows跳过只描述历史授权；本轮双端测试、构建和提交仍须完成。
+
+T60–T63 Windows验证完成：252/252 unittest、35模块AST/导入、build --check、完整PyInstaller与隔离普通/静默双实例通过；dist/data只读摘要一致。Light/Dark × 8/13/20px × 月周日/设置24图复核，浅色时间轴muted对比度回归由1.711修复至>=4.5；图标与清晰文字动作、选中状态保持均有失败→通过证据。构建/摘要/命令见T60；Android完整发布与最终Git回执另记。
+
+Android照片方向读取使用固定AndroidX ExifInterface 1.4.2，只有该精确依赖新增，旧依赖锁与校验项保持原样；不得恢复平台ExifInterface或历史8192字节补零兼容。Android图标在mipmap-anydpi统一声明adaptive/monochrome，minSdk26无需旧v26/v33重复资源。首次依赖获取后所有验证恢复offline strict；图片仍仅在后台有界解码至私有背景，不进入同步数据。
+
+2026-09-07 T60–T63发布维护记录：PC background/app_icon、设置/主题/动作文字、Android背景存储/Controller/ViewModel/Compose/原创图标及相关测试文档完成；恢复Android本地既有基线并保留工具链与用户资料。252项Python、1731项Android（UI741）、111发布工具、65策略、完整双端构建与签名审计通过，泄漏标记0；exe普通/静默隔离冒烟和dist/data摘要一致。Android最终APK SHA256 936a58ca…a24afbc5；Windows9898dd5a…215486e。AppBackground必须向透明页面提供LocalContentColor=onBackground，实际文字渲染色有明暗切换回归。一次临时测试DB清理失败未复现，保留严格断言并补匿名诊断。设备与Git最终回执见T60及Git历史；没有迁移用户日程数据。

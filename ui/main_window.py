@@ -6,12 +6,14 @@ from datetime import date, datetime
 import calendar
 import sqlite3
 
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout,
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QSplitter, QStatusBar, QLabel, QPushButton,
                              QSystemTrayIcon, QMenu, QInputDialog, QDialog,
                              QMessageBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
+from background import BackgroundWidget
+from app_icon import create_app_icon
 
 import config as cfg_mod
 import theme_manager
@@ -39,6 +41,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._app = app
         self.setWindowTitle('Clender - 智能日程管理')
+        self.setWindowIcon(create_app_icon())
         self.resize(1280, 800)
         self.setMinimumSize(960, 600)
 
@@ -57,12 +60,21 @@ class MainWindow(QMainWindow):
         self._app.aboutToQuit.connect(self._shutdown_auxiliary_windows)
 
     def _init_ui(self):
-        central = QWidget()
+        central = BackgroundWidget()
         self.setCentralWidget(central)
 
-        main_layout = QHBoxLayout(central)
-        main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(8)
+        main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(16, 12, 16, 16)
+        main_layout.setSpacing(12)
+        header = QHBoxLayout()
+        self._brand_label = QLabel('Clender  /  我的日程')
+        header.addWidget(self._brand_label)
+        header.addStretch()
+        appearance = QPushButton('外观与设置')
+        appearance.setToolTip('背景、字号、悬浮窗和同步设置')
+        appearance.clicked.connect(self._open_settings_dialog)
+        header.addWidget(appearance)
+        main_layout.addLayout(header)
 
         self._calendar = CalendarWidget()
         self._calendar.setMinimumWidth(380)
@@ -75,6 +87,8 @@ class MainWindow(QMainWindow):
         self._ai_chat.setMinimumWidth(350)
 
         self._splitter = QSplitter(Qt.Horizontal)
+        self._splitter.setHandleWidth(10)
+        self._splitter.setStyleSheet('QSplitter::handle { background: transparent; }')
         self._splitter.addWidget(self._calendar)
         self._splitter.addWidget(self._event_mgr)
         self._splitter.addWidget(self._ai_chat)
@@ -91,7 +105,7 @@ class MainWindow(QMainWindow):
         self._status_bar.addWidget(self._status_label)
 
         # 设置按钮
-        self._btn_settings = QPushButton('⚙')
+        self._btn_settings = QPushButton('设置')
         self._btn_settings.setToolTip('设置')
         self._btn_settings.clicked.connect(self._open_settings_dialog)
         self._status_bar.addPermanentWidget(self._btn_settings)
@@ -107,11 +121,7 @@ class MainWindow(QMainWindow):
     def _init_tray(self):
         if not QSystemTrayIcon.isSystemTrayAvailable():
             return
-        from PyQt5.QtGui import QPixmap
-        pixmap = QPixmap(16, 16)
-        pixmap.fill(QColor('#6c5ce7'))
-        from PyQt5.QtGui import QIcon
-        self._tray_icon = QSystemTrayIcon(QIcon(pixmap), self)
+        self._tray_icon = QSystemTrayIcon(create_app_icon(), self)
         self._tray_icon.setToolTip('Clender - 智能日程管理')
         tray_menu = QMenu()
         show_action = tray_menu.addAction('显示主窗口')
@@ -194,12 +204,15 @@ class MainWindow(QMainWindow):
 
     def _update_theme_button(self):
         current = cfg_mod.get_theme()
-        self._theme_btn.setText('☀️' if current == 'dark' else '🌙')
+        self._theme_btn.setText('日间' if current == 'dark' else '夜间')
 
     def _apply_component_styles(self):
+        self.centralWidget().apply_config(cfg_mod.load_config())
+        self._calendar.setProperty('backgroundSurface', None)
         self._calendar.apply_theme()
         self._event_mgr.apply_theme()
         self._ai_chat.apply_theme()
+        self._apply_background_surfaces()
         self._floating_window.apply_theme()
         for dialog in tuple(self._detail_dialogs):
             dialog.apply_theme()
@@ -208,16 +221,29 @@ class MainWindow(QMainWindow):
         self._update_theme_button()
         self._resize_status_buttons()
 
+    def _apply_background_surfaces(self):
+        """Keep background visible through panel shells and large reading areas."""
+        if not self.centralWidget().has_background:
+            return
+        theme = theme_manager.get_current_theme()
+        color = QColor(theme['frame_bg'])
+        surface = f'rgba({color.red()}, {color.green()}, {color.blue()}, 150)'
+        for panel in (self._calendar, self._event_mgr, self._ai_chat):
+            panel.setProperty('backgroundSurface', surface)
+            # Only replace the shell's palette color, preserving buttons and text.
+            panel.setStyleSheet(panel.styleSheet().replace(theme['frame_bg'], surface))
+        for panel, attribute in ((self._event_mgr, '_list_widget'), (self._ai_chat, '_chat_display')):
+            area = getattr(panel, attribute, None)
+            if area is not None:
+                area.setStyleSheet(area.styleSheet().replace(theme['list_bg'], 'transparent'))
+                area.viewport().setAutoFillBackground(False)
+
     def _resize_status_buttons(self):
-        """Keep status-bar glyph buttons readable across the app font range."""
+        """Keep compact text actions readable across the app font range."""
         for button in (self._btn_settings, self._theme_btn):
             metrics = button.fontMetrics()
-            side = max(
-                24,
-                metrics.height() + 10,
-                metrics.horizontalAdvance(button.text()) + 12,
-            )
-            button.setFixedSize(side, side)
+            button.setFixedSize(max(52, metrics.horizontalAdvance(button.text()) + 24),
+                                max(28, metrics.height() + 14))
 
     def _connect_signals(self):
         self._calendar.date_selected.connect(self._on_date_selected)

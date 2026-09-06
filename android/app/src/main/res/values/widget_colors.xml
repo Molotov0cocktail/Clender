@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_background_light">#FFF8F6F1</color>
+    <color name="widget_background_dark">#FF202124</color>
+    <color name="widget_text_light">#FF202124</color>
+    <color name="widget_text_dark">#FFF8F6F1</color>
+    <color name="widget_secondary_light">#FF5F6368</color>
+    <color name="widget_secondary_dark">#FFBDC1C6</color>
+    <color name="widget_accent_light">#FF0B57D0</color>
+    <color name="widget_accent_dark">#FFA8C7FA</color>
+</resources>

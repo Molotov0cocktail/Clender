@@ -12,14 +12,14 @@ from typography import app_scale_from_config, apply_application_font
 
 # ========== 日间主题（Light）==========
 LIGHT_THEME = {
-    "app_bg": "#f3f5fb",
+    "app_bg": "#f0f3fa",
     "frame_bg": "#ffffff",
     "frame_border": "#e1e5f0",
     "title_color": "#2d3436",
     "subtitle_color": "#636e72",
     "text_color": "#2d3436",
-    "muted_color": "#b2bec3",
-    "primary": "#6154cc",
+    "muted_color": "#5b6878",
+    "primary": "#5555c8",
     "primary_hover": "#786add",
     "primary_text": "#ffffff",
     "danger": "#d63031",
@@ -58,13 +58,13 @@ LIGHT_THEME = {
 
 # ========== 夜间主题（Dark）— 零亮色，纯暗色系 ==========
 DARK_THEME = {
-    "app_bg": "#0d1117",            # GitHub暗色背景
-    "frame_bg": "#161b22",           # 面板深色
+    "app_bg": "#101522",            # 深靛蓝背景
+    "frame_bg": "#192133",           # 面板深色
     "frame_border": "#30363d",       # 边框暗灰
     "title_color": "#e6edf3",        # 标题亮灰（可读）
     "subtitle_color": "#8b949e",     # 副标题中灰
     "text_color": "#c9d1d9",         # 正文灰白（柔和）
-    "muted_color": "#484f58",        # 禁用/占位暗灰
+    "muted_color": "#8e9fb5",        # 柔和但清晰的时间轴/次要文字
     "primary": "#7c6ff7",            # 主色紫
     "primary_hover": "#9d8fff",      # 主色hover
     "primary_text": "#ffffff",       # 主色按钮文字白
@@ -77,7 +77,7 @@ DARK_THEME = {
     "header_bg": "#21262d",          # 表头暗色
     "input_bg": "#0d1117",           # 输入框暗
     "input_border": "#30363d",       # 输入框边框
-    "list_bg": "#161b22",            # 列表暗
+    "list_bg": "#192133",            # 列表暗
     "list_item_hover": "#1c2430",    # 列表hover
     "scrollbar_bg": "#30363d",
     "chat_user_color": "#c9d1d9",
@@ -92,8 +92,8 @@ DARK_THEME = {
     "calendar_cell_bg": "#161b22",            # 深色格（不是白色）
     "calendar_cell_border": "#30363d",
     "calendar_cell_text": "#c9d1d9",
-    "event_reminder_color": "#ff6b6b",
-    "event_timespan_color": "#7c6ff7",
+    "event_reminder_color": "#ff959c",
+    "event_timespan_color": "#b9b0ff",
     "statusbar_bg": "#161b22",
     "nav_btn_color": "#58a6ff",
     "switch_btn_text": "#8b949e",
@@ -210,7 +210,7 @@ def apply_theme(app: QApplication, config: dict | None = None):
             background: {theme["header_bg"]};
             color: {theme["text_color"]};
             border: 1px solid {theme["frame_border"]};
-            border-radius: 6px;
+            border-radius: 8px;
             padding: 6px 10px;
         }}
         QPushButton:hover {{ background: {theme["list_item_hover"]}; }}

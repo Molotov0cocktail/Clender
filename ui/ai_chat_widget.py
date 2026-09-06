@@ -72,19 +72,19 @@ class AIChatWidget(QFrame):
         right.setSpacing(8)
 
         title_row = QHBoxLayout()
-        self._btn_toggle_sidebar = QPushButton('☰')
+        self._btn_toggle_sidebar = QPushButton('对话')
         self._btn_toggle_sidebar.setToolTip('显示/隐藏对话列表')
         self._btn_toggle_sidebar.clicked.connect(self._toggle_sidebar)
 
-        self._lbl_conv_title = QLabel('🤖 AI 智能助手')
+        self._lbl_conv_title = QLabel('AI 智能助手')
         title_row.addWidget(self._btn_toggle_sidebar)
         title_row.addWidget(self._lbl_conv_title)
         title_row.addStretch()
-        self._btn_settings = QPushButton('⚙')
+        self._btn_settings = QPushButton('设置')
         self._btn_settings.setToolTip('AI设置')
         self._btn_settings.clicked.connect(self._open_settings)
         title_row.addWidget(self._btn_settings)
-        self._btn_clear = QPushButton('🗑')
+        self._btn_clear = QPushButton('清空')
         self._btn_clear.setToolTip('清空当前对话')
         self._btn_clear.clicked.connect(self._clear_chat)
         title_row.addWidget(self._btn_clear)
@@ -103,7 +103,7 @@ class AIChatWidget(QFrame):
         self._token_bar.setValue(0)
         self._token_bar.setTextVisible(True)
         self._token_bar.setFormat('%v / %m')
-        token_row.addWidget(QLabel('📊'), 0)
+        token_row.addWidget(QLabel('上下文'), 0)
         token_row.addWidget(self._token_bar, 1)
         self._lbl_usage = QLabel('0/0')
         token_row.addWidget(self._lbl_usage)
@@ -201,10 +201,10 @@ class AIChatWidget(QFrame):
                     pass  # 无效的时间戳格式
 
             if role == 'user':
-                header = f'<p><b style="color:{t["chat_user_color"]}">👤 你 {time_str}</b></p>'
+                header = f'<p><b style="color:{t["chat_user_color"]}">你 {time_str}</b></p>'
                 body = f'<p style="color:{t["text_color"]}; margin-left:10px;">{self._esc(content)}</p>'
             elif role == 'assistant':
-                header = f'<p><b style="color:{t["chat_ai_color"]}">🤖 AI {time_str}</b></p>'
+                header = f'<p><b style="color:{t["chat_ai_color"]}">AI {time_str}</b></p>'
                 body = f'<p style="color:{t["text_color"]}; margin-left:10px;">{self._esc(content)}</p>'
             elif role == 'think':
                 think_idx = sum(1 for m in self._active_conv.messages[:i] if m.role == 'think')
@@ -212,14 +212,14 @@ class AIChatWidget(QFrame):
                 is_expanded = self._think_expanded.get(expansion_key, False)
                 anchor_name = self._think_anchor_name(think_idx)
                 if is_expanded:
-                    header = f'<p><b style="color:{t["warning_text"]}">💭 思考 {time_str}</b> '
+                    header = f'<p><b style="color:{t["warning_text"]}">思考 {time_str}</b> '
                     header += f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:{scale.caption_px}px;">收起 ▲</a></p>'
                     body = f'<p style="color:{t["subtitle_color"]}; margin-left:10px; font-style:italic;">{self._esc(content)}</p>'
                 else:
                     short_preview = content[:100].replace('\n', ' ') + ('…' if len(content) > 100 else '')
-                    header = f'<p><b style="color:{t["warning_text"]}">💭 思考 {time_str} ({len(content)}字)</b> '
+                    header = f'<p><b style="color:{t["warning_text"]}">思考 {time_str} ({len(content)}字)</b> '
                     header += f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:{scale.caption_px}px;">展开 ▼</a></p>'
-                    body = f'<p style="color:{t["muted_color"]}; margin-left:10px; font-size:{scale.caption_px}px;">💡 {self._esc(short_preview)}</p>'
+                    body = f'<p style="color:{t["muted_color"]}; margin-left:10px; font-size:{scale.caption_px}px;">{self._esc(short_preview)}</p>'
             else:
                 continue
             self._chat_display.insertHtml(header + body + f'<hr style="border:0;height:1px;background:{t["frame_border"]};">')
@@ -341,7 +341,7 @@ class AIChatWidget(QFrame):
             self._edit_input.clear()
         self._edit_input.setEnabled(False)
         self._btn_send.setEnabled(False)
-        self._lbl_status.setText('⏳ AI思考中...')
+        self._lbl_status.setText('AI 正在思考…')
 
         conversation = self._active_conv
         conversation.add_message('user', txt)
@@ -433,7 +433,7 @@ class AIChatWidget(QFrame):
                 save_conversations(self._convs)
                 self._sidebar.refresh(self._convs, self._active_conv.id if self._active_conv else None)
                 if self._active_conv is conv:
-                    self._lbl_conv_title.setText(f'💬 {conv.title}')
+                    self._lbl_conv_title.setText(conv.title)
 
         if has_change:
             self.data_changed.emit()
@@ -497,11 +497,11 @@ class AIChatWidget(QFrame):
         self._btn_send.setEnabled(ok and not busy)
         self._edit_input.setEnabled(ok and not busy)
         if not ok:
-            self._lbl_status.setText('⚠️ 请先配置API')
+            self._lbl_status.setText('请先配置 API')
         elif busy:
-            self._lbl_status.setText('⏳ AI思考中...')
+            self._lbl_status.setText('AI 正在思考…')
         else:
-            self._lbl_status.setText('✅ 可以开始对话')
+            self._lbl_status.setText('可以开始对话')
 
     def _open_settings(self):
         dlg = SettingsDialog(self)
@@ -525,7 +525,7 @@ class AIChatWidget(QFrame):
         self._chat_display.clear()
         self._sidebar.refresh(self._convs, self._active_conv.id)
         self._update_token_bar()
-        self._lbl_conv_title.setText('🤖 AI 智能助手')
+        self._lbl_conv_title.setText('AI 智能助手')
 
     def refresh_api_state(self):
         self._update_send_state()
@@ -560,7 +560,8 @@ class AIChatWidget(QFrame):
             QFontMetrics(qfont_for(scale, 'control')).height() + 8,
         )
         for btn in (self._btn_settings, self._btn_clear, self._btn_toggle_sidebar):
-            btn.setFixedSize(control_extent, control_extent)
+            text_width = QFontMetrics(qfont_for(scale, 'control')).horizontalAdvance(btn.text())
+            btn.setFixedSize(max(control_extent, text_width + 16), control_extent)
             btn.setStyleSheet(f"""
                 QPushButton{{border:1px solid {t["input_border"]};border-radius:4px;padding:2px 4px;font-size:{scale.control_px}px;background:{t["frame_bg"]};color:{t["text_color"]};}}
                 QPushButton:hover{{background:{t["list_item_hover"]};}}

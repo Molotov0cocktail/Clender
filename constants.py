@@ -42,6 +42,8 @@ EVENT_COLORS = [
 # ── 默认配置（从 config.py DEFAULT_CONFIG 提取）──
 DEFAULT_CONFIG = {
     "theme": "light",
+    "background_image": "",
+    "background_strength": 60,
     "api_endpoint": "",
     "api_key": "",
     "model": "deepseek-v4-pro",

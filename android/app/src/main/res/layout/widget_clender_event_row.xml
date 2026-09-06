@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_event_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="@dimen/widget_row_margin_top"
+    android:gravity="center_vertical"
+    android:minHeight="@dimen/widget_row_min_height"
+    android:contentDescription="@string/widget_event_open_description"
+    android:orientation="horizontal"
+    android:tag="widget_event_row">
+
+    <TextView
+        android:id="@+id/widget_event_time"
+        android:layout_width="@dimen/widget_time_width"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1" />
+
+    <TextView
+        android:id="@+id/widget_event_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="@dimen/widget_row_horizontal_gap"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:tag="widget_event_title" />
+
+    <TextView
+        android:id="@+id/widget_event_state"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1" />
+</LinearLayout>

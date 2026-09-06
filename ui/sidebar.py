@@ -31,7 +31,7 @@ class ConversationSidebar(QFrame):
         layout.setSpacing(4)
 
         hdr = QHBoxLayout()
-        self._lbl_title = QLabel('💬 对话')
+        self._lbl_title = QLabel('对话')
         self._lbl_title.setObjectName('conversationSidebarTitle')
         hdr.addWidget(self._lbl_title)
         hdr.addStretch()
@@ -61,8 +61,8 @@ class ConversationSidebar(QFrame):
         if not cid:
             return
         menu = QMenu(self)
-        rename_action = menu.addAction('✏️ 重命名')
-        del_action = menu.addAction('🗑 删除此对话')
+        rename_action = menu.addAction('重命名')
+        del_action = menu.addAction('删除此对话')
         action = menu.exec_(self._list.viewport().mapToGlobal(pos))
         if action == del_action:
             self.delete_conversation.emit(cid)

@@ -1,0 +1,9 @@
+<resources>
+    <string name="background_title">Custom background</string>
+    <string name="background_local_hint">Stored only on this device. Changes save immediately. Automatic light and dark overlays keep text clear.</string>
+    <string name="background_choose">Choose background image</string>
+    <string name="background_strength">Background visibility · %1$d%%</string>
+    <string name="background_remove">Remove background</string>
+    <string name="background_failed">Unable to read or save this image. Choose another image and try again.</string>
+    <string name="background_busy">Updating background, please wait…</string>
+</resources>

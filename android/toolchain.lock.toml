@@ -1,0 +1,34 @@
+# Download records verified locally during T42. Archives are not committed.
+
+[archives.jdk17]
+url = "https://aka.ms/download-jdk/microsoft-jdk-17.0.20-windows-x64.zip"
+filename = "microsoft-jdk-17.0.20-windows-x64.zip"
+sha256 = "e46fd292317c6bb0a8fe9dc63115021329f3a63caeba791c185f89f3666a68e5"
+
+[archives.jdk21_tests]
+url = "https://aka.ms/download-jdk/microsoft-jdk-21.0.12-windows-x64.zip"
+filename = "microsoft-jdk-21.0.12-windows-x64.zip"
+sha256 = "bf27a5d6298c736af8daf5b8c883098e83291446e5766118d8a5ea6a2617195d"
+
+[archives.android_command_line_tools]
+url = "https://dl.google.com/android/repository/commandlinetools-win-15859902_latest.zip"
+filename = "commandlinetools-win-15859902_latest.zip"
+sha256 = "90ae805d20434428bffcb699c290860f19bb5f66a67e6b330067e3de801fb04a"
+
+[archives.gradle]
+url = "https://services.gradle.org/distributions/gradle-8.13-bin.zip"
+filename = "gradle-8.13-bin.zip"
+sha256 = "20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78"
+
+[android_sdk_packages]
+command_line_tools = "22.0"
+platform = "36"
+platform_revision = "2"
+platform_extension = "17"
+build_tools = "36.0.0"
+
+# These sdkmanager package names are rolling and cannot reproduce an older patch.
+# They are observations only; T48 must acquire and record the then-tested device matrix.
+[observed_rolling_packages]
+platform_tools = "37.0.1"
+emulator = "37.1.11"

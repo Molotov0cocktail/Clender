@@ -1,0 +1,67 @@
+name: Android foundation
+
+on:
+  push:
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      CLENDER_ANDROID_PYTHON: python
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Use Python 3.12.4
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12.4"
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
+      - name: Release and device tool fixtures
+        shell: pwsh
+        run: python -B -m unittest discover -s android/tests/release -v
+      - name: Bootstrap locked JDK 17/21 and Android SDK
+        shell: pwsh
+        timeout-minutes: 15
+        run: python android/scripts/bootstrap-toolchain.py
+      - name: Gradle foundation gates
+        shell: pwsh
+        run: >-
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\android\scripts\gradle.ps1
+          clean --no-daemon --write-locks
+          --dependency-verification strict
+          testDebugUnitTest lintDebug lintRelease detekt ktlintCheck
+          verifyReleaseSigningPolicy verifyNoGoogleServices verifyNoNativeRuntimeArtifacts
+          verifyResolvedVersionsLocked assembleDebug verifyDebugApkNoNativeArtifacts
+      - name: Dependency locks must already be current
+        shell: pwsh
+        run: git diff --exit-code -- android/app/gradle.lockfile android/settings-gradle.lockfile
+      - name: Python policy gates
+        shell: pwsh
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\android\scripts\verify-generated.ps1
+      - name: Repository boundaries
+        shell: pwsh
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\android\scripts\verify-boundaries.ps1
+      - name: Unsigned release must fail closed
+        shell: pwsh
+        run: |
+          Remove-Item Env:CLENDER_ANDROID_KEYSTORE_FILE -ErrorAction SilentlyContinue
+          Remove-Item Env:CLENDER_ANDROID_KEYSTORE_PASSWORD -ErrorAction SilentlyContinue
+          Remove-Item Env:CLENDER_ANDROID_KEY_ALIAS -ErrorAction SilentlyContinue
+          Remove-Item Env:CLENDER_ANDROID_KEY_PASSWORD -ErrorAction SilentlyContinue
+          $ReleaseOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\android\scripts\gradle.ps1 --no-daemon --dependency-verification strict :app:assembleRelease 2>&1
+          $SigningExitCode = $LASTEXITCODE
+          if ($SigningExitCode -eq 0) { throw "Unsigned release validation must fail; expected a non-zero exit." }
+          if (($ReleaseOutput | Out-String) -notmatch "Release signing credentials are required") { throw "Unsigned release failed for an unexpected reason." }
+          $global:LASTEXITCODE = 0
+          exit 0

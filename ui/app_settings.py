@@ -13,11 +13,16 @@ from PyQt5.QtWidgets import (
     QSpinBox,
     QTimeEdit,
     QVBoxLayout,
+    QScrollArea,
+    QWidget,
+    QFileDialog,
 )
 
 import config as cfg_mod
 import startup_manager
 import theme_manager
+from background import BackgroundSettings, load_background
+from pathlib import Path
 from floating_window_logic import FloatingWindowSettings
 from logger import get_logger
 from webdav_sync import WebDAVSettings
@@ -43,19 +48,57 @@ class AppSettingsDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("⚙️ 设置")
+        self.setWindowTitle("外观与应用设置")
         self.setMinimumWidth(460)
+        self.resize(560, 680)
         self._config = cfg_mod.load_config()
         self._init_ui()
         self.apply_theme()
 
     def _init_ui(self):
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        scroll = QScrollArea()
+        scroll.setObjectName('settingsScroll')
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        content = QWidget()
+        content.setObjectName('settingsContent')
+        layout = QVBoxLayout(content)
+        scroll.setWidget(content)
+        outer.addWidget(scroll, 1)
         layout.setSpacing(12)
 
         title = QLabel("应用设置")
         title.setObjectName("settingsTitle")
         layout.addWidget(title)
+
+        self._section(layout, '外观与背景')
+        background = BackgroundSettings.from_config(self._config)
+        self._background_path = background.path
+        self._background_label = QLabel()
+        self._background_label.setWordWrap(True)
+        self._update_background_label()
+        layout.addWidget(self._background_label)
+        background_actions = QHBoxLayout()
+        choose = QPushButton('选择背景图片…')
+        choose.clicked.connect(self._choose_background)
+        remove = QPushButton('恢复纯色')
+        remove.clicked.connect(self._remove_background)
+        background_actions.addWidget(choose)
+        background_actions.addWidget(remove)
+        layout.addLayout(background_actions)
+        self._background_strength = QSlider(Qt.Horizontal)
+        self._background_strength.setRange(0, 100)
+        self._background_strength.setValue(background.strength)
+        self._background_strength.setAccessibleName('背景可见度')
+        strength_label = QLabel(f'背景可见度 {background.strength}%')
+        self._background_strength.valueChanged.connect(lambda value: strength_label.setText(f'背景可见度 {value}%'))
+        layout.addWidget(strength_label)
+        layout.addWidget(self._background_strength)
+        hint = QLabel('日夜主题自动柔化背景。图片移动或删除后将恢复纯色背景。')
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        self._section(layout, '窗口与桌面悬浮窗')
 
         self._chk_close_to_tray = QCheckBox("关闭窗口时最小化到系统托盘（不退出）")
         self._chk_close_to_tray.setChecked(
@@ -111,7 +154,7 @@ class AppSettingsDialog(QDialog):
         )
         opacity_row.addWidget(self._opacity_slider, 1)
         opacity_row.addWidget(self._lbl_opacity)
-        form.addRow("透明度：", opacity_row)
+        form.addRow("悬浮窗不透明度：", opacity_row)
 
         self._start_time = QTimeEdit()
         self._start_time.setDisplayFormat("HH:mm")
@@ -175,12 +218,12 @@ class AppSettingsDialog(QDialog):
         self._btn_theme = QPushButton("切换日间/夜间主题")
         self._btn_theme.clicked.connect(self.theme_toggle_requested)
         action_row.addWidget(self._btn_theme)
-        self._btn_ai = QPushButton("🤖 AI 设置…")
+        self._btn_ai = QPushButton("AI 设置…")
         self._btn_ai.clicked.connect(self.ai_settings_requested)
         action_row.addWidget(self._btn_ai)
         layout.addLayout(action_row)
 
-        about = QPushButton("ℹ️ 关于 Clender")
+        about = QPushButton("关于 Clender")
         about.clicked.connect(lambda: QMessageBox.about(
             self,
             "关于 Clender",
@@ -190,7 +233,36 @@ class AppSettingsDialog(QDialog):
 
         self._btn_save = QPushButton("保存并关闭")
         self._btn_save.clicked.connect(self._save)
-        layout.addWidget(self._btn_save)
+        self._btn_save.setObjectName('settingsSave')
+        footer = QHBoxLayout()
+        cancel = QPushButton('取消')
+        cancel.clicked.connect(self.reject)
+        footer.addWidget(cancel)
+        footer.addWidget(self._btn_save, 1)
+        outer.addLayout(footer)
+
+    @staticmethod
+    def _section(layout, text):
+        label = QLabel(text)
+        label.setObjectName('settingsSection')
+        layout.addWidget(label)
+
+    def _update_background_label(self):
+        self._background_label.setText(Path(self._background_path).name if self._background_path else '纯色背景 · 跟随日夜主题')
+
+    def _choose_background(self):
+        path, _ = QFileDialog.getOpenFileName(self, '选择背景图片', '', '图片 (*.png *.jpg *.jpeg *.bmp *.webp)')
+        if not path:
+            return
+        if load_background(path).isNull():
+            QMessageBox.warning(self, '无法使用图片', '请选择有效图片，文件不超过 32 MB，像素不超过 2400 万。')
+            return
+        self._background_path = path
+        self._update_background_label()
+
+    def _remove_background(self):
+        self._background_path = ''
+        self._update_background_label()
 
     @staticmethod
     def _make_font_size_row(value, slider_name, spin_name):
@@ -277,6 +349,8 @@ class AppSettingsDialog(QDialog):
             else previous_startup
         )
         updated.update({
+            "background_image": self._background_path,
+            "background_strength": self._background_strength.value(),
             "close_to_tray": self._chk_close_to_tray.isChecked(),
             "app_font_size_px": self._app_font_spin.value(),
             "floating_font_size_px": self._floating_font_spin.value(),
@@ -321,6 +395,8 @@ class AppSettingsDialog(QDialog):
         self.setStyleSheet(f'''
             QDialog {{ background: {theme["frame_bg"]}; color: {theme["text_color"]}; }}
             QLabel, QCheckBox {{ color: {theme["text_color"]}; }}
+            QWidget#settingsContent, QScrollArea {{ background: {theme["frame_bg"]}; }}
+            QLabel#settingsSection {{ font-size: {scale.section_title_px}px; font-weight: bold; padding-top: 12px; color: {theme["primary"]}; }}
             QLabel#settingsTitle {{
                 color: {theme["title_color"]};
                 font-size: {scale.section_title_px}px; font-weight: bold;
@@ -330,8 +406,9 @@ class AppSettingsDialog(QDialog):
                 font-size: {scale.section_title_px}px; font-weight: bold;
             }}
             QPushButton {{
-                background: {theme["primary"]}; color: {theme["primary_text"]};
-                border: none; border-radius: 4px; padding: 8px;
+                background: {theme.get("header_bg", theme["frame_bg"])}; color: {theme["text_color"]};
+                border: 1px solid {theme.get("frame_border", theme["frame_bg"])}; border-radius: 8px; padding: 8px;
             }}
-            QPushButton:hover {{ background: {theme["primary_hover"]}; }}
+            QPushButton:hover {{ background: {theme.get("list_item_hover", theme["primary_hover"])}; }}
+            QPushButton#settingsSave {{ background: {theme["primary"]}; color: {theme["primary_text"]}; }}
         ''')
