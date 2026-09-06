@@ -1,5 +1,5 @@
 """Frameless desktop agenda with runtime pinning and compact AI input."""
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 
 from PyQt5.QtCore import QEvent, QPoint, QRect, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor
@@ -12,6 +12,8 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QScrollArea,
+    QMenu,
     QVBoxLayout,
     QWidget,
 )
@@ -19,6 +21,8 @@ from PyQt5.QtWidgets import (
 import config as cfg_mod
 import theme_manager
 from event_service import EventService
+from calendar_logic import build_day_blocks, build_week_blocks
+from ui.canvas import DayCanvas, WeekCanvas
 from floating_window_logic import (
     FloatingEventState,
     FloatingWindowSettings,
@@ -43,7 +47,7 @@ EVENT_BASE_TOOLTIP_ROLE = Qt.UserRole + 2
 class DailyFloatingWindow(QWidget):
     """Top-level daily agenda window controlled by MainWindow."""
 
-    event_activated = pyqtSignal(int)  # Kept for callers compiled against Phase 8.
+    event_activated = pyqtSignal(int)
     event_edit_requested = pyqtSignal(int)
     ai_message_submitted = pyqtSignal(str)
     geometry_changed = pyqtSignal(object)
@@ -70,6 +74,12 @@ class DailyFloatingWindow(QWidget):
         self._restoring_geometry = False
         self._allow_close = False
         self._pinned = False
+        self._view_mode = "events"
+        self._canvas = None
+        self._pending_preview_id = None
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.timeout.connect(self._emit_preview)
 
         self._drag_press_global = None
         self._drag_window_pos = None
@@ -98,11 +108,38 @@ class DailyFloatingWindow(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(6)
 
+        view_row = QHBoxLayout()
+        self._drag_handle = QLabel("⠿")
+        self._drag_handle.setToolTip("拖动悬浮窗")
+        view_row.addWidget(self._drag_handle)
+        self._view_buttons = {}
+        for mode, label in (("events", "事件"), ("day", "日"), ("week", "周")):
+            button = QPushButton(label)
+            button.setObjectName("floatingViewButton")
+            button.clicked.connect(lambda _checked=False, value=mode: self.set_view_mode(value))
+            self._view_buttons[mode] = button
+            view_row.addWidget(button)
+        layout.addLayout(view_row)
+
         self._event_list = QListWidget()
         self._event_list.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._event_list.itemClicked.connect(self._clear_item_selection)
+        self._event_list.itemClicked.connect(self._on_item_clicked)
         self._event_list.itemDoubleClicked.connect(self._on_item_double_clicked)
         layout.addWidget(self._event_list, 1)
+
+        self._timeline_scroll = QScrollArea()
+        self._timeline_scroll.setWidgetResizable(True)
+        self._timeline_scroll.hide()
+        self._week_header = QScrollArea()
+        self._week_header.setWidgetResizable(True)
+        self._week_header.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._week_header.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._week_header.hide()
+        layout.addWidget(self._week_header)
+        layout.addWidget(self._timeline_scroll, 1)
+        self._timeline_scroll.horizontalScrollBar().valueChanged.connect(
+            self._week_header.horizontalScrollBar().setValue
+        )
 
         self._empty_label = QLabel("当前时间段暂无日程")
         self._empty_label.setAlignment(Qt.AlignCenter)
@@ -133,6 +170,7 @@ class DailyFloatingWindow(QWidget):
             self._event_list.viewport(),
             self._empty_label,
             self._ai_status,
+            self._drag_handle,
         ):
             watched.setMouseTracking(True)
             watched.installEventFilter(self)
@@ -167,6 +205,14 @@ class DailyFloatingWindow(QWidget):
         )
         self._ai_status.setFont(qfont_for(scale, "caption"))
         self._btn_pin.setFont(qfont_for(scale, "control"))
+        self._drag_handle.setFont(qfont_for(scale, "control"))
+        for button in self._view_buttons.values():
+            button.setFont(qfont_for(scale, "control"))
+        if self._canvas is not None:
+            self._canvas.setFont(qfont_for(scale, "body"))
+            self._canvas.update()
+        if self._view_mode == "week" and self._displayed_date is not None:
+            self._render_timeline(self._displayed_date)
         self._apply_event_states(datetime.now())
         self.updateGeometry()
 
@@ -175,7 +221,15 @@ class DailyFloatingWindow(QWidget):
         if not isinstance(target, date) or isinstance(target, datetime):
             raise TypeError("target_date 必须是 date")
         self._displayed_date = target
-        start, end = day_window(target, self._settings)
+        self._preview_timer.stop()
+        if self._view_mode == "week":
+            start = datetime.combine(target - timedelta(days=target.weekday()), time.min)
+            end = start + timedelta(days=7)
+        elif self._view_mode == "day":
+            start = datetime.combine(target, time.min)
+            end = start + timedelta(days=1)
+        else:
+            start, end = day_window(target, self._settings)
         events = EventService.get_events_overlapping_range(start, end)
 
         self._event_list.clear()
@@ -205,8 +259,100 @@ class DailyFloatingWindow(QWidget):
             self._displayed_events.append(event)
         self._empty_label.setVisible(self._event_list.count() == 0)
         self._apply_event_states(datetime.now())
+        self._render_timeline(target)
+
+    def set_view_mode(self, mode: str) -> None:
+        """Switch the session-only agenda, day or current-week presentation."""
+        if mode not in self._view_buttons:
+            raise ValueError("未知悬浮视图")
+        self._view_mode = mode
+        self.refresh(self._displayed_date or date.today())
+
+    def _render_timeline(self, target: date) -> None:
+        is_timeline = self._view_mode != "events"
+        self._event_list.setVisible(not is_timeline)
+        self._timeline_scroll.setVisible(is_timeline)
+        self._week_header.setVisible(self._view_mode == "week")
+        for mode, button in self._view_buttons.items():
+            button.setProperty("activeView", mode == self._view_mode)
+            button.style().unpolish(button)
+            button.style().polish(button)
+        if not is_timeline:
+            return
+        per_hour = max(36, self._font_scale.body_px * 3)
+        if self._view_mode == "week":
+            week_start = target - timedelta(days=target.weekday())
+            blocks = build_week_blocks(self._displayed_events, week_start, per_hour)
+            canvas_type = WeekCanvas
+        else:
+            blocks = build_day_blocks(self._displayed_events, per_hour, target_date=target)
+            canvas_type = DayCanvas
+        content = QWidget()
+        if self._view_mode == "week":
+            content.setMinimumWidth(max(360, self._font_scale.body_px * 28))
+        column = QVBoxLayout(content)
+        column.setContentsMargins(0, 0, 0, 0)
+        if self._view_mode == "week":
+            header_widget = QWidget()
+            header_widget.setMinimumWidth(content.minimumWidth())
+            header = QHBoxLayout(header_widget)
+            header.setContentsMargins(0, 0, 0, 0)
+            header.setSpacing(0)
+            header.addSpacing(int(WeekCanvas.timeline_gutter_for_metrics(self._event_list.fontMetrics())))
+            for offset in range(7):
+                day = week_start + timedelta(days=offset)
+                label = QLabel(f'{"一二三四五六日"[offset]}\n{day.day}')
+                label.setFont(qfont_for(self._font_scale, "caption"))
+                label.setAlignment(Qt.AlignCenter)
+                header.addWidget(label, 1)
+            self._week_header.setFixedHeight(self._event_list.fontMetrics().lineSpacing() * 2 + 10)
+            self._week_header.setViewportMargins(0, 0, self._timeline_scroll.verticalScrollBar().sizeHint().width(), 0)
+            self._week_header.setWidget(header_widget)
+        self._canvas = canvas_type(blocks, per_hour * 24, per_hour, theme_manager.get_current_theme())
+        self._canvas.setFont(qfont_for(self._font_scale, "body"))
+        self._canvas.event_activated.connect(lambda ids: self._activate_canvas_ids(ids, False))
+        self._canvas.event_edit_requested.connect(lambda ids: self._activate_canvas_ids(ids, True))
+        column.addWidget(self._canvas)
+        self._timeline_scroll.setWidget(content)
+        QTimer.singleShot(0, self._position_timeline)
+
+    def _position_timeline(self):
+        if self._canvas is None or self._view_mode == "events":
+            return
+        self._timeline_scroll.verticalScrollBar().setValue(max(0, (datetime.now().hour - 1) * self._canvas.per_hour))
+        if self._view_mode == "week":
+            bar = self._timeline_scroll.horizontalScrollBar()
+            day_index = (self._displayed_date or date.today()).weekday()
+            bar.setValue(round(bar.maximum() * day_index / 6))
+
+    def _activate_canvas_ids(self, event_ids, editing: bool) -> None:
+        ids = tuple(i for i in event_ids if isinstance(i, int) and not isinstance(i, bool) and i > 0)
+        signal = self.event_edit_requested if editing else self.event_activated
+        if len(ids) == 1:
+            signal.emit(ids[0])
+        elif ids:
+            menu = QMenu(self)
+            menu.setAttribute(Qt.WA_DeleteOnClose)
+            titles = {event.id: event.title for event in self._displayed_events}
+            for event_id in ids:
+                action = menu.addAction(titles.get(event_id, f"事项 {event_id}"))
+                action.triggered.connect(lambda _checked=False, value=event_id: signal.emit(value))
+            menu.popup(self.mapToGlobal(self.rect().center()))
+
+    def _on_item_clicked(self, item):
+        self._pending_preview_id = item.data(Qt.UserRole)
+        self._preview_timer.start(QApplication.doubleClickInterval())
+        self._clear_item_selection(item)
+
+    def _emit_preview(self):
+        event_id = self._pending_preview_id
+        self._pending_preview_id = None
+        if isinstance(event_id, int) and not isinstance(event_id, bool) and event_id > 0:
+            self.event_activated.emit(event_id)
 
     def _on_item_double_clicked(self, item):
+        self._preview_timer.stop()
+        self._pending_preview_id = None
         event_id = item.data(Qt.UserRole)
         if isinstance(event_id, int) and not isinstance(event_id, bool) and event_id > 0:
             self.event_edit_requested.emit(event_id)
@@ -419,6 +565,7 @@ class DailyFloatingWindow(QWidget):
                     if delta.manhattanLength() < QApplication.startDragDistance():
                         return False
                     self._drag_started = True
+                    self._preview_timer.stop()
                 self.move(self._drag_window_pos + delta)
                 return True
             if watched is self:
@@ -491,11 +638,17 @@ class DailyFloatingWindow(QWidget):
         self.visibility_change_requested.emit(False)
         event.ignore()
 
+    def hideEvent(self, event):
+        self._preview_timer.stop()
+        self._pending_preview_id = None
+        super().hideEvent(event)
+
     def shutdown(self):
         """Stop timers and allow the owning application to destroy the window."""
         self._allow_close = True
         self._date_timer.stop()
         self._geometry_timer.stop()
+        self._preview_timer.stop()
         self.close()
 
     def apply_theme(self):
@@ -521,6 +674,14 @@ class DailyFloatingWindow(QWidget):
             QPushButton:checked {{
                 background: {theme["primary"]}; color: {theme["primary_text"]};
             }}
+            QPushButton[activeView="true"] {{
+                background: {theme["primary"]}; color: {theme["primary_text"]};
+                border: 1px solid {theme["primary"]};
+            }}
+            QScrollArea {{ border: 1px solid {theme["frame_border"]}; border-radius: 8px; }}
         ''')
         self.apply_font_scale(self._font_scale)
         self._apply_event_states(datetime.now())
+        if self._canvas is not None:
+            self._canvas.theme = theme
+            self._canvas.update()

@@ -19,6 +19,7 @@ class CalendarWidget(QFrame):
 
     date_selected = pyqtSignal(date)
     event_activated = pyqtSignal(object)
+    event_edit_requested = pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -39,7 +40,8 @@ class CalendarWidget(QFrame):
 
     def _init_ui(self):
         self._main_layout = QVBoxLayout(self)
-        self._main_layout.setContentsMargins(8,8,8,8)
+        self._main_layout.setContentsMargins(12,12,12,12)
+        self._main_layout.setSpacing(10)
         nav = QHBoxLayout()
         self._btn_prev = QPushButton('◀'); self._btn_prev.setFixedSize(36,36)
         self._btn_prev.clicked.connect(self._go_prev)
@@ -78,16 +80,24 @@ class CalendarWidget(QFrame):
         self._clear_content();self._render_view();self.date_selected.emit(self._selected_date)
 
     def _go_prev(self):
-        if self._view_mode=='month': y,m=self._current_date.year,self._current_date.month; self._current_date=date(y-1,12,1) if m==1 else date(y,m-1,1)
-        elif self._view_mode=='week': self._current_date-=timedelta(days=7)
-        else: self._current_date-=timedelta(days=1)
-        self._clear_content();self._render_view()
+        self._navigate(-1)
 
     def _go_next(self):
-        if self._view_mode=='month': y,m=self._current_date.year,self._current_date.month; self._current_date=date(y+1,1,1) if m==12 else date(y,m+1,1)
-        elif self._view_mode=='week': self._current_date+=timedelta(days=7)
-        else: self._current_date+=timedelta(days=1)
-        self._clear_content();self._render_view()
+        self._navigate(1)
+
+    def _navigate(self, direction):
+        current = self._current_date
+        if self._view_mode == 'month':
+            month_index = (current.year - 1) * 12 + current.month - 1 + direction
+            month_index = max(0, min(9999 * 12 - 1, month_index))
+            self._current_date = date(month_index // 12 + 1, month_index % 12 + 1, 1)
+        else:
+            step = 7 if self._view_mode == 'week' else 1
+            ordinal = max(date.min.toordinal(), min(date.max.toordinal(), current.toordinal() + direction * step))
+            self._current_date = date.fromordinal(ordinal)
+        self._selected_date = self._current_date
+        self._clear_content(); self._render_view()
+        self.date_selected.emit(self._selected_date)
 
     def _clear_content(self):
         self._active_canvas = None
@@ -130,7 +140,7 @@ class CalendarWidget(QFrame):
         d=self._current_date
         if self._view_mode=='month': self._lbl_title.setText(f'{d.year}年 {d.month}月')
         elif self._view_mode=='week':
-            s=d-timedelta(days=d.weekday()); e=s+timedelta(days=6)
+            s=d-timedelta(days=d.weekday()); e=date.fromordinal(min(date.max.toordinal(), s.toordinal()+6))
             self._lbl_title.setText(f'{s.month}月{s.day}日 - {e.month}月{e.day}日  {d.year}年')
         else: self._lbl_title.setText(f'{d.year}年{d.month}月{d.day}日  {["周一","周二","周三","周四","周五","周六","周日"][d.weekday()]}')
 
@@ -165,7 +175,7 @@ class CalendarWidget(QFrame):
         scale=self._scale()
         wd=self._current_date.weekday()
         ws=self._current_date-timedelta(days=wd)
-        we=ws+timedelta(days=6)
+        we=date.fromordinal(min(date.max.toordinal(), ws.toordinal()+6))
         events=EventService.get_events_date_range(ws,we)
         today=date.today()
 
@@ -178,6 +188,9 @@ class CalendarWidget(QFrame):
         )
         hdr_row.addWidget(time_spacer)
         for ci in range(7):
+            if ws.toordinal() + ci > date.max.toordinal():
+                hdr_row.addWidget(QLabel(''))
+                continue
             cd=ws+timedelta(days=ci)
             wdn=['一','二','三','四','五','六','日'][ci]
             lbl=QLabel(f'{wdn}\n{cd.month}/{cd.day}');lbl.setAlignment(Qt.AlignCenter)
@@ -199,6 +212,7 @@ class CalendarWidget(QFrame):
         canvas = WeekCanvas(blocks, timeline_height, per_hour, t)
         canvas.setFont(self.font())
         canvas.event_activated.connect(self.event_activated.emit)
+        canvas.event_edit_requested.connect(self.event_edit_requested.emit)
         self._active_canvas = canvas
         container.addWidget(canvas)
         self._content_layout.addLayout(container)
@@ -219,12 +233,13 @@ class CalendarWidget(QFrame):
         title.setStyleSheet(f'font-size:{scale.page_title_px}px;font-weight:bold;color:{t["title_color"]};padding:4px;')
         container.addWidget(title)
 
-        blocks=build_day_blocks(events, per_hour)
+        blocks=build_day_blocks(events, per_hour, target_date=d)
 
         # ── Canvas 绘制（使用 ui/canvas.py 中的 DayCanvas）──
         canvas = DayCanvas(blocks, timeline_height, per_hour, t)
         canvas.setFont(self.font())
         canvas.event_activated.connect(self.event_activated.emit)
+        canvas.event_edit_requested.connect(self.event_edit_requested.emit)
         self._active_canvas = canvas
         container.addWidget(canvas)
         self._content_layout.addLayout(container)

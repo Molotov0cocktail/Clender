@@ -12,15 +12,15 @@ from typography import app_scale_from_config, apply_application_font
 
 # ========== 日间主题（Light）==========
 LIGHT_THEME = {
-    "app_bg": "#f5f6fa",
+    "app_bg": "#f3f5fb",
     "frame_bg": "#ffffff",
-    "frame_border": "#dfe6e9",
+    "frame_border": "#e1e5f0",
     "title_color": "#2d3436",
     "subtitle_color": "#636e72",
     "text_color": "#2d3436",
     "muted_color": "#b2bec3",
-    "primary": "#6c5ce7",
-    "primary_hover": "#a29bfe",
+    "primary": "#6154cc",
+    "primary_hover": "#786add",
     "primary_text": "#ffffff",
     "danger": "#d63031",
     "danger_hover": "#ff7675",
@@ -28,11 +28,11 @@ LIGHT_THEME = {
     "info_hover": "#74b9ff",
     "success": "#00b894",
     "warning_text": "#e17055",
-    "header_bg": "#dfe6e9",
+    "header_bg": "#edf0f9",
     "input_bg": "#ffffff",
-    "input_border": "#b2bec3",
-    "list_bg": "#f8f9fa",
-    "list_item_hover": "#dfe6e9",
+    "input_border": "#cbd2e3",
+    "list_bg": "#fafbfe",
+    "list_item_hover": "#edf0fa",
     "scrollbar_bg": "#b2bec3",
     "chat_user_color": "#2d3436",
     "chat_ai_color": "#0984e3",
@@ -41,12 +41,12 @@ LIGHT_THEME = {
     "calendar_today_bg": "#dfe6e9",
     "calendar_today_text": "#0984e3",
     "calendar_selected_border": "#6c5ce7",
-    "calendar_selected_bg": "#a29bfe",
+    "calendar_selected_bg": "#6154cc",
     "calendar_selected_text": "#ffffff",
     "calendar_cell_bg": "#ffffff",
     "calendar_cell_border": "#dfe6e9",
     "calendar_cell_text": "#2d3436",
-    "event_reminder_color": "#0984e3",
+    "event_reminder_color": "#d63031",
     "event_timespan_color": "#6c5ce7",
     "statusbar_bg": "#dfe6e9",
     "nav_btn_color": "#0984e3",
@@ -92,7 +92,7 @@ DARK_THEME = {
     "calendar_cell_bg": "#161b22",            # 深色格（不是白色）
     "calendar_cell_border": "#30363d",
     "calendar_cell_text": "#c9d1d9",
-    "event_reminder_color": "#58a6ff",
+    "event_reminder_color": "#ff6b6b",
     "event_timespan_color": "#7c6ff7",
     "statusbar_bg": "#161b22",
     "nav_btn_color": "#58a6ff",
@@ -159,6 +159,7 @@ def apply_theme(app: QApplication, config: dict | None = None):
     palette.setColor(QPalette.Link, QColor(theme["info"]))
     palette.setColor(QPalette.Highlight, QColor(theme["primary"]))
     palette.setColor(QPalette.HighlightedText, QColor(theme["primary_text"]))
+    palette.setColor(QPalette.PlaceholderText, QColor(theme["subtitle_color"]))
     app.setPalette(palette)
 
     # 全局样式表
@@ -204,6 +205,18 @@ def apply_theme(app: QApplication, config: dict | None = None):
         QDialog {{
             background-color: {theme["frame_bg"]};
             color: {theme["text_color"]};
+        }}
+        QPushButton {{
+            background: {theme["header_bg"]};
+            color: {theme["text_color"]};
+            border: 1px solid {theme["frame_border"]};
+            border-radius: 6px;
+            padding: 6px 10px;
+        }}
+        QPushButton:hover {{ background: {theme["list_item_hover"]}; }}
+        QPushButton:disabled {{ color: {theme["muted_color"]}; }}
+        QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDateTimeEdit:focus {{
+            border: 1px solid {theme["primary"]};
         }}
         QMenuBar {{
             background-color: {theme["frame_bg"]};

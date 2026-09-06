@@ -2,7 +2,7 @@
 
 > **适用范围：** 本文件位于工程根目录，规则适用于整个仓库。若子目录以后出现更具体的 `AGENTS.md`，子目录规则只能补充本文件，不得降低这里的质量、测试和维护要求。
 >
-> **当前基线：** 2026-08-03，按 Phase 10 WebDAV 日程同步与静默自启动后的实际代码整理。`doc/` 中的旧文档保留历史背景，代码现状、本文件与 `doc/webdav-autostart-*.md` 优先。
+> **当前基线：** 2026-09-06，Phase 11 PC 日程体验。`doc/` 中的旧文档保留历史背景，代码现状、本文件、`doc/pc-experience-design.md` 与 `doc/webdav-autostart-*.md` 优先。
 
 ## 🚨 强制维护门禁（所有代理和开发者必须遵守）
 
@@ -41,7 +41,7 @@
 
 Clender 是 Windows 桌面智能日程管理应用，使用 Python 3.12.4、PyQt5、SQLite 和 OpenAI 兼容 Chat Completions API。主要能力：
 
-- 月/周/日三种日历视图；周/日视图使用 `QPainter` 绘制 lane、短事项标识、重叠纹理与可点击聚合块；
+- 月/周/日三种日历视图；周/日视图使用 `QPainter` 绘制 lane、时间段色块、提醒红线、重叠纹理与可点击聚合块；单击预览、双击编辑；
 - 提醒（`reminder`）与时间段（`timespan`）事件的添加、编辑、删除和 SQLite 持久化；
 - 多对话 AI 助手，将经过验证的模型 JSON 操作转换成日程 CRUD；
 - 日间/夜间主题、系统托盘、同用户单实例、JSON 运行时配置和日志；
@@ -96,6 +96,8 @@ Clender/
 │  ├─ canvas.py               # WeekCanvas、DayCanvas 绘制
 │  ├─ event_manager.py        # 某日事件列表与 CRUD 入口
 │  ├─ event_dialog.py         # 事件表单、前端校验与数据组装
+│  ├─ time_input.py           # UI-only HHmm/HH:mm 输入；原值灰显，空输入保留
+│  ├─ chat_input.py           # UI-only 自动折行输入；Enter发送/Shift+Enter换行
 │  ├─ event_detail_dialog.py  # 共享只读事项详情
 │  ├─ daily_floating_window.py# 无边框悬浮窗、拖缩、时态、快捷输入与生命周期
 │  ├─ app_settings.py         # 托盘/悬浮/双字号/透明度/时间范围设置
@@ -103,7 +105,7 @@ Clender/
 │  ├─ ai_settings.py          # API、模型、Token、Thinking、提示词设置
 │  ├─ sidebar.py              # 对话选择/新建/删除/重命名信号
 │  └─ __init__.py
-├─ tests/                     # 171 项 unittest：既有能力 + WebDAV、同步 DB/controller、自启动与静默入口
+├─ tests/                     # 209 项 unittest：既有能力 + Phase 11 表单/跨日/视图/输入/重试
 ├─ .github/workflows/test.yml # Windows + Python 3.12.4 CI
 ├─ data/                      # 真实运行数据；被忽略，视为敏感数据
 │  ├─ clender.db
@@ -117,7 +119,7 @@ Clender/
 │  ├─ desktop-experience-proposal/high-level-design/detailed-design.md # Phase 8 历史方案
 │  ├─ floating-ai-typography-proposal/high-level-design/detailed-design.md # 当前方案
 │  ├─ prompt.md               # 大改多 agent 控制提示
-│  └─ tasks/                  # T01–T37 与 progress.md
+│  └─ tasks/                  # T01–T44 与 progress.md
 ├─ references/prompt-templates.md
 ├─ build/                     # PyInstaller 中间产物，忽略
 └─ dist/
@@ -161,11 +163,13 @@ Clender/
 
 ### 日历绘制
 
-`CalendarWidget` 查询 `EventService` → `calendar_logic.build_week_blocks()` / `build_day_blocks()` → lane/cluster/真实碰撞 block → `WeekCanvas` / `DayCanvas`。Canvas 根据宽度分栏，窄栏聚合为多 ID 命中块，短事项只画可点击 marker，重叠纹理只占右缘。点击经 `CalendarWidget.event_activated(tuple IDs)` 交给主窗口显示单项详情或选择后详情。
+`CalendarWidget` 查询 `EventService` → `calendar_logic.build_week_blocks()` / `build_day_blocks()` → lane/cluster/真实碰撞 block → `WeekCanvas` / `DayCanvas`。跨日时间段按每日半开区间切片，保留同一 ID，午夜边界显示 24:00/00:00；数据库和同步仍只有一条事件。短时间段画色块，文字放不下就不绘字；只有提醒画红线。窄栏聚合为多 ID 命中块，重叠纹理只占右缘。单击延迟至双击间隔后发 `event_activated(tuple IDs)` 预览，双击取消待预览并发 `event_edit_requested(tuple IDs)` 编辑；聚合项先选择。导航同步选中日期，新增起止日期均默认当前聚焦日。
+
+`EventDialog` 独立选择起止日期，接受前经 `EventService.validate_event()` 校验；非法/相等/倒序时间弹窗留在表单。`TimeInput.setTime()/time()` 提供原值 placeholder 与四数字自动补冒号，未输入保留原值，部分或非法时间拒绝。保存失败在界面捕获，重新打开同一个表单保留输入以重试或取消。
 
 ### 今日悬浮窗
 
-`MainWindow` 唯一持有 `DailyFloatingWindow`。`FloatingWindowSettings.from_config()` 校验开关、0%–100% 透明度、同日起止时间和 geometry；悬浮窗通过 `EventService.get_events_overlapping_range()` 查询 `[start, end)`，跨日 timespan 按区间相交纳入。无边框窗口默认使用 `WindowStaysOnBottomHint`，pin 仅在本次进程切换到 `WindowStaysOnTopHint`，不持久化。窗口/事项列表可拖动，边缘与四角可缩放，输入框与 pin 控件排除；单击事项不激活，双击经 `EventDialog → EventService.update_event()` 编辑并允许 reminder/timespan 转换。
+`MainWindow` 唯一持有 `DailyFloatingWindow`。`FloatingWindowSettings.from_config()` 校验开关、0%–100% 透明度、同日起止时间和 geometry；悬浮窗通过 `EventService.get_events_overlapping_range()` 查询 `[start, end)`，跨日 timespan 按区间相交纳入。`set_view_mode('events'|'day'|'week')` 在会话内切换事件列表、全天时间轴、当前周时间轴；事件视图遵循设置时间范围，日/周采用整日/整周。周表头固定并与横向滚动同步，默认定位聚焦日。无边框窗口默认置底，pin 仅本次进程置顶；列表和拖动把手可拖动，边缘缩放，输入/pin/切换按钮排除。单击延迟预览，双击编辑，拖动/隐藏取消待预览；聚合块先选事项。全视图保持独立悬浮字号。
 
 `classify_event_states()` 按半开区间标出全部 current，并标出最早 future 的全部并列 next；同日巡检至少每 60 秒重算状态。手工/AI `data_changed`、启用设置和日期变化都会刷新；关闭只隐藏，托盘可恢复，应用退出调用 `shutdown()`。
 
@@ -217,6 +221,8 @@ Clender/
 `get_events_overlapping_range()` 使用半开区间 `[start, end)`：reminder 的开始时刻落入区间；timespan 与区间相交且结束晚于起点。`EventService` 在查询前验证参数必须是递增的 `datetime`。
 
 `EventService.validate_event(...)` 是通用业务校验边界。`add_event`、`update_event`、`delete_event` 验证类型、ID、标题、时间格式/顺序、描述和预计时长；UI/AI 不得绕过该服务直接写库。
+
+`EventService.get_events_by_date()` 与 `get_events_date_range()` 按相交范围返回单个事件一次，日期区间两端均包含，拒绝 datetime 代替 date；日期上界有溢出保护。`get_event_counts(start=None, end=None)` 支持可见日期区间计数，主窗口只计算聚焦月份，避免数千年跨度逐日展开。数据库原查询接口保持不变，WebDAV schema v1 不变。
 
 `events` 表：
 
@@ -273,7 +279,7 @@ Schema 变化必须有幂等迁移、旧库测试和回滚说明；禁止在真�
 
 - `merge_ranges(ranges)` 合并重叠/相邻区间；
 - `build_week_blocks(events, week_start, per_hour)`；
-- `build_day_blocks(events, per_hour)`。
+- `build_day_blocks(events, per_hour, target_date=None)`；日视图必须显式传目标日以裁剪跨日事件，省略仅保留旧调用兼容。
 
 两者输出统一 block：`col/top/height/title/tlabel/color_idx/event_type/is_reminder/id/duration_minutes/overlap_ranges/lane/lane_count/cluster_id`。真实碰撞高度独立于最小视觉高度；非法日期、负时长、缺失/倒序结束时间会被跳过。生成逻辑、Canvas 几何、命中优先级与信号必须成对测试。
 
@@ -283,16 +289,18 @@ Qt 信号：
 
 | 类 | 对外信号/方法 |
 |---|---|
-| `CalendarWidget` | `date_selected(date)`、`event_activated(tuple[int,...])`；`set_selected_date()`、`update_event_markers()`、`apply_theme()` |
+| `CalendarWidget` | `date_selected(date)`、`event_activated(tuple[int,...])`、`event_edit_requested(tuple[int,...])`；`set_selected_date()`、`update_event_markers()`、`apply_theme()` |
 | `EventManager` | `data_changed()`；`set_date()`、`refresh()`、`apply_theme()` |
 | `AIChatWidget` | `data_changed()`、`external_request_status(str)`；`submit_external_message(text) -> bool`、`refresh_api_state()`、`apply_theme()` |
 | `SettingsDialog` | `config_saved()` |
 | `AppSettingsDialog` | `config_saved(dict)`、`theme_toggle_requested()`、`ai_settings_requested()`、`webdav_test_requested(dict)`、`webdav_sync_requested()`；`set_webdav_test_result()`、`set_webdav_status()` |
-| `DailyFloatingWindow` | `event_edit_requested(int)`、`ai_message_submitted(str)`、`geometry_changed(tuple)`、`visibility_change_requested(bool)`；`set_ai_request_status(str)`、`apply_settings()`、`refresh()`、`apply_theme()`、`shutdown()`。旧 `event_activated` 仅为兼容保留且不再发射 |
+| `DailyFloatingWindow` | `event_activated(int)` 预览、`event_edit_requested(int)`、`ai_message_submitted(str)`、`geometry_changed(tuple)`、`visibility_change_requested(bool)`；`set_view_mode()`、`set_ai_request_status(str)`、`apply_settings()`、`refresh()`、`apply_theme()`、`shutdown()` |
 | `SyncController` | `status_changed(str)`、`schedules_changed()`、`test_finished(bool,str)`；`request_sync()`、`test_connection()`、`shutdown()` |
 | `ConversationSidebar` | selected/new/delete/rename 四类信号 |
 
 `SettingsDialog._save()` 只有在完整 JSON 配置成功写入后才提示成功、发射 `config_saved` 并关闭；IO 失败必须留在窗口内显示错误。获取模型前 endpoint 与 Key 都必须来自当前表单且非空，先保存再请求；任一为空或保存失败时不得沿用磁盘旧连接发起请求。
+
+`ChatInput(QTextEdit)` 仅负责纯文本自动折行和一至六行高度；Enter 发 `returnPressed`，Shift+Enter 换行，IME preedit 期间不发送。`text()/setText()` 兼容既有 AI 提交链路；不新增网络、数据或操作权限。
 
 ### 5.6 单实例
 
@@ -396,8 +404,13 @@ Bug 修复必须包含一个修复前失败、修复后通过的用例。若无�
 
 ## 11. 维护记录
 
+### Phase 11 完成（2026-09-06）
+
+本轮 PC 体验任务以 `doc/pc-experience-design.md` 与 T41–T44 为当前实施契约。用户已授权不影响功能的细节自主决策，三个独立子 agent 按文件边界先测试后实现。跨日保持单一事件/UUID 和 WebDAV schema v1；不得修改用户预存的未跟踪 `android/`。新接口已同步上文；完整发布证据见 T44。
+
 | 日期 | 任务 | 变更与接口影响 | 验证 |
 |---|---|---|---|
+| 2026-09-06 | T41–T44 PC 体验 | TimeInput/ChatInput；表单校验及失败重试；跨日同 ID/日期相交/月计数边界；短色块/双击编辑；悬浮三视图/固定周表头/预览；主题微调；设计、任务、接口文档同步 | 旧失败及独立审查修复已记录；209/209 unittest、33模块语法/导入、环境检查、Light/Dark × 8/13/20px 视觉通过；PyInstaller 45595858字节 SHA-256 `A5E9522A…F40C87`，隔离普通/静默双实例通过，dist/data前后相同；详见T44，提交哈希见Git历史 |
 | 2026-08-02 | 建立工程级代理指南 | 新增根目录指南，记录初始结构和风险 | 全源码与文档盘点、语法检查 |
 | 2026-08-02 | T16–T21 Python 3.12 现代化与工程加固 | 统一 Miniconda base 3.12.4；删除旧环境/旧构建资产；新增测试/CI、Credential Manager、日历纯逻辑；统一 Conversation/AICallThread；加固 DB/AI/构建；公共接口按本文件更新 | 首轮回归失败得到复现；修复后 35 项 unittest、全模块导入、build `--check`、PyInstaller 构建和 43,880,676-byte exe offscreen 启动冒烟通过；真实 `data/` 未用于测试 |
 | 2026-08-02 | T22 API Key 保存、构建数据保护与 Git 提交 | CredentialBlob 遵循 pywin32 字符串写入契约并对错误 1312 降级会话凭据；设置保存失败保留窗口并提示；构建改为 staging 后仅发布 exe；新增“每次修改后重新构建、提交且保护 `dist/data/`”强制规则 | 修改前 9 项聚焦测试出现 2 失败、1 错误；修复后 39 项全量测试、真实临时凭据、导入、环境检查、完整构建及隔离 exe 冒烟通过；`dist/data/` 完整性不变 |

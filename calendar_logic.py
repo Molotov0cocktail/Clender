@@ -1,7 +1,7 @@
 """Pure calendar layout helpers shared by week and day views."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from typing import Iterable
 
 from constants import EVENT_COLORS
@@ -99,6 +99,7 @@ def _build_blocks(
     minimum_height: int,
     marker_ratio: float,
     week_start: date | None,
+    target_date: date | None = None,
 ) -> list[dict]:
     blocks: list[dict] = []
     color_by_id: dict[int, int] = {}
@@ -120,50 +121,54 @@ def _build_blocks(
         except (KeyError, TypeError, ValueError):
             continue
 
-        column = 0
-        if week_start is not None:
-            column = (start.date() - week_start).days
-            if not 0 <= column <= 6:
-                continue
-
-        top = (start.hour * 60 + start.minute) / 60 * per_hour
+        if isinstance(event_id, bool) or not isinstance(event_id, int) or event_id <= 0:
+            continue
+        end = None
         if event_type == "timespan":
-            if not end_text:
-                continue
             try:
                 end = datetime.strptime(end_text, DATETIME_FORMAT)
             except (TypeError, ValueError):
                 continue
             if end <= start:
                 continue
-            duration_minutes = (end - start).total_seconds() / 60
-            height = duration_minutes / 60 * per_hour
-            time_label = f"{start:%H:%M}-{end:%H:%M}"
-        elif duration > 0:
-            duration_minutes = duration
-            height = duration / 60 * per_hour
-            time_label = f"{start:%H:%M}"
-        else:
-            duration_minutes = 0
-            height = per_hour * marker_ratio
-            time_label = f"{start:%H:%M}"
 
+        # Clip before iterating so even a years-long event creates at most seven blocks.
+        first_day = week_start if week_start is not None else (target_date or start.date())
+        day_count = 7 if week_start is not None else 1
         if event_id not in color_by_id:
             color_by_id[event_id] = next_color
             next_color = (next_color + 1) % len(EVENT_COLORS)
-        blocks.append({
-            "col": column,
-            "top": top,
-            "height": max(height, minimum_height),
-            "title": title,
-            "tlabel": time_label,
-            "color_idx": color_by_id[event_id],
-            "event_type": event_type,
-            "is_reminder": event_type == "reminder",
-            "id": event_id,
-            "duration_minutes": duration_minutes,
-            "_collision_height": height,
-        })
+        for column in range(day_count):
+            if first_day.toordinal() + column > date.max.toordinal():
+                break
+            day = first_day + timedelta(days=column)
+            day_start = datetime.combine(day, time.min)
+            day_end = datetime.max if day == date.max else day_start + timedelta(days=1)
+            if end is not None:
+                segment_start, segment_end = max(start, day_start), min(end, day_end)
+                if segment_end <= segment_start:
+                    continue
+                duration_minutes = (segment_end - segment_start).total_seconds() / 60
+                height = duration_minutes / 60 * per_hour
+                end_label = "24:00" if segment_end == day_end else f"{segment_end:%H:%M}"
+                time_label = f"{segment_start:%H:%M}-{end_label}"
+            else:
+                if start.date() != day:
+                    continue
+                segment_start = start
+                duration_minutes = duration
+                height = duration / 60 * per_hour if duration else per_hour * marker_ratio
+                time_label = f"{start:%H:%M}"
+            top = (segment_start - day_start).total_seconds() / 3600 * per_hour
+            blocks.append({
+                "col": column, "top": top,
+                "height": max(height, minimum_height),
+                "title": title, "tlabel": time_label,
+                "color_idx": color_by_id[event_id],
+                "event_type": event_type, "is_reminder": event_type == "reminder",
+                "id": event_id, "duration_minutes": duration_minutes,
+                "_collision_height": height,
+            })
 
     _add_overlap_ranges(blocks)
     _assign_lanes(blocks)
@@ -181,7 +186,7 @@ def build_week_blocks(events: Iterable, week_start: date, per_hour: int) -> list
     )
 
 
-def build_day_blocks(events: Iterable, per_hour: int) -> list[dict]:
+def build_day_blocks(events: Iterable, per_hour: int, target_date: date | None = None) -> list[dict]:
     """Convert events into the DayCanvas block contract."""
     return _build_blocks(
         events,
@@ -189,4 +194,5 @@ def build_day_blocks(events: Iterable, per_hour: int) -> list[dict]:
         minimum_height=14,
         marker_ratio=0.3,
         week_start=None,
+        target_date=target_date,
     )

@@ -18,6 +18,7 @@ from ai_service import AIService
 from conversation_store import load_conversations, save_conversations
 from models import Conversation
 from ui.sidebar import ConversationSidebar
+from ui.chat_input import ChatInput
 from logger import get_logger
 from typography import app_scale_from_config, qfont_for
 
@@ -53,8 +54,8 @@ class AIChatWidget(QFrame):
 
     def _init_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(4)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
 
         # ── 可折叠侧栏 ──
         self._sidebar = ConversationSidebar()
@@ -68,7 +69,7 @@ class AIChatWidget(QFrame):
         # ── 右侧主对话区 ──
         right = QVBoxLayout()
         right.setContentsMargins(0, 0, 0, 0)
-        right.setSpacing(3)
+        right.setSpacing(8)
 
         title_row = QHBoxLayout()
         self._btn_toggle_sidebar = QPushButton('☰')
@@ -113,8 +114,8 @@ class AIChatWidget(QFrame):
 
         input_row = QHBoxLayout()
         input_row.setSpacing(4)
-        self._edit_input = QLineEdit()
-        self._edit_input.setPlaceholderText('输入需求，如"帮我安排明天下午3点开会"...')
+        self._edit_input = ChatInput()
+        self._edit_input.setPlaceholderText('描述你的安排… Enter 发送，Shift+Enter 换行')
         self._edit_input.returnPressed.connect(self._send_message)
         input_row.addWidget(self._edit_input, 1)
         self._btn_send = QPushButton('发送')
@@ -221,7 +222,7 @@ class AIChatWidget(QFrame):
                     body = f'<p style="color:{t["muted_color"]}; margin-left:10px; font-size:{scale.caption_px}px;">💡 {self._esc(short_preview)}</p>'
             else:
                 continue
-            self._chat_display.insertHtml(header + body + '<hr style="border:0;height:1px;background:#30363d;">')
+            self._chat_display.insertHtml(header + body + f'<hr style="border:0;height:1px;background:{t["frame_border"]};">')
         if scroll_mode == "preserve" and scroll_bar is not None:
             current_anchor_y = self._anchor_document_y(anchor) if anchor else None
             if previous_anchor_y is None or current_anchor_y is None:
@@ -547,7 +548,8 @@ class AIChatWidget(QFrame):
             f'color:{t["subtitle_color"]};font-size:{scale.secondary_px}px;'
         )
         self._edit_input.setStyleSheet(f'''
-            QLineEdit{{padding:6px;font-size:{scale.control_px}px;border:1px solid {t["input_border"]};border-radius:6px;background:{t["input_bg"]};color:{t["text_color"]};}}
+            QTextEdit{{padding:6px;font-size:{scale.control_px}px;border:1px solid {t["input_border"]};border-radius:8px;background:{t["input_bg"]};color:{t["text_color"]};}}
+            QTextEdit:focus{{border:1px solid {t["primary"]};}}
         ''')
         self._btn_send.setStyleSheet(f"""
             QPushButton{{background:{t["primary"]};color:{t["primary_text"]};border:none;border-radius:5px;padding:6px 16px;font-size:{scale.control_px}px;font-weight:bold;}}

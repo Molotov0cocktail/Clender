@@ -4,9 +4,9 @@ from __future__ import annotations
 from collections import defaultdict
 from math import ceil
 
-from PyQt5.QtCore import QRectF, Qt, pyqtSignal
+from PyQt5.QtCore import QRectF, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QBrush, QColor, QPainter, QPen
-from PyQt5.QtWidgets import QFrame
+from PyQt5.QtWidgets import QApplication, QFrame
 
 from constants import EVENT_COLORS, OVERLAP_MARKER_COLOR, REMINDER_LINE_COLOR
 
@@ -15,6 +15,7 @@ class _BaseCalendarCanvas(QFrame):
     """Shared responsive layout, rendering, and hit testing for calendar canvases."""
 
     event_activated = pyqtSignal(object)
+    event_edit_requested = pyqtSignal(object)
 
     LANE_GAP = 2.0
     MIN_CLICK_WIDTH = 18.0
@@ -36,6 +37,10 @@ class _BaseCalendarCanvas(QFrame):
         self._layout_entries: list[dict] = []
         self._hit_regions: list[tuple[QRectF, tuple[int, ...]]] = []
         self._paint_regions: list[dict] = []
+        self._pending_preview = None
+        self._click_timer = QTimer(self)
+        self._click_timer.setSingleShot(True)
+        self._click_timer.timeout.connect(self._emit_preview)
         self.setMinimumHeight(timeline_height)
 
     def _column_geometry(self, block: dict, width: float) -> tuple[float, float]:
@@ -199,14 +204,7 @@ class _BaseCalendarCanvas(QFrame):
         return entry
 
     def _uses_marker(self, block: dict) -> bool:
-        minimum_text_height = float(self.fontMetrics().lineSpacing()) + 4.0
-        duration_minutes = block.get("duration_minutes")
-        if duration_minutes is None:
-            return (
-                bool(block.get("is_reminder"))
-                and block["height"] < minimum_text_height
-            )
-        return duration_minutes / 60 * self.per_hour < minimum_text_height
+        return bool(block.get("is_reminder"))
 
     def _individual_entry(
         self,
@@ -448,10 +446,33 @@ class _BaseCalendarCanvas(QFrame):
             point = event.localPos()
             entry = self._entry_at(point)
             if entry is not None:
-                self.event_activated.emit(entry["event_ids"])
+                self._pending_preview = entry["event_ids"]
+                self._click_timer.start(QApplication.doubleClickInterval())
                 event.accept()
                 return
         super().mousePressEvent(event)
+
+    def _emit_preview(self):
+        ids, self._pending_preview = self._pending_preview, None
+        if ids:
+            self.event_activated.emit(ids)
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._click_timer.stop()
+            self._pending_preview = None
+            self._build_layout()
+            entry = self._entry_at(event.localPos())
+            if entry is not None:
+                self.event_edit_requested.emit(entry["event_ids"])
+                event.accept()
+                return
+        super().mouseDoubleClickEvent(event)
+
+    def hideEvent(self, event):
+        self._click_timer.stop()
+        self._pending_preview = None
+        super().hideEvent(event)
 
 
 class WeekCanvas(_BaseCalendarCanvas):

@@ -1,3 +1,7 @@
+# Phase 11 当前控制提示
+
+本次任务使用 `doc/pc-experience-design.md` 的目标、设计、分工和测试矩阵，以及 T41–T44。用户授权自主决定不影响最终功能的细节；三个子 agent 各自先取得失败证据再实现，主 agent 审查集成并完成完整构建、隔离 exe、数据完整性和提交。保留未跟踪 `android/`，不更改同步 schema。下列 Phase 8–10 内容为历史流程，不覆盖本次授权和分工。
+
 # Phase 8 多 Agent 控制提示
 
 ## 主 Agent

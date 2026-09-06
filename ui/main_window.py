@@ -3,6 +3,7 @@ Clender 主窗口 - 日历 + 事项 + AI + 托盘
 从 main.py 迁移到 ui 包，使用 EventService 替代直接 database 调用
 """
 from datetime import date, datetime
+import calendar
 import sqlite3
 
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout,
@@ -221,6 +222,8 @@ class MainWindow(QMainWindow):
     def _connect_signals(self):
         self._calendar.date_selected.connect(self._on_date_selected)
         self._calendar.event_activated.connect(self._on_event_activated)
+        self._calendar.event_edit_requested.connect(self._on_event_edit_requested)
+        self._floating_window.event_activated.connect(self._on_event_activated)
         self._event_mgr.data_changed.connect(self._on_data_changed)
         self._ai_chat.data_changed.connect(self._on_data_changed)
         self._floating_window.event_edit_requested.connect(
@@ -247,6 +250,7 @@ class MainWindow(QMainWindow):
     def _on_date_selected(self, d: date):
         self._event_mgr.set_date(d)
         self._calendar.set_selected_date(d)
+        self._calendar.update_event_markers(self._get_event_counts())
         self._status_label.setText(f'已选中: {d.year}年{d.month}月{d.day}日')
 
     def _on_data_changed(self):
@@ -280,6 +284,12 @@ class MainWindow(QMainWindow):
         self._floating_window.refresh()
 
     def _on_event_activated(self, event_ids):
+        self._open_calendar_event(event_ids, edit=False)
+
+    def _on_event_edit_requested(self, event_ids):
+        self._open_calendar_event(event_ids, edit=True)
+
+    def _open_calendar_event(self, event_ids, *, edit):
         if isinstance(event_ids, int) and not isinstance(event_ids, bool):
             candidates = [event_ids]
         elif isinstance(event_ids, (list, tuple, set)):
@@ -310,7 +320,7 @@ class MainWindow(QMainWindow):
             choice, accepted = QInputDialog.getItem(
                 self,
                 "选择事项",
-                "请选择要查看的事项：",
+                "请选择要编辑的事项：" if edit else "请选择要查看的事项：",
                 labels,
                 0,
                 False,
@@ -318,7 +328,10 @@ class MainWindow(QMainWindow):
             if not accepted:
                 return
             selected = events[labels.index(choice)]
-        self._show_event_detail(selected)
+        if edit:
+            self._on_floating_event_edit_requested(selected.id)
+        else:
+            self._show_event_detail(selected)
 
     def _on_floating_event_edit_requested(self, event_id):
         if (
@@ -340,24 +353,23 @@ class MainWindow(QMainWindow):
             return
 
         dialog = EventDialog(event_date, parent=self, edit_event=event)
-        if dialog.exec_() != QDialog.Accepted:
-            return
+        while dialog.exec_() == QDialog.Accepted:
+            try:
+                fields = dialog.get_data()
+                updated = EventService.update_event(event_id, **fields)
+            except (TypeError, ValueError) as exc:
+                QMessageBox.warning(self, "保存失败", str(exc))
+                continue
+            except (OSError, sqlite3.Error):
+                _log.warning("事项保存失败")
+                QMessageBox.critical(self, "保存失败", "无法保存事项，请稍后重试。")
+                continue
 
-        try:
-            fields = dialog.get_data()
-            updated = EventService.update_event(event_id, **fields)
-        except (TypeError, ValueError) as exc:
-            QMessageBox.warning(self, "保存失败", str(exc))
-            return
-        except (OSError, sqlite3.Error) as exc:
-            _log.warning("悬浮窗事项保存失败：%s", exc)
-            QMessageBox.critical(self, "保存失败", "无法保存事项，请稍后重试。")
-            return
-
-        if not updated:
-            QMessageBox.warning(self, "保存失败", "事项不存在或未更新。")
-            return
-        self._on_data_changed()
+            if not updated:
+                QMessageBox.warning(self, "保存失败", "事项不存在或未更新。")
+                return
+            self._on_data_changed()
+            break
 
     def _show_event_detail(self, event):
         dialog = EventDetailDialog(event, self)
@@ -417,7 +429,10 @@ class MainWindow(QMainWindow):
         self._detail_dialogs.clear()
 
     def _get_event_counts(self) -> dict:
-        return EventService.get_event_counts()
+        focused = self._calendar.get_selected_date()
+        first = date(focused.year, focused.month, 1)
+        last = date(focused.year, focused.month, calendar.monthrange(focused.year, focused.month)[1])
+        return EventService.get_event_counts(first, last)
 
     def _load_sample_data_if_empty(self):
         EventService.load_sample_data_if_empty()

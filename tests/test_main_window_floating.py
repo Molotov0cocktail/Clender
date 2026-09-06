@@ -16,10 +16,12 @@ from ui.main_window import MainWindow
 class StubCalendar(QWidget):
     date_selected = pyqtSignal(date)
     event_activated = pyqtSignal(object)
+    event_edit_requested = pyqtSignal(object)
 
     def __init__(self):
         super().__init__()
         self.set_selected_date = mock.Mock()
+        self.get_selected_date = mock.Mock(return_value=date(2026, 9, 6))
         self.update_event_markers = mock.Mock()
         self.apply_theme = mock.Mock()
 
@@ -70,8 +72,7 @@ class SignalStub:
 
 class StubFloatingWindow:
     def __init__(self):
-        # Kept only to prove that the Phase 9 MainWindow no longer connects the
-        # floating single-click/read-only-detail path.
+        # Floating and main calendar share the read-only preview path.
         self.event_activated = SignalStub()
         self.event_edit_requested = SignalStub()
         self.ai_message_submitted = SignalStub()
@@ -216,7 +217,7 @@ class MainWindowFloatingIntegrationTests(unittest.TestCase):
         self.floating.refresh.assert_called_once_with()
         self.sync.request_sync.assert_not_called()
 
-    def test_calendar_keeps_read_only_detail_but_floating_no_longer_opens_it(self):
+    def test_calendar_and_floating_open_read_only_detail(self):
         window, _ = self._make_window()
         detail = StubDialog()
         detail_class = mock.Mock(return_value=detail)
@@ -227,9 +228,9 @@ class MainWindowFloatingIntegrationTests(unittest.TestCase):
             window._calendar.event_activated.emit((1,))
             self.floating.event_activated.emit(2)
 
-        detail_class.assert_called_once()
-        self.assertEqual(detail_class.call_args.args[0].id, 1)
-        detail.show.assert_called_once_with()
+        self.assertEqual(detail_class.call_count, 2)
+        self.assertEqual([c.args[0].id for c in detail_class.call_args_list], [1, 2])
+        self.assertEqual(detail.show.call_count, 2)
 
     def test_multiple_ids_use_choice_dialog_before_opening_details(self):
         window, _ = self._make_window()
@@ -248,6 +249,25 @@ class MainWindowFloatingIntegrationTests(unittest.TestCase):
         get_item.assert_called_once()
         self.assertEqual(detail_class.call_args.args[0].id, 2)
         detail.show.assert_called_once_with()
+
+    def test_calendar_double_click_chooses_one_event_and_uses_shared_editor(self):
+        window, _ = self._make_window()
+        with mock.patch.object(window, "_on_floating_event_edit_requested") as edit, mock.patch(
+            "ui.main_window.QInputDialog.getItem",
+            side_effect=lambda parent, title, prompt, items, *args: (items[1], True),
+        ), mock.patch.object(window, "_show_event_detail") as preview:
+            window._calendar.event_edit_requested.emit((1, 2))
+        edit.assert_called_once_with(2)
+        preview.assert_not_called()
+
+    def test_invalid_or_cancelled_calendar_edit_does_not_open_editor(self):
+        window, _ = self._make_window()
+        with mock.patch.object(window, "_on_floating_event_edit_requested") as edit, mock.patch(
+            "ui.main_window.QInputDialog.getItem", return_value=("", False)
+        ):
+            window._calendar.event_edit_requested.emit((True, -1, "bad", 99))
+            window._calendar.event_edit_requested.emit((1, 2))
+        edit.assert_not_called()
 
     def test_geometry_signal_atomically_updates_complete_config(self):
         self.config["api_key"] = "preserved-key"

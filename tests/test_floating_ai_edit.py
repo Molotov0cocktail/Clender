@@ -150,10 +150,12 @@ class FloatingItemEditSignalTests(unittest.TestCase):
 class StubCalendar(QWidget):
     date_selected = pyqtSignal(date)
     event_activated = pyqtSignal(object)
+    event_edit_requested = pyqtSignal(object)
 
     def __init__(self):
         super().__init__()
         self.set_selected_date = mock.Mock()
+        self.get_selected_date = mock.Mock(return_value=date(2026, 9, 6))
         self.update_event_markers = mock.Mock()
         self.apply_theme = mock.Mock()
 
@@ -209,7 +211,7 @@ class StubFloatingWindow:
 
 class EditDialogStub:
     def __init__(self, result, data=None):
-        self.exec_ = mock.Mock(return_value=result)
+        self.exec_ = mock.Mock(side_effect=[result, QDialog.Rejected])
         self.get_data = mock.Mock(return_value=dict(data or {}))
 
 

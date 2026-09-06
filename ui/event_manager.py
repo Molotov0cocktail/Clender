@@ -1,5 +1,6 @@
 """事项管理面板 - 显示事件列表 + 添加/编辑/删除操作"""
 from datetime import datetime, date
+import sqlite3
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QListWidget, QListWidgetItem, QFrame,
@@ -44,6 +45,10 @@ class EventManager(QFrame):
 
         # ---- 事件列表 ----
         self._list_widget = QListWidget()
+        self._list_widget.setSpacing(3)
+        self._list_widget.setWordWrap(True)
+        self._list_widget.setToolTip('双击事项直接编辑')
+        self._list_widget.itemDoubleClicked.connect(lambda item: self._on_edit_clicked())
         layout.addWidget(self._list_widget, 1)
 
         # ---- 操作按钮 ----
@@ -105,7 +110,8 @@ class EventManager(QFrame):
                 try:
                     dt_start = datetime.strptime(start_time, '%Y-%m-%d %H:%M')
                     dt_end = datetime.strptime(end_time, '%Y-%m-%d %H:%M')
-                    time_str = f'{dt_start.strftime("%H:%M")} - {dt_end.strftime("%H:%M")}'
+                    fmt = '%m-%d %H:%M' if dt_start.date() != dt_end.date() else '%H:%M'
+                    time_str = f'{dt_start.strftime(fmt)} - {dt_end.strftime(fmt)}'
                 except (ValueError, TypeError):
                     time_str = f'{start_time} - {end_time}'
                 display_text = f'📅 {time_str}  {title}'
@@ -121,18 +127,20 @@ class EventManager(QFrame):
     # ---------- 事件处理 ----------
     def _on_add_clicked(self):
         dialog = EventDialog(self._current_date, parent=self)
-        if dialog.exec_() == EventDialog.Accepted:
-            data = dialog.get_data()
-            EventService.add_event(
-                title=data['title'],
-                event_type=data['event_type'],
-                start_time=data['start_time'],
-                end_time=data.get('end_time'),
-                description=data.get('description', ''),
-                estimated_duration=data.get('estimated_duration', 0),
-            )
+        while dialog.exec_() == EventDialog.Accepted:
+            try:
+                EventService.add_event(**dialog.get_data())
+            except (ValueError, TypeError, sqlite3.Error, OSError) as exc:
+                self._show_save_error(exc)
+                continue
             self.refresh()
             self.data_changed.emit()
+            break
+
+    def _show_save_error(self, exc: Exception):
+        """Keep database and validation errors inside the Qt slot boundary."""
+        message = str(exc) if isinstance(exc, (ValueError, TypeError)) else '保存失败，请稍后重试。'
+        QMessageBox.warning(self, '无法保存日程', message)
 
     def apply_theme(self):
         """动态应用当前主题样式"""
@@ -161,8 +169,8 @@ class EventManager(QFrame):
                 color: {t["text_color"]};
             }}
             QListWidget::item {{
-                padding: 8px;
-                border-bottom: 1px solid {t["frame_border"]};
+                padding: 10px;
+                border-radius: 6px;
             }}
             QListWidget::item:hover {{
                 background-color: {t["list_item_hover"]};
@@ -220,19 +228,26 @@ class EventManager(QFrame):
         ev_id = current_item.data(Qt.UserRole)
         if ev_id is None:
             return
-        ev = EventService.get_event_by_id(ev_id)
+        try:
+            ev = EventService.get_event_by_id(ev_id)
+        except (ValueError, TypeError, sqlite3.Error, OSError) as exc:
+            self._show_save_error(exc)
+            return
         if not ev:
             return
         dialog = EventDialog(self._current_date, edit_event=ev, parent=self)
-        if dialog.exec_() == EventDialog.Accepted:
-            data = dialog.get_data()
-            EventService.update_event(ev_id,
-                event_type=data['event_type'],
-                title=data['title'], start_time=data['start_time'],
-                end_time=data.get('end_time'), description=data.get('description', ''),
-                estimated_duration=data.get('estimated_duration', 0))
+        while dialog.exec_() == EventDialog.Accepted:
+            try:
+                updated = EventService.update_event(ev_id, **dialog.get_data())
+                if not updated:
+                    QMessageBox.warning(self, '无法保存日程', '此事项已不存在，请刷新后重试。')
+                    return
+            except (ValueError, TypeError, sqlite3.Error, OSError) as exc:
+                self._show_save_error(exc)
+                continue
             self.refresh()
             self.data_changed.emit()
+            break
 
     def _on_delete_clicked(self):
         current_item = self._list_widget.currentItem()

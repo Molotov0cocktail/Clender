@@ -3,7 +3,7 @@
 所有事件相关的业务逻辑（查询、创建、修改、删除）均通过本服务调用
 """
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from typing import Optional
 
 import database
@@ -19,12 +19,23 @@ class EventService:
     @staticmethod
     def get_events_by_date(d: date) -> list:
         """获取指定日期的所有事件"""
-        return database.get_events_by_date(d)
+        return EventService.get_events_date_range(d, d)
 
     @staticmethod
     def get_events_date_range(start: date, end: date) -> list:
         """获取日期区间内的事件"""
-        return database.get_events_date_range(start, end)
+        if type(start) is not date or type(end) is not date:
+            raise TypeError("start 和 end 必须是 date")
+        if end < start:
+            raise ValueError("end 不能早于 start")
+        upper = datetime.max if end == date.max else datetime.combine(end, time.min) + timedelta(days=1)
+        events = EventService.get_events_overlapping_range(datetime.combine(start, time.min), upper)
+        if end == date.max:
+            # SQLite queries use minute precision; include the final representable minute.
+            by_id = {event.id: event for event in events}
+            by_id.update((event.id, event) for event in database.get_events_by_date(end))
+            events = sorted(by_id.values(), key=lambda event: (event.start_time, event.id))
+        return events
 
     @staticmethod
     def get_events_overlapping_range(start: datetime, end: datetime) -> list[Event]:
@@ -41,14 +52,38 @@ class EventService:
         return database.get_all_events()
 
     @staticmethod
-    def get_event_counts() -> dict:
-        """统计每天的事件数量（用于日历标记点）"""
+    def get_event_counts(start: date | None = None, end: date | None = None) -> dict:
+        """Count occupied days, optionally clipped to an inclusive visible date range."""
+        if (start is None) != (end is None):
+            raise ValueError("计数范围必须同时提供起止日期")
+        if start is not None:
+            if type(start) is not date or type(end) is not date:
+                raise TypeError("计数范围必须是 date")
+            if end < start:
+                raise ValueError("计数结束日期不能早于开始日期")
+        range_start, range_end = start, end
         all_events = database.get_all_events()
         counts = defaultdict(int)
         for ev in all_events:
-            ev_date = ev.date
-            if ev_date:
-                counts[ev_date] += 1
+            try:
+                start = datetime.strptime(ev.start_time, "%Y-%m-%d %H:%M")
+                last = start.date()
+                if ev.event_type == EventType.TIMESPAN:
+                    end = datetime.strptime(ev.end_time, "%Y-%m-%d %H:%M")
+                    if end <= start:
+                        continue
+                    last = (end - timedelta(microseconds=1)).date()
+                current = start.date()
+                if range_start is not None:
+                    current = max(current, range_start)
+                    last = min(last, range_end)
+                while current <= last:
+                    counts[current] += 1
+                    if current == last:
+                        break
+                    current += timedelta(days=1)
+            except (TypeError, ValueError, AttributeError):
+                continue
         return dict(counts)
 
     @staticmethod

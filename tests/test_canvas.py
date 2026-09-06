@@ -90,6 +90,7 @@ class CanvasTests(unittest.TestCase):
         rect, _ = region
         center = rect.center()
         QTest.mouseClick(canvas, Qt.LeftButton, pos=QPoint(int(center.x()), int(center.y())))
+        QTest.qWait(QApplication.doubleClickInterval() + 30)
 
     def set_pixel_font(self, widget, pixel_size):
         font = QFont(widget.font())
@@ -304,7 +305,7 @@ class CanvasTests(unittest.TestCase):
         )
         self.assertEqual(activated, [(7,)])
 
-    def test_adjacent_short_markers_choose_the_visually_clicked_event(self):
+    def test_adjacent_short_blocks_choose_the_visually_clicked_event(self):
         events = [
             Event(
                 id=1,
@@ -331,11 +332,13 @@ class CanvasTests(unittest.TestCase):
         self.assertTrue(first_hit.intersects(second_hit))
         x = int(first_hit.center().x())
         QTest.mouseClick(canvas, Qt.LeftButton, pos=QPoint(x, 300))
+        QTest.qWait(QApplication.doubleClickInterval() + 30)
         QTest.mouseClick(canvas, Qt.LeftButton, pos=QPoint(x, 305))
+        QTest.qWait(QApplication.doubleClickInterval() + 30)
 
         self.assertEqual(activated, [(1,), (2,)])
         tied_entry = canvas._entry_at(QPointF(x, 302.5))
-        self.assertEqual(tied_entry["event_ids"], (2,))
+        self.assertEqual(tied_entry["event_ids"], (1,))
 
     def test_narrow_day_canvas_aggregates_overflow_ids_and_keeps_all_clickable(self):
         blocks = build_day_blocks([self.event(index) for index in range(1, 7)], 30)
