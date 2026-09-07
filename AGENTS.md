@@ -1,5 +1,9 @@
 # AGENTS.md — Clender 工程协作指南
 
+## T65 PC 本地应用更新（2026-09-07，完成）
+
+用户本轮明确要求更新PC本地应用，因此本轮授权PC测试与完整构建；T64“不测试/不构建PC”仅适用于上一轮。以main/710a8f7的既有PC源码构建dist/Clender.exe，不改生产功能/Android/数据契约；先检查进程与单实例屏障，dist/data只读摘要前后核对，使用指定Miniconda与既有隔离EXE冒烟。任务见doc/tasks/T65-pc-local-application-update.md。维护结果：252 tests、模块导入/环境检查、完整PyInstaller及隔离普通/静默2场景全部通过；dist/data五文件143973bytes的路径/大小/时间/hash不变。EXE45,573,969bytes，SHA256 `8fc351ed90c8c72c032a8369104fb6bcc05c5a46cc64d3e5e351aa7983d4c634`。生产及Android零修改，结束测试进程/endpoint/临时目录均清理，仅维护文档提交。
+
 ## T64 Android 整合与导航（2026-09-07，实现与验收完成）
 
 本轮按用户要求先保存旧分支工作并恢复 `main/773c2dc` 干净基线，再叠加 T52 排程/日历修复和 Android Drawer 美化。PC 源码与该基线完全一致，没有修改、测试、构建或读取真实数据。背景完整链路、图标、设置、主题、Manifest及依赖保持上次实现；新日历使用完整标题、轻量导航、透明表面与可达时间轴。Drawer呈现拆入 `AppDrawerContent.kt`，品牌/图标/两组目的地、自然文字高度与最低56dp行、低高度整列滚动；原导航、Back与脏草稿确认不变。
