@@ -326,10 +326,22 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
     }
 }
 
-private fun AiExecutionReport.operationReplies(): List<String> = when {
-    replies.isNotEmpty() -> replies
-    scheduleChanged -> listOf("Schedule operations completed.")
-    else -> listOf("No schedule operation could be applied.")
+private fun AiExecutionReport.operationReplies(): List<String> {
+    val eventOutcomes = outcomes.filter { it.action in setOf("add", "update", "delete") }
+    val failed = eventOutcomes.count { !it.success }
+    val completed = eventOutcomes.count { it.success }
+    return when {
+        failed > 0 -> listOf(
+            "$completed schedule operation(s) completed; $failed could not be applied. " +
+                "Check the calendar before trying again."
+        )
+
+        replies.isNotEmpty() -> replies
+
+        scheduleChanged -> listOf("Schedule operations completed.")
+
+        else -> listOf("No schedule operation could be applied.")
+    }
 }
 
 private fun Clock.nowMicros() = instant().truncatedTo(ChronoUnit.MICROS)

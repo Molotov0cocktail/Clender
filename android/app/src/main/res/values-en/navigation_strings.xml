@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="drawer_schedule_section">Schedule</string>
+    <string name="drawer_application_section">Application</string>
+</resources>

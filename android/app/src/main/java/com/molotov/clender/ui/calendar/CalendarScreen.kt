@@ -4,16 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -67,15 +63,19 @@ fun CalendarScreen(
             locale = model.locale
         )
     }
-    Column(modifier = modifier.fillMaxSize()) {
-        CalendarToolbar(model, actions)
-        CalendarViewport(
-            model = model,
-            labels = labels,
-            actions = actions,
-            overflowController = overflowController,
-            modifier = Modifier.weight(1f).fillMaxWidth()
-        )
+    if (model.state.mode != CalendarMode.MONTH) {
+        AccessibleTimelineScreen(model, labels, actions, overflowController, modifier)
+    } else {
+        Column(modifier = modifier.fillMaxSize()) {
+            CalendarToolbar(model, actions)
+            CalendarViewport(
+                model = model,
+                labels = labels,
+                actions = actions,
+                overflowController = overflowController,
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            )
+        }
     }
     (overflowController.state as? CalendarOverflowState.Open)?.let { open ->
         CalendarOverflowSheet(
@@ -83,6 +83,52 @@ fun CalendarScreen(
             onSelect = overflowController::select,
             onDismiss = overflowController::close
         )
+    }
+}
+
+@Composable
+private fun AccessibleTimelineScreen(
+    model: CalendarScreenModel,
+    labels: EventListLabels,
+    actions: CalendarScreenActions,
+    overflowController: CalendarOverflowController,
+    modifier: Modifier
+) {
+    CalendarAccessibleLayout(
+        minimumBodyHeight = { width ->
+            val timeline = timelineModel(model, labels, width)
+            timelineDimensions(timeline, width).headerHeight + HOUR_HEIGHT
+        },
+        content = CalendarLayoutContent(
+            toolbar = { CalendarToolbar(model, actions) },
+            status = { CalendarStatus(model.state.loadStatus) },
+            body = {
+                if (model.state.loadStatus == CalendarLoadStatus.ERROR) {
+                    CalendarError(actions.onRetry, Modifier.fillMaxSize())
+                } else {
+                    CalendarContent(model, labels, actions, overflowController)
+                }
+            }
+        ),
+        modifier = modifier,
+        naturalBody = model.state.loadStatus == CalendarLoadStatus.ERROR
+    )
+}
+
+@Composable
+private fun CalendarStatus(status: CalendarLoadStatus) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (status == CalendarLoadStatus.LOADING) {
+            Column(
+                modifier = Modifier.testTag("calendar_loading"),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator()
+                Text(stringResource(R.string.calendar_loading))
+            }
+        } else if (status == CalendarLoadStatus.EMPTY) {
+            Text(stringResource(R.string.calendar_empty), Modifier.testTag("calendar_empty"))
+        }
     }
 }
 
@@ -101,67 +147,6 @@ fun SelectedDateEventList(
         onNavigate = onNavigate,
         modifier = modifier
     )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun CalendarToolbar(model: CalendarScreenModel, actions: CalendarScreenActions) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            CalendarMode.entries.forEach { mode ->
-                FilterChip(
-                    selected = model.state.mode == mode,
-                    onClick = { actions.onChangeMode(mode) },
-                    label = { Text(stringResource(mode.labelResource())) },
-                    modifier = Modifier
-                        .sizeIn(minWidth = MINIMUM_ACTION_SIZE, minHeight = MINIMUM_ACTION_SIZE)
-                        .testTag("calendar_mode_${mode.wireValue}")
-                )
-            }
-        }
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            RangeButton(
-                label = stringResource(R.string.calendar_previous_range),
-                tag = "calendar_previous_range"
-            ) {
-                actions.onSelectDate(
-                    CalendarRangePolicy.move(model.state.selectedDate, model.state.mode, -1)
-                )
-            }
-            RangeButton(
-                label = stringResource(R.string.calendar_today),
-                tag = "calendar_today"
-            ) { actions.onSelectDate(model.today) }
-            RangeButton(
-                label = stringResource(R.string.calendar_next_range),
-                tag = "calendar_next_range"
-            ) {
-                actions.onSelectDate(
-                    CalendarRangePolicy.move(model.state.selectedDate, model.state.mode, 1)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RangeButton(label: String, tag: String, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier
-            .sizeIn(minWidth = MINIMUM_ACTION_SIZE, minHeight = MINIMUM_ACTION_SIZE)
-            .testTag(tag)
-    ) {
-        Text(label)
-    }
 }
 
 @Composable
@@ -248,20 +233,8 @@ private fun TimelineViewport(
     overflowController: CalendarOverflowController
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val density = LocalDensity.current
-        val dates = model.state.queryRange.dates
-        val availableWidth = (maxWidth - TIMELINE_GUTTER).coerceAtLeast(48.dp)
-        val columnWidth = with(density) { availableWidth.toPx() } / dates.size
-        val layout = remember(model.state.events, dates, columnWidth) {
-            layoutEvents(model.state.events, dates, columnWidth)
-        }
         CalendarTimeline(
-            model = CalendarTimelineModel(
-                dates = dates,
-                layoutResult = layout,
-                eventLabels = eventLabels(model.state.events, model.locale, labels),
-                locale = model.locale
-            ),
+            model = timelineModel(model, labels, maxWidth),
             onEventClick = { eventId ->
                 EventListNavigation.detailRoute(eventId)?.let(actions.onNavigate)
             },
@@ -270,6 +243,26 @@ private fun TimelineViewport(
             }
         )
     }
+}
+
+@Composable
+private fun timelineModel(
+    model: CalendarScreenModel,
+    labels: EventListLabels,
+    width: androidx.compose.ui.unit.Dp
+): CalendarTimelineModel {
+    val dates = model.state.queryRange.dates
+    val availableWidth = (width - TIMELINE_GUTTER).coerceAtLeast(48.dp)
+    val columnWidth = with(LocalDensity.current) { availableWidth.toPx() } / dates.size
+    val layout = remember(model.state.events, dates, columnWidth) {
+        layoutEvents(model.state.events, dates, columnWidth)
+    }
+    return CalendarTimelineModel(
+        dates,
+        layout,
+        eventLabels(model.state.events, model.locale, labels),
+        model.locale
+    )
 }
 
 @Composable
@@ -289,10 +282,4 @@ private fun CalendarError(onRetry: () -> Unit, modifier: Modifier) {
             Text(stringResource(R.string.action_retry))
         }
     }
-}
-
-private fun CalendarMode.labelResource(): Int = when (this) {
-    CalendarMode.MONTH -> R.string.calendar_mode_month
-    CalendarMode.WEEK -> R.string.calendar_mode_week
-    CalendarMode.DAY -> R.string.calendar_mode_day
 }

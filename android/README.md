@@ -1,5 +1,12 @@
 # Clender Android
 
+## 当前交付：T64 背景、日历与导航整合
+
+以 `main/773c2dc` 为基础，保留「设置 → 应用 → 自定义背景」及图标，整合排程修复、日历优化和新左侧导航。APK：`app/build/outputs/apk/release/app-release.apk`，1,791,085 bytes，SHA256 `f1cce5fb4ded4943d6ab2a0191fe72474323d6623fac087734ce23377b031166`。AAB SHA256 `4081e66de4a51f64a40f00c623a12801db8efa724880c430eb1817bfb6ff596e`。沿用原签名，无数据迁移。
+
+1806项应用测试、111发布夹具、74策略和完整门禁通过；API26/36最终包各26组交互/截图验收通过。PC原样保持，不修改测试构建。已知API36浅色系统状态栏对比问题沿用旧版；未做厂商真机/Widget/本轮真实Provider验收。详见 `../doc/tasks/T64-background-calendar-navigation-integration.md`，下方旧包记录仅为历史。
+
+
 ## 自定义背景与外观（T62，2026-09-06）
 
 最终2026-09-07构建：APK `app/build/outputs/apk/release/app-release.apk`，1,757,329 bytes，SHA256 `936a58ca92b678a8d05723d54b62604256612cd90b3d57a857235f71a24afbc5`。同源码1731项应用测试、111发布夹具、65策略及完整离线门禁通过；签名APK/AAB审计通过。透明页面根层统一继承主题文字色，明暗切换有实际渲染颜色回归。当前设备验收记录见根任务T60；下面各历史任务的摘要不代表本包。

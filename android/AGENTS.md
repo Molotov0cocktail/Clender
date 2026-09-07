@@ -1,5 +1,14 @@
 # Android 子工程协作规则
 
+## T64 Android 整合与导航（2026-09-07，实现与验收完成）
+
+本轮按用户要求先保存旧分支工作并恢复 `main/773c2dc` 干净基线，再叠加 T52 排程/日历修复和 Android Drawer 美化。PC 源码与该基线完全一致，没有修改、测试、构建或读取真实数据。背景完整链路、图标、设置、主题、Manifest及依赖保持上次实现；新日历使用完整标题、轻量导航、透明表面与可达时间轴。Drawer呈现拆入 `AppDrawerContent.kt`，品牌/图标/两组目的地、自然文字高度与最低56dp行、低高度整列滚动；原导航、Back与脏草稿确认不变。
+
+维护记录：Drawer10项先8RED后全导航50GREEN；旧窄屏测试仅改为测量真实Sheet，保留Back/真实滑动全部断言；纯格式失败留证。最终静态与完整verify-all通过：174suites/1806tests（UI68/785）、零失败/错误/跳过/四类泄漏，96tasks/6m38s、111发布夹具与foundation/boundary各74项通过。372源码摘要零漂移，签名APK/AAB审计通过。API26/36最终同包各26组截图/XML、背景导入/方向/0与100/冷启/移除、明暗月周日/Drawer和最大字号横屏导航通过；设备恢复后按身份关闭。APK SHA256 `f1cce5fb4ded4943d6ab2a0191fe72474323d6623fac087734ce23377b031166`。已知API36浅色系统状态栏低对比为旧版保留限制；AI大字号仅验导航到达，不宣称整页视觉优化。没有本轮真实Provider/厂商真机/Widget/PC测试。完整证据和历史失败见 `doc/tasks/T64-background-calendar-navigation-integration.md`。
+
+后续开发统一从本地 `main` 最新提交开始；新任务先核对当前分支、HEAD和上一交付，不能用旧Android任务记录替代最新产品基线。本轮按用户要求在提交后删除本地 `codex/android-architecture`；不推送、不修改远程分支。Git提交/分支删除回执以Git日志与最终答复为准。
+
+
 ## T62 双端外观接续（2026-09-06）
 
 本轮用户授权PC/Android美化与本地自定义背景，历史任务冻结不禁止此新范围。Android新增BackgroundPolicy/BackgroundStore/BackgroundImageDecoder与Compose BackgroundViewModel/BackgroundController/AppBackground/BackgroundSettingsSection；背景私有目录files/background，图片有界读取20MiB、源图100MP及32768边限制、采样最长2048、ExifInterface旋转/镜像归一化PNG。配置fsync+Files.move(ATOMIC_MOVE,REPLACE_EXISTING)原子保存且读取限4KiB，强度0–100，坏图/配置回退主题；新增背景独立即时保存，UI明确说明，现有主题字号/AI/WebDAV草稿契约不变。Activity ViewModel持有controller及viewModelScope，跨屏幕重建保留busy/进行中导入和结果，取消不得吞掉。

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="drawer_schedule_section">日程</string>
+    <string name="drawer_application_section">应用</string>
+</resources>

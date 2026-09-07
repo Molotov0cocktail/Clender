@@ -255,7 +255,7 @@ class DrawerStateSynchronizationTest {
         render()
         open()
         val root = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
-        val drawer = composeRule.onNodeWithTag("clender_drawer_calendar")
+        val drawer = composeRule.onNodeWithTag("clender_drawer_sheet")
             .fetchSemanticsNode().boundsInRoot
         assertEquals(root.right, drawer.right, 0.5f)
         composeRule.runOnUiThread { host.activity.onBackPressedDispatcher.onBackPressed() }

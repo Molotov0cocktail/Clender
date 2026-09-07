@@ -60,7 +60,13 @@ class AiResponseParser(
         val root = try {
             json.parseToJsonElement(candidate)
         } catch (_: IllegalArgumentException) {
-            return AiParseResult.PlainReply(content)
+            return if (content.looksLikeOperationResponse()) {
+                rejected()
+            } else {
+                AiParseResult.PlainReply(
+                    content
+                )
+            }
         }
         if (root.containsOversizeString(limits.maxStringChars)) return rejected()
         return try {
@@ -289,3 +295,11 @@ private fun parseTime(value: String): LocalDateTime = try {
 }
 
 private const val MARKDOWN_FENCE_LENGTH = 3
+
+private fun String.looksLikeOperationResponse(): Boolean {
+    val trimmed = trimStart()
+    val structured = trimmed.startsWith("{") || trimmed.startsWith("[") || trimmed.startsWith("```")
+    return structured && OPERATION_FIELD_MARKER.containsMatchIn(trimmed)
+}
+
+private val OPERATION_FIELD_MARKER = Regex("\"(?:operations|action)\"\\s*:")

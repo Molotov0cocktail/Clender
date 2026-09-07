@@ -157,11 +157,14 @@ class AiMessageBudgeter {
 }
 
 const val DEFAULT_AI_SYSTEM_CONTRACT: String =
-    "Clender AI operation contract: reply with JSON only when changing schedules. " +
-        "Use {\"operations\":[...]} and only actions add, update, delete, reply. " +
-        "Allowed event fields are event_type, title, start_time, end_time, description, " +
-        "estimated_duration; delete/update require a positive event_id. " +
-        "Times use strict YYYY-MM-DD HH:mm local wall-clock format."
+    "Clender AI operation contract: use complete JSON only when changing schedules. " +
+        "Use {\"operations\":[...]} with at most 16 actions: add, update, delete, reply. " +
+        "reply requires a message string. Event fields: event_type (reminder/timespan), " +
+        "title, start_time, end_time, description, estimated_duration. " +
+        "reminder has no end_time; timespan requires end_time after start_time. " +
+        "delete/update require a positive event_id. " +
+        "Times use strict YYYY-MM-DD HH:mm local wall-clock format. " +
+        "Do not claim operations have already executed; the app validates and applies them."
 
 private fun MessageRole.requestRole(): String = when (this) {
     MessageRole.USER -> "user"

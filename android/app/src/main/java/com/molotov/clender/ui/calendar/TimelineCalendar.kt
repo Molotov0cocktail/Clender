@@ -3,6 +3,7 @@ package com.molotov.clender.ui.calendar
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +24,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -36,15 +38,13 @@ import com.molotov.clender.domain.calendar.CalendarBlock
 import com.molotov.clender.domain.calendar.CalendarLayoutResult
 import java.time.LocalDate
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 private const val HOURS_PER_DAY = 24
 private const val DAY_COLUMN_COUNT = 1
 private const val WEEK_COLUMN_COUNT = 7
 private const val OVERLAP_STRIPE_STEP_PX = 12f
-private val HOUR_HEIGHT = 60.dp
-private val TIME_GUTTER_WIDTH = 56.dp
-private val MINIMUM_COLUMN_WIDTH = 48.dp
-private val MINIMUM_TIMELINE_WIDTH = 304.dp
+internal val HOUR_HEIGHT = 60.dp
 
 @Composable
 fun CalendarTimeline(
@@ -79,40 +79,38 @@ fun CalendarTimeline(
     val verticalScroll = rememberSaveable(
         saver = androidx.compose.foundation.ScrollState.Saver
     ) { androidx.compose.foundation.ScrollState(0) }
-    val maximumLaneCount = layoutResult.blocks.maxOfOrNull { it.laneCount.coerceAtLeast(1) } ?: 1
-    val minimumColumnWidth = MINIMUM_COLUMN_WIDTH * maximumLaneCount
-    val bodyWidth = maxOf(
-        MINIMUM_TIMELINE_WIDTH,
-        MINIMUM_COLUMN_WIDTH * dates.size,
-        minimumColumnWidth * dates.size
-    )
-    Column(modifier = modifier.fillMaxSize()) {
-        TimelineDateHeaders(dates, bodyWidth, model.locale, horizontalScroll)
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(verticalScroll)
-                .horizontalScroll(horizontalScroll)
-        ) {
-            TimelineHourLabels()
-            TimelineBody(
-                model = TimelineBodyModel(
-                    dates = dates,
-                    layoutResult = layoutResult,
-                    eventLabels = model.eventLabels,
-                    bodyWidth = bodyWidth
-                ),
-                onEventClick = onEventClick,
-                onOverflowClick = onOverflowClick
-            )
-        }
-        if (layoutResult.sanitizedCount > 0) {
-            val hiddenDescription = stringResource(R.string.calendar_semantics_sanitized_hidden)
-            Spacer(
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val dimensions = timelineDimensions(model, maxWidth)
+        val scrollEnabled = dimensions.gutterWidth + dimensions.bodyWidth > maxWidth
+        Column(modifier = Modifier.fillMaxSize()) {
+            TimelineDateHeaders(model, dimensions, horizontalScroll, scrollEnabled)
+            Row(
                 modifier = Modifier
-                    .testTag("calendar_sanitized_notice")
-                    .semantics { contentDescription = hiddenDescription }
-            )
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(verticalScroll)
+                    .horizontalScroll(horizontalScroll, enabled = scrollEnabled)
+            ) {
+                TimelineHourLabels(dimensions.gutterWidth)
+                TimelineBody(
+                    model = TimelineBodyModel(
+                        dates = dates,
+                        layoutResult = layoutResult,
+                        eventLabels = model.eventLabels,
+                        bodyWidth = dimensions.bodyWidth
+                    ),
+                    onEventClick = onEventClick,
+                    onOverflowClick = onOverflowClick
+                )
+            }
+            if (layoutResult.sanitizedCount > 0) {
+                val hiddenDescription = stringResource(R.string.calendar_semantics_sanitized_hidden)
+                Spacer(
+                    modifier = Modifier
+                        .testTag("calendar_sanitized_notice")
+                        .semantics { contentDescription = hiddenDescription }
+                )
+            }
         }
     }
 }
@@ -133,28 +131,30 @@ private data class TimelineBodyModel(
 
 @Composable
 private fun TimelineDateHeaders(
-    dates: List<LocalDate>,
-    bodyWidth: Dp,
-    locale: java.util.Locale,
-    horizontalScroll: androidx.compose.foundation.ScrollState
+    model: CalendarTimelineModel,
+    dimensions: TimelineDimensions,
+    horizontalScroll: androidx.compose.foundation.ScrollState,
+    scrollEnabled: Boolean
 ) {
+    val density = LocalDensity.current
+    val bodyWidthPx = with(density) { dimensions.bodyWidth.roundToPx() }
+    val columnWidthPx = bodyWidthPx.toFloat() / model.dates.size
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(horizontalScroll)
-            .requiredWidth(TIME_GUTTER_WIDTH + bodyWidth)
+            .horizontalScroll(horizontalScroll, enabled = scrollEnabled)
+            .width(dimensions.gutterWidth + dimensions.bodyWidth)
     ) {
-        Spacer(Modifier.width(TIME_GUTTER_WIDTH))
-        dates.forEachIndexed { index, date ->
-            val localizedDate = date.format(
-                java.time.format.DateTimeFormatter.ofLocalizedDate(
-                    java.time.format.FormatStyle.MEDIUM
-                ).withLocale(locale)
-            )
+        Spacer(Modifier.width(dimensions.gutterWidth))
+        model.dates.forEachIndexed { index, date ->
+            val localizedDate = localizedTimelineDate(date, model.locale)
+            val startPx = (index * columnWidthPx).roundToInt()
+            val endPx = ((index + 1) * columnWidthPx).roundToInt()
+            val columnWidth = with(density) { (endPx - startPx).toDp() }
             Text(
                 text = localizedDate,
                 modifier = Modifier
-                    .requiredWidth(bodyWidth / dates.size)
+                    .width(columnWidth)
                     .testTag("calendar_timeline_column_$index")
                     .semantics { contentDescription = localizedDate }
                     .padding(4.dp),
@@ -165,8 +165,8 @@ private fun TimelineDateHeaders(
 }
 
 @Composable
-private fun TimelineHourLabels() {
-    Column(modifier = Modifier.width(TIME_GUTTER_WIDTH)) {
+private fun TimelineHourLabels(gutterWidth: Dp) {
+    Column(modifier = Modifier.width(gutterWidth)) {
         repeat(HOURS_PER_DAY) { hour ->
             Text(
                 text = "%02d:00".format(hour),

@@ -263,7 +263,9 @@ class OkHttpAiClient(
     private fun parseCompletion(body: String): AiCompletion = try {
         val root = parseObject(body)
         val choices = root["choices"]?.jsonArray ?: throw AiProtocolException()
-        val message = choices.firstOrNull()?.jsonObject?.get("message")?.jsonObject
+        val choice = choices.firstOrNull()?.jsonObject ?: throw AiProtocolException()
+        requireCompletedChoice(choice)
+        val message = choice["message"]?.jsonObject
             ?: throw AiProtocolException()
         val content = message["content"]?.jsonPrimitive?.contentOrNull
             ?: throw AiProtocolException()
@@ -279,6 +281,15 @@ class OkHttpAiClient(
         throw error
     } catch (_: RuntimeException) {
         throw AiProtocolException()
+    }
+
+    private fun requireCompletedChoice(choice: JsonObject) {
+        if ("finish_reason" in choice) {
+            val reason = choice["finish_reason"] as? JsonPrimitive
+            if (reason?.isString != true || reason.contentOrNull != "stop") {
+                throw AiProtocolException()
+            }
+        }
     }
 
     private fun parseObject(body: String): JsonObject = try {

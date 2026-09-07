@@ -1,8 +1,17 @@
 # AGENTS.md — Clender 工程协作指南
 
+## T64 Android 整合与导航（2026-09-07，实现与验收完成）
+
+本轮按用户要求先保存旧分支工作并恢复 `main/773c2dc` 干净基线，再叠加 T52 排程/日历修复和 Android Drawer 美化。PC 源码与该基线完全一致，没有修改、测试、构建或读取真实数据。背景完整链路、图标、设置、主题、Manifest及依赖保持上次实现；新日历使用完整标题、轻量导航、透明表面与可达时间轴。Drawer呈现拆入 `AppDrawerContent.kt`，品牌/图标/两组目的地、自然文字高度与最低56dp行、低高度整列滚动；原导航、Back与脏草稿确认不变。
+
+维护记录：Drawer10项先8RED后全导航50GREEN；旧窄屏测试仅改为测量真实Sheet，保留Back/真实滑动全部断言；纯格式失败留证。最终静态与完整verify-all通过：174suites/1806tests（UI68/785）、零失败/错误/跳过/四类泄漏，96tasks/6m38s、111发布夹具与foundation/boundary各74项通过。372源码摘要零漂移，签名APK/AAB审计通过。API26/36最终同包各26组截图/XML、背景导入/方向/0与100/冷启/移除、明暗月周日/Drawer和最大字号横屏导航通过；设备恢复后按身份关闭。APK SHA256 `f1cce5fb4ded4943d6ab2a0191fe72474323d6623fac087734ce23377b031166`。已知API36浅色系统状态栏低对比为旧版保留限制；AI大字号仅验导航到达，不宣称整页视觉优化。没有本轮真实Provider/厂商真机/Widget/PC测试。完整证据和历史失败见 `doc/tasks/T64-background-calendar-navigation-integration.md`。
+
+后续开发统一从本地 `main` 最新提交开始；新任务先核对当前分支、HEAD和上一交付，不能用旧Android任务记录替代最新产品基线。本轮按用户要求在提交后删除本地 `codex/android-architecture`；不推送、不修改远程分支。Git提交/分支删除回执以Git日志与最终答复为准。
+
+
 > **适用范围：** 本文件位于工程根目录，规则适用于整个仓库。若子目录以后出现更具体的 `AGENTS.md`，子目录规则只能补充本文件，不得降低这里的质量、测试和维护要求。
 >
-> **当前基线：** 2026-09-06，双端外观与背景（T60–T63）。`doc/` 中的旧文档保留历史背景，代码现状、本文件、`doc/appearance-design.md`、`doc/pc-experience-design.md` 与 Android 子契约优先。
+> **上次功能基线（历史）：** 2026-09-06，双端外观与背景（T60–T63）。当前以顶部 T64/main 交付为准。`doc/` 中的旧文档保留历史背景，代码现状、本文件、`doc/appearance-design.md`、`doc/pc-experience-design.md` 与 Android 子契约优先。
 
 ## 🚨 强制维护门禁（所有代理和开发者必须遵守）
 

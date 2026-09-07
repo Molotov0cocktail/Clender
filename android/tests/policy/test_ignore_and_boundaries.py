@@ -79,6 +79,8 @@ class IgnoreAndBoundaryTests(PolicyTestCase):
             paths.append(path.replace("\\", "/"))
 
         allowed_exact = {
+            "doc/tasks/T52-android-scheduling-calendar.md",
+            "doc/tasks/T64-background-calendar-navigation-integration.md",
             # T60: explicit user-authorized cross-platform appearance scope.
             "main.py",
             "app_icon.py",
