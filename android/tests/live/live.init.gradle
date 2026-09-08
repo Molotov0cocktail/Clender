@@ -1,0 +1,24 @@
+// Explicit opt-in only. Never loaded by verify-all or ordinary unit tests.
+// Run from android with --no-daemon --no-configuration-cache --no-build-cache
+// -I tests/live/live.init.gradle :app:testDebugUnitTest
+// --tests com.molotov.clender.live.AiProviderLiveTest
+gradle.beforeProject { project ->
+    project.plugins.withId('com.android.application') {
+        project.extensions.getByName('android').sourceSets.getByName('test').java.srcDir(
+            project.file('src/liveTest/java')
+        )
+    }
+}
+
+// Apply after AGP has finalized its unit-test defaults; earlier configureEach
+// settings can be overwritten when AGP realizes the variant test task.
+gradle.projectsEvaluated {
+    def project = gradle.rootProject.project(':app')
+    def task = project.tasks.named('testDebugUnitTest').get()
+    task.filter.includeTestsMatching('com.molotov.clender.live.AiProviderLiveTest')
+    task.outputs.upToDateWhen { false }
+    task.outputs.cacheIf { false }
+    task.reports.junitXml.outputLocation.set(project.layout.buildDirectory.dir('test-results/live'))
+    task.reports.html.outputLocation.set(project.layout.buildDirectory.dir('reports/live'))
+    task.binaryResultsDirectory.set(project.layout.buildDirectory.dir('test-results/live-binary'))
+}

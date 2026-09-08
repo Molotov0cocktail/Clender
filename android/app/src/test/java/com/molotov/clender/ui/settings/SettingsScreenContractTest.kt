@@ -1,5 +1,6 @@
 package com.molotov.clender.ui.settings
 
+import android.os.Build
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
@@ -117,6 +118,21 @@ class SettingsScreenContractTest {
             "settings_fetch_models",
             "settings_save_ai"
         ).forEach(::pageTarget)
+    }
+
+    @Test
+    fun t67PermissionsRemainInApplicationSettingsAcrossThemesAtLargeFont() {
+        listOf(ThemeMode.LIGHT, ThemeMode.DARK).forEach { theme ->
+            setScreen(readyState(), RenderOptions(theme = theme, fontSp = 20, fontScale = 2f))
+            pageTarget("event_alert_notifications_settings")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                pageTarget("event_alert_exact_settings")
+            } else {
+                composeRule.onNodeWithTag("event_alert_exact_settings").assertDoesNotExist()
+            }
+            pageTarget("event_alert_background_settings")
+            pageTarget("event_alert_app_settings")
+        }
     }
 
     @Test

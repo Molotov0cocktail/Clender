@@ -1,7 +1,6 @@
 package com.molotov.clender.ui.event
 
 import androidx.activity.compose.setContent
-import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -14,6 +13,7 @@ import com.molotov.clender.ui.foundation.ThemeMode
 import com.molotov.clender.ui.theme.ClenderTheme
 import java.time.LocalDateTime
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -37,7 +37,7 @@ class EventAlertDetailsTest {
     fun close() = host.close()
 
     @Test
-    fun timerAndBackgroundSettingsRemainReachableInEventDetails() {
+    fun timerRemainsReachableWithoutPermissionSettingsInEventDetails() {
         val event = eventFixture(startTime = LocalDateTime.now().withSecond(0).withNano(0))
             .copy(notificationEnabled = true, timerMinutes = 25)
         composeRule.runOnUiThread {
@@ -56,9 +56,15 @@ class EventAlertDetailsTest {
         composeRule.onNodeWithTag("event_detail_content")
             .performScrollToNode(hasTestTag("event_alert_timer_status"))
         composeRule.onNodeWithTag("event_alert_timer_status").assertIsDisplayed()
-        listOf("event_alert_background_settings", "event_alert_app_settings").forEach { tag ->
-            composeRule.onNodeWithTag("event_detail_content").performScrollToNode(hasTestTag(tag))
-            composeRule.onNodeWithTag(tag).assertHasClickAction()
+        listOf(
+            "event_alert_notifications_settings",
+            "event_alert_background_settings",
+            "event_alert_app_settings"
+        ).forEach { tag ->
+            assertThrows(AssertionError::class.java) {
+                composeRule.onNodeWithTag("event_detail_content")
+                    .performScrollToNode(hasTestTag(tag))
+            }
         }
     }
 }

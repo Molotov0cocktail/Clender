@@ -311,7 +311,14 @@ class AiCoordinatorGatewayC1bContractTest {
                     testKey()
                 )
             )
-            waitUntil { fixture.coordinator.state.value == AiCoordinatorState.Idle }
+            waitUntil { fixture.coordinator.state.value !is AiCoordinatorState.Working }
+            // The first body has no operation field and remains a plain, non-writing reply.
+            val expectedState = if (index == 0) {
+                AiCoordinatorState.Idle
+            } else {
+                AiCoordinatorState.Failed(AiCoordinatorError.INVALID_RESPONSE)
+            }
+            assertEquals(expectedState, fixture.coordinator.state.value)
             assertEquals(0, fixture.events.writeCalls)
             assertTrue(fixture.mutations.isEmpty())
         }

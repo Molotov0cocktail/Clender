@@ -1,3 +1,9 @@
+# T67 当前交付（2026-09-08，完成）
+
+Android AI 真实 Provider 修复、回复格式与权限入口迁移。中文思考仅由系统提示词要求，模型仍输出英文时直接展示，不追加翻译请求。基线 main/0d762dc；计划与测试矩阵见 T67-android-ai-provider-repair.md。三个独立子 agent，主 agent 串行验证；仅 Android，临时凭据不落盘，合成数据在线验收，不推送。
+
+最终199suites/1978tests与完整Android门禁、签名APK/AAB通过；真实Provider三轮创建/修改/删除与Room回读通过，2634tokens。API26/36关键界面及日程链路审查通过，API36设置页系统通知/精确闹钟真实授权通过。中文思考仅提示词约定。APK e27b5305a632，完整哈希、失败历史和恢复证据见T67；无PC构建或厂商真机听音声明。
+
 # T66 当前交付（2026-09-08，完成）
 
 Android 可读性、Widget、全面屏、提醒与 AI 执行/模型参数修复，详见 T66-android-usability-ai-alerts.md。main/3e687d4 干净基线；独立子 agent 分工，仅 Android，不构建 Windows。

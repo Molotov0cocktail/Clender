@@ -104,27 +104,6 @@ class OkHttpAiClientTest {
     }
 
     @Test
-    fun selectedThinkingEffortIsUsedInActualRequestPayload() = runBlocking {
-        ThinkingEffort.entries.forEach { effort ->
-            server.enqueue(
-                MockResponse(body = """{"choices":[{"message":{"content":"hello"}}]}""")
-            )
-            client.complete(
-                settings(basePathEndpoint()).copy(thinkingEnabled = true, thinkingEffort = effort),
-                testKey(),
-                listOf(AiRequestMessage("user", "Synthetic"))
-            )
-            val payload = Json.parseToJsonElement(
-                requireNotNull(server.takeRequest().body).utf8()
-            ).jsonObject
-            assertEquals(
-                effort.name.lowercase(),
-                payload["reasoning_effort"]?.jsonPrimitive?.content
-            )
-        }
-    }
-
-    @Test
     fun defaultTimeoutPolicyLocksModelsAndChatContracts() {
         val policy = AiTimeoutPolicy()
 

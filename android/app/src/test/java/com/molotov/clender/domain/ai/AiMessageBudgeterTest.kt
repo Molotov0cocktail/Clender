@@ -88,7 +88,7 @@ class AiMessageBudgeterTest {
                 personality = "patient",
                 scheduleContext = "date and sanitized event summaries",
                 history = history,
-                contextWindow = 700,
+                contextWindow = 1_024,
                 maxOutputTokens = 100
             )
         )
@@ -97,8 +97,8 @@ class AiMessageBudgeterTest {
         assertTrue(result.messages.first().content.contains("system contract"))
         assertFalse(result.messages.any { it.role == "think" })
         assertTrue(result.messages.last().content.endsWith("内容".repeat(30)))
-        assertTrue(result.inputTokenEstimate <= 530)
-        assertEquals(maxOf(32, 700 / 10), result.safetyMarginTokens)
+        assertTrue(result.inputTokenEstimate <= 822)
+        assertEquals(maxOf(32, 1_024 / 10), result.safetyMarginTokens)
     }
 
     @Test
@@ -178,12 +178,12 @@ class AiMessageBudgeterTest {
                 personality = optionalHuge,
                 scheduleContext = optionalHuge,
                 history = emptyList(),
-                contextWindow = 512,
+                contextWindow = 1_024,
                 maxOutputTokens = 64
             )
         )
         assertTrue(result.messages.single().content.startsWith(DEFAULT_AI_SYSTEM_CONTRACT))
-        assertTrue(result.inputTokenEstimate <= 397)
+        assertTrue(result.inputTokenEstimate <= 858)
 
         val tiny = budgeter.build(
             AiBudgetInput(

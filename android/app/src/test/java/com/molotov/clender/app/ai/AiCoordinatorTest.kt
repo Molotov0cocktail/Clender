@@ -7,6 +7,7 @@ import com.molotov.clender.core.model.MessageRole
 import com.molotov.clender.data.network.ai.AiClient
 import com.molotov.clender.data.network.ai.AiCompletion
 import com.molotov.clender.data.network.ai.AiCompletionUsage
+import com.molotov.clender.data.network.ai.AiHttpException
 import com.molotov.clender.data.network.ai.AiTimeoutException
 import com.molotov.clender.data.settings.AiSettings
 import com.molotov.clender.data.settings.ThinkingEffort
@@ -60,6 +61,72 @@ class AiCoordinatorTest {
     }
 
     @Test
+    fun unauthorizedProviderResponseHasRecoverableAuthenticationStatus() =
+        httpStatus(401, "AUTHENTICATION")
+
+    @Test
+    fun forbiddenProviderResponseHasRecoverableAuthenticationStatus() =
+        httpStatus(403, "AUTHENTICATION")
+
+    @Test
+    fun busyProviderResponseHasRecoverableRateLimitStatus() = httpStatus(429, "RATE_LIMIT")
+
+    @Test
+    fun invalidParameterResponseHasRecoverableRequestStatus() =
+        httpStatus(400, "REQUEST_PARAMETERS")
+
+    @Test
+    fun unsupportedParameterResponseHasRecoverableRequestStatus() =
+        httpStatus(422, "REQUEST_PARAMETERS")
+
+    @Test
+    fun serverFailureRetainsGenericProviderStatus() = httpStatus(503, "PROVIDER")
+
+    private fun httpStatus(status: Int, expected: String) = runBlocking {
+        conversations.create(conversation("a"))
+        assertTrue(coordinator.submit("a", "合成请求", settings(), testKey()))
+        waitUntil { client.completeCalls.get() == 1 }
+        client.nextCompletion.completeExceptionally(
+            AiHttpException(status, "PRIVATE_BODY_SENTINEL")
+        )
+        waitUntil { coordinator.state.value is AiCoordinatorState.Failed }
+        assertEquals(expected, (coordinator.state.value as AiCoordinatorState.Failed).error.name)
+        assertEquals(listOf(MessageRole.USER), conversations.messages.getValue("a").map { it.role })
+    }
+
+    @Test
+    fun rejectedOperationSetsInvalidResponseWithoutClaimingCompletion() = runBlocking {
+        conversations.create(conversation("a"))
+        assertTrue(coordinator.submit("a", "创建提醒", settings(), testKey()))
+        waitUntil { client.completeCalls.get() == 1 }
+        client.nextCompletion.complete(replyCompletion("""{"operations":[{"action":"shell"}]}"""))
+        waitUntil { coordinator.state.value !is AiCoordinatorState.Working }
+        assertEquals(
+            AiCoordinatorState.Failed(AiCoordinatorError.INVALID_RESPONSE),
+            coordinator.state.value
+        )
+        assertEquals(2, conversations.messages.getValue("a").size)
+        assertEquals(2, conversations.findConversation("a")?.tokenCount)
+    }
+
+    @Test
+    fun legacyApplicationReceiptsAreNotEchoedIntoProviderHistory() = runBlocking {
+        conversations.create(conversation("a"))
+        conversations.appendMessageAndIncrementTokens(
+            "a",
+            MessageRole.ASSISTANT,
+            "No schedule changes were made. 本轮未修改日程。\n\nAssistant reply / 模型回复：\n请核对日期",
+            Instant.parse("2026-09-08T00:00:00Z"),
+            0
+        )
+        assertTrue(coordinator.submit("a", "再次核对", settings(), testKey()))
+        waitUntil { client.completeCalls.get() == 1 }
+        assertEquals("请核对日期", client.lastMessages.single { it.role == "assistant" }.content)
+        client.nextCompletion.complete(replyCompletion("核对完成"))
+        waitUntil { coordinator.state.value == AiCoordinatorState.Idle }
+    }
+
+    @Test
     fun t66LegacySystemPromptNeverOverridesEmbeddedOperationContract() = runBlocking {
         conversations.create(conversation("a"))
         val legacy = "LEGACY_SYSTEM_SENTINEL"
@@ -92,7 +159,7 @@ class AiCoordinatorTest {
             listOf(
                 MessageRole.USER to "first",
                 MessageRole.ASSISTANT to
-                    "No schedule changes were made. 本轮未修改日程。\n\nAssistant reply / 模型回复：\nreply-a"
+                    "本轮未修改日程。\n\n模型回复：\nreply-a"
             ),
             conversations.messages.getValue("a").map { it.role to it.content }
         )
@@ -277,7 +344,7 @@ class AiCoordinatorTest {
             listOf(
                 "add it",
                 "private thinking",
-                "1 schedule operation(s) completed. 已实际完成 1 项日程操作。\n\nAssistant reply / 模型回复：\ndone"
+                "已实际完成 1 项日程操作。\n\n模型回复：\ndone"
             ),
             conversations.messages.getValue("a").map(Message::content)
         )

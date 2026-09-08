@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -227,17 +228,19 @@ class WebDavSyncRuntime(
         cachedAvailability.enabled || (stagedBinding?.enabled == true)
 
     private fun stabilizeState() {
-        val current = mutableState.value
-        if (current !is SyncState.Idle &&
-            current !is SyncState.Disabled &&
-            current !is SyncState.Unconfigured
-        ) {
-            return
-        }
-        mutableState.value = when {
-            !cachedAvailability.enabled -> SyncState.Disabled
-            !cachedAvailability.passwordConfigured -> SyncState.Unconfigured
-            else -> current
+        mutableState.update { current ->
+            if (current !is SyncState.Idle &&
+                current !is SyncState.Disabled &&
+                current !is SyncState.Unconfigured
+            ) {
+                current
+            } else {
+                when {
+                    !cachedAvailability.enabled -> SyncState.Disabled
+                    !cachedAvailability.passwordConfigured -> SyncState.Unconfigured
+                    else -> current
+                }
+            }
         }
     }
 }

@@ -40,6 +40,9 @@ enum class AiCoordinatorError {
     CONFIGURATION,
     TIMEOUT,
     NETWORK,
+    AUTHENTICATION,
+    RATE_LIMIT,
+    REQUEST_PARAMETERS,
     PROVIDER,
     INVALID_RESPONSE,
     INTERNAL
@@ -272,7 +275,14 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
                 systemPrompt = "",
                 personality = settings.personality,
                 scheduleContext = scheduleContext,
-                history = history,
+                history = history.mapNotNull { message ->
+                    if (message.role == MessageRole.ASSISTANT) {
+                        stripApplicationReceipts(message.content).takeIf(String::isNotBlank)
+                            ?.let { message.copy(content = it) }
+                    } else {
+                        message
+                    }
+                },
                 contextWindow = settings.contextWindow,
                 maxOutputTokens = settings.maxOutputTokens
             )
@@ -293,12 +303,13 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
             )
             remainingTokenDelta = 0
         }
-        val replies = when (val parsed = parser.parse(completion.content)) {
+        val parsed = parser.parse(completion.content)
+        val replies = when (parsed) {
             is AiParseResult.PlainReply -> listOf(noChangeReply(listOf(parsed.message)))
             is AiParseResult.Rejected -> listOf(parsed.userMessage)
             is AiParseResult.Operations -> executor.execute(parsed.operations).operationReplies()
         }
-        val safeReplies = replies.ifEmpty { listOf("Schedule operations completed.") }
+        val safeReplies = replies.ifEmpty { listOf("本轮未修改日程。") }
         safeReplies.forEachIndexed { index, reply ->
             append(
                 conversationId,
@@ -308,6 +319,7 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
             )
             remainingTokenDelta = 0
         }
+        if (parsed is AiParseResult.Rejected) throw AiProtocolException()
     }
 
     private suspend fun append(
@@ -332,12 +344,11 @@ private fun AiExecutionReport.operationReplies(): List<String> {
     val completed = eventOutcomes.count { it.success && it.changed }
     return when {
         failed > 0 -> listOf(
-            "$completed schedule operation(s) completed; $failed could not be applied. " +
-                "Check the calendar before trying again."
+            "已实际完成 $completed 项日程操作，$failed 项未能执行。请先核对日历再重试。"
         )
 
         scheduleChanged -> listOf(
-            "$completed schedule operation(s) completed. 已实际完成 $completed 项日程操作。" +
+            "已实际完成 $completed 项日程操作。" +
                 modelReply(replies)
         )
 
@@ -345,13 +356,25 @@ private fun AiExecutionReport.operationReplies(): List<String> {
     }
 }
 
-private fun noChangeReply(replies: List<String>): String =
-    "No schedule changes were made. 本轮未修改日程。" + modelReply(replies)
+private fun noChangeReply(replies: List<String>): String = "本轮未修改日程。" + modelReply(replies)
 
-private fun modelReply(replies: List<String>): String = if (replies.isEmpty()) {
-    ""
-} else {
-    "\n\nAssistant reply / 模型回复：\n" + replies.joinToString("\n")
+private fun modelReply(replies: List<String>): String {
+    val body = replies.map(::stripApplicationReceipts).filter(String::isNotBlank).joinToString("\n")
+    return if (body.isEmpty()) "" else "\n\n模型回复：\n$body"
+}
+
+private val applicationReceipt = Regex(
+    "^(?:No schedule changes were made\\. 本轮未修改日程。|本轮未修改日程。|" +
+        "(?:[0-9]+ schedule operation\\(s\\) completed\\. )?已实际完成 [0-9]+ 项日程操作。)" +
+        "(?:\\s*(?:Assistant reply / 模型回复：|模型回复：)\\s*|\\s*$)"
+)
+
+private fun stripApplicationReceipts(content: String): String {
+    var body = content.trim()
+    while (true) {
+        val prefix = applicationReceipt.find(body) ?: return body
+        body = body.substring(prefix.range.last + 1).trimStart()
+    }
 }
 
 private fun Clock.nowMicros() = instant().truncatedTo(ChronoUnit.MICROS)
@@ -363,10 +386,21 @@ private fun RuntimeException.toCoordinatorError(): AiCoordinatorError = when (th
 
     is AiNetworkException -> AiCoordinatorError.NETWORK
 
-    is AiHttpException -> AiCoordinatorError.PROVIDER
+    is AiHttpException -> when (statusCode) {
+        HTTP_UNAUTHORIZED, HTTP_FORBIDDEN -> AiCoordinatorError.AUTHENTICATION
+        HTTP_RATE_LIMITED -> AiCoordinatorError.RATE_LIMIT
+        HTTP_BAD_REQUEST, HTTP_UNPROCESSABLE_ENTITY -> AiCoordinatorError.REQUEST_PARAMETERS
+        else -> AiCoordinatorError.PROVIDER
+    }
 
     is AiProtocolException,
     is AiResponseTooLargeException -> AiCoordinatorError.INVALID_RESPONSE
 
     else -> AiCoordinatorError.INTERNAL
 }
+
+private const val HTTP_BAD_REQUEST = 400
+private const val HTTP_UNAUTHORIZED = 401
+private const val HTTP_FORBIDDEN = 403
+private const val HTTP_UNPROCESSABLE_ENTITY = 422
+private const val HTTP_RATE_LIMITED = 429

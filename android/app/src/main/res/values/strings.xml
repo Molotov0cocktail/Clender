@@ -109,7 +109,7 @@
     <string name="conversation_delete_message">此对话及其全部消息将被删除。</string>
     <string name="conversation_role_user">用户消息</string>
     <string name="conversation_role_assistant">助手消息</string>
-    <string name="conversation_role_thinking">Thinking 消息</string>
+    <string name="conversation_role_thinking">思考内容</string>
     <string name="conversation_thinking_expand">展开 Thinking</string>
     <string name="conversation_thinking_collapse">收起 Thinking</string>
     <string name="conversation_thinking_expanded">已展开</string>
@@ -127,7 +127,11 @@
     <string name="ai_error_timeout">AI 请求超时</string>
     <string name="ai_error_network">无法连接 AI 服务</string>
     <string name="ai_error_provider">AI 服务暂时无法完成请求</string>
-    <string name="ai_error_invalid_response">AI 返回了无效响应</string>
+    <string name="ai_error_authentication">AI 服务拒绝访问，请检查 API Key 是否有效，以及账号是否有该模型的使用权限。</string>
+    <string name="ai_error_rate_limit">AI 服务请求过于频繁或额度受限，请稍后重试，并检查账号额度。</string>
+    <string name="ai_error_request_parameters">AI 服务不接受当前请求，请检查模型名称和参数，包括输出 Token 上限与思考设置。</string>
+    <string name="ai_glm_thinking_hint">GLM-5.3 / Flash 无法关闭思考；关闭开关时使用 LOW，MEDIUM 按 HIGH 请求，LOW / HIGH / MAX 按所选强度请求。已要求思考内容和回复使用中文。</string>
+    <string name="ai_error_invalid_response">AI 回复不完整或格式不正确，本次未执行日程操作。请调整输出 Token 上限后重试。</string>
     <string name="ai_error_internal">无法完成 AI 请求</string>
     <string name="quick_ai_open_conversation">查看 AI 对话</string>
     <string name="settings_section_application">应用</string>

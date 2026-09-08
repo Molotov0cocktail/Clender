@@ -12,6 +12,7 @@ import com.molotov.clender.ui.foundation.ThemeMode
 import com.molotov.clender.ui.theme.ClenderTheme
 import java.time.LocalDate
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -55,6 +56,16 @@ class EventAlertEditorTest {
         ).forEach { tag ->
             composeRule.onNodeWithTag("event_editor_scroll").performScrollToNode(hasTestTag(tag))
             composeRule.onNodeWithTag(tag).assertHasClickAction()
+        }
+        listOf(
+            "event_alert_notifications_settings",
+            "event_alert_background_settings",
+            "event_alert_app_settings"
+        ).forEach { tag ->
+            assertThrows(AssertionError::class.java) {
+                composeRule.onNodeWithTag("event_editor_scroll")
+                    .performScrollToNode(hasTestTag(tag))
+            }
         }
     }
 }

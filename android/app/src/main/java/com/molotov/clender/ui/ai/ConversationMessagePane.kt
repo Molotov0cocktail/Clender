@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.molotov.clender.R
 import com.molotov.clender.core.model.Message
@@ -156,7 +157,16 @@ private fun MessageBubble(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(text = roleLabel, style = MaterialTheme.typography.labelMedium)
-                Text(text = message.content, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = remember(message.role, message.content) {
+                        if (message.role == MessageRole.ASSISTANT) {
+                            assistantText(message.content)
+                        } else {
+                            AnnotatedString(message.content)
+                        }
+                    },
+                    style = MaterialTheme.typography.bodyLarge
+                )
             }
         }
     }

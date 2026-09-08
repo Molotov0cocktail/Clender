@@ -171,7 +171,6 @@ private fun EventDetailContent(
             DetailActions(deleting, onEdit, onRequestDelete)
         }
         item { EventAlertDetails(event) }
-        item { AlertPermissionSection() }
     }
 }
 

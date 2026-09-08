@@ -1,3 +1,11 @@
+# T67 Android AI 与权限修复（2026-09-08，完成）
+
+Android AI 真实 Provider 修复、回复格式与权限入口迁移。中文思考仅由系统提示词要求，模型仍输出英文时直接展示，不追加翻译请求。基线 main/0d762dc；计划与测试矩阵见 T67-android-ai-provider-repair.md。三个独立子 agent，主 agent 串行验证；仅 Android，临时凭据不落盘，合成数据在线验收，不推送。
+
+T67 当前接口：固定契约中文主导并明确 action/完整示例；提前提醒单独创建，timer 仅开始后计时。顶层 thinking 替代 SDK extra_body；GLM-5.3/Flash 的 MEDIUM 映射 high、关闭映射强制 low，设置页说明真实行为。AI 中文回执基于实际 changed，拒绝进入 INVALID_RESPONSE，HTTP 鉴权/限流/参数分类恢复；已知回执包装不再重复进入历史。权限检查和申请仅设置页，表单保留业务开关、详情保留策略展示。全量验证发现的同步状态竞态以原子更新修复，防止旧空闲状态覆盖运行/终态；无Room结构/同步格式/Manifest/依赖修改。
+
+维护记录（T67）：domain/ai、网络client、AI协调与展示、权限入口、同步状态CAS及测试/策略/在线harness更新。最终verify-all通过199suites/1978tests（UI77/840）、零失败/错误/跳过/四类泄漏，111发布夹具与两组92项策略通过；436源码/schema摘要零漂移。真实glm-5.3-flash三次HTTP200，经生产链路创建4、修改1、删除4、Room清空，累计2634tokens；临时Key不落盘且不再使用。签名APK/AAB审计通过，APK SHA256 e27b5305a63250580738e2b0f5060d30cd8773e6ef8cf467b8ffdd926703243b。API26/36同包创建/详情/删除及明暗大字号视觉审查通过，API36设置页真实通知/精确闹钟授权及状态回读通过。API26原脚本一次SmokeError保留，补验通过；详见T67记录。无厂商真机或人工听音验证，模型输出仍可能被严格校验拒绝；本地提交以Git日志为准，不推送。
+
 ## T66 Android 可读性、提醒与 AI（2026-09-08，完成）
 
 当前用户授权 Android 日历/Widget/全面屏、系统提醒、AI实际执行和模型参数/Thinking修复，任务与测试矩阵见 doc/tasks/T66-android-usability-ai-alerts.md。main/3e687d4干净基线，独立子agent先测试后实现；仅Android，不测试/构建Windows，不读取真实PC数据。本轮提醒所需最小权限/Room显式迁移属于新授权，历史任务禁止通知/Alarm和冻结仅约束历史范围；不新增后台网络或依赖。用户授权非影响最终功能的细节自主决策。完整verify-all已通过：196suites/1941tests（UI76/828），111发布夹具与foundation/boundary各88项，全部静态与构建门禁通过；431源码/schema摘要无漂移。最终5f5e签名APK/AAB审计与API26/36自然闹钟原题/停止验收通过。

@@ -101,9 +101,20 @@ class AiSchedulingIntegrationTest {
     }
 
     @Test
+    fun repeatedLegacyReceiptIsReplacedBySingleChineseActualReceipt() = runBlocking {
+        val replies = complete(
+            "No schedule changes were made. 本轮未修改日程。\n\nAssistant reply / 模型回复：\n" +
+                "4 schedule operation(s) completed. 已实际完成 4 项日程操作。\n\n" +
+                "Assistant reply / 模型回复：\n请核对日期"
+        )
+        assertEquals(listOf("本轮未修改日程。\n\n模型回复：\n请核对日期"), replies)
+        assertTrue(events.observeDate(day).first().isEmpty())
+    }
+
+    @Test
     fun t66ReplyOnlyHasExplicitNoWriteReceipt() = runBlocking {
         val replies = complete("""{"operations":[$REPLY]}""")
-        assertTrue(replies.first().startsWith("No schedule changes were made."))
+        assertTrue(replies.first().startsWith("本轮未修改日程。"))
         assertEquals(0, events.observeDate(day).first().size)
         assertTrue(mutations.isEmpty())
     }
@@ -111,7 +122,7 @@ class AiSchedulingIntegrationTest {
     @Test
     fun t66PlainClaimHasExplicitNoWriteReceipt() = runBlocking {
         val replies = complete("All scheduled")
-        assertTrue(replies.first().startsWith("No schedule changes were made."))
+        assertTrue(replies.first().startsWith("本轮未修改日程。"))
         assertEquals(0, events.observeDate(day).first().size)
         assertTrue(mutations.isEmpty())
     }
@@ -119,7 +130,7 @@ class AiSchedulingIntegrationTest {
     @Test
     fun t66SuccessReceiptComesFromRoomWrites() = runBlocking {
         val replies = complete("""{"operations":[${add(1)},$REPLY]}""")
-        assertTrue(replies.first().startsWith("1 schedule operation(s) completed."))
+        assertTrue(replies.first().startsWith("已实际完成 1 项日程操作。"))
         assertEquals(1, events.observeDate(day).first().size)
     }
 
@@ -128,7 +139,7 @@ class AiSchedulingIntegrationTest {
         val operations = (1..9).joinToString(",") { add(it) }
         val reply = complete("""{"operations":[$operations,$REPLY]}""")
 
-        assertTrue(reply.single().startsWith("9 schedule operation(s) completed."))
+        assertTrue(reply.single().startsWith("已实际完成 9 项日程操作。"))
         assertTrue(reply.single().endsWith("All scheduled"))
         assertEquals(9, events.observeDate(day).first().size)
         assertEquals(9, events.observeMonthCounts(YearMonth.from(day)).first()[day])
@@ -139,7 +150,10 @@ class AiSchedulingIntegrationTest {
     @Test
     fun truncatedOperationEnvelopeNeverBecomesAnAssistantSuccessMessage() = runBlocking {
         val content = """{"operations":[${add(1)},$REPLY]"""
-        val replies = complete(content)
+        val replies = complete(
+            content,
+            AiCoordinatorState.Failed(AiCoordinatorError.INVALID_RESPONSE)
+        )
 
         assertEquals(0, events.observeDate(day).first().size)
         assertTrue(mutations.isEmpty())
@@ -149,7 +163,10 @@ class AiSchedulingIntegrationTest {
 
     @Test
     fun invalidOperationRejectsWholeEnvelopeBeforeRoomWrite() = runBlocking {
-        val replies = complete("""{"operations":[${add(1)},{"action":"shell"},$REPLY]}""")
+        val replies = complete(
+            """{"operations":[${add(1)},{"action":"shell"},$REPLY]}""",
+            AiCoordinatorState.Failed(AiCoordinatorError.INVALID_RESPONSE)
+        )
 
         assertEquals(0, events.observeDate(day).first().size)
         assertTrue(mutations.isEmpty())
@@ -165,8 +182,7 @@ class AiSchedulingIntegrationTest {
         assertFalse(replies.any { it.contains("All scheduled") })
         assertEquals(
             listOf(
-                "0 schedule operation(s) completed; 1 could not be applied. " +
-                    "Check the calendar before trying again."
+                "已实际完成 0 项日程操作，1 项未能执行。请先核对日历再重试。"
             ),
             replies
         )
@@ -181,8 +197,7 @@ class AiSchedulingIntegrationTest {
         assertFalse(replies.any { it.contains("All scheduled") })
         assertEquals(
             listOf(
-                "1 schedule operation(s) completed; 1 could not be applied. " +
-                    "Check the calendar before trying again."
+                "已实际完成 1 项日程操作，1 项未能执行。请先核对日历再重试。"
             ),
             replies
         )
@@ -194,10 +209,13 @@ class AiSchedulingIntegrationTest {
 
         assertEquals(1, events.observeDate(day).first().size)
         assertFalse(replies.contains("Schedule operations completed."))
-        assertTrue(replies.any { it.contains("could not", ignoreCase = true) })
+        assertTrue(replies.any { it.contains("未能执行") })
     }
 
-    private suspend fun complete(content: String): List<String> {
+    private suspend fun complete(
+        content: String,
+        expectedState: AiCoordinatorState = AiCoordinatorState.Idle
+    ): List<String> {
         val client = SchedulingCompletionClient(content)
         val coordinator = AiCoordinator(
             scope,
@@ -215,7 +233,7 @@ class AiSchedulingIntegrationTest {
         val key = CharArray(8) { 'x' }
         assertTrue(coordinator.submit("schedule-test", "Synthetic request", settings(), key))
         withTimeout(10_000) { coordinator.state.first { it !is AiCoordinatorState.Working } }
-        assertEquals(AiCoordinatorState.Idle, coordinator.state.value)
+        assertEquals(expectedState, coordinator.state.value)
         assertTrue(key.all { it == '\u0000' })
         assertEquals(1, client.calls)
         return conversations.observeMessages("schedule-test").first()

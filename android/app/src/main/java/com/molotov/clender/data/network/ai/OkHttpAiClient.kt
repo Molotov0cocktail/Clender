@@ -1,6 +1,7 @@
 package com.molotov.clender.data.network.ai
 
 import com.molotov.clender.data.settings.AiSettings
+import com.molotov.clender.data.settings.ThinkingEffort
 import com.molotov.clender.domain.ai.AiRequestMessage
 import java.io.IOException
 import java.io.InterruptedIOException
@@ -100,9 +101,6 @@ class OkHttpAiClient(
     ): AiCompletion = withWipedKey(apiKey) { authorization ->
         validateChatSettings(settings)
         val url = AiEndpointValidator.chatUrl(settings.endpoint).toString()
-        if (!settings.thinkingEnabled) {
-            return@withWipedKey executeChat(url, authorization, settings, messages, false)
-        }
         try {
             executeChat(url, authorization, settings, messages, true)
         } catch (error: AiHttpException) {
@@ -328,13 +326,12 @@ class OkHttpAiClient(
             }
         )
         if (includeThinking) {
-            put("reasoning_effort", settings.thinkingEffort.name.lowercase())
+            val effort = effectiveThinkingEffort(settings)
             put(
-                "extra_body",
-                buildJsonObject {
-                    put("thinking", buildJsonObject { put("type", "enabled") })
-                }
+                "thinking",
+                buildJsonObject { put("type", if (effort == null) "disabled" else "enabled") }
             )
+            effort?.let { put("reasoning_effort", it) }
         }
     }
 
@@ -390,3 +387,13 @@ private const val DEFAULT_MAX_ERROR_CHARACTERS = 512
 private const val DEFAULT_MAX_RESPONSE_BYTES = 2L * 1_024 * 1_024
 private const val STATUS_BAD_REQUEST = 400
 private const val STATUS_UNPROCESSABLE_CONTENT = 422
+
+private fun effectiveThinkingEffort(settings: AiSettings): String? {
+    // These models require thinking and reject the saved MEDIUM enum on the public API.
+    val requiresThinking = settings.model.lowercase() in setOf("glm-5.3", "glm-5.3-flash")
+    return when {
+        !settings.thinkingEnabled -> if (requiresThinking) "low" else null
+        requiresThinking && settings.thinkingEffort == ThinkingEffort.MEDIUM -> "high"
+        else -> settings.thinkingEffort.name.lowercase()
+    }
+}

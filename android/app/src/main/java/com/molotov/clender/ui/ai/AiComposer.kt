@@ -202,20 +202,26 @@ private fun statusText(state: AiSubmissionUiState): String? = when (state.status
 
     AiSubmissionStatus.UNCONFIGURED -> stringResource(R.string.ai_status_unconfigured)
 
-    AiSubmissionStatus.FAILED -> stringResource(
-        when (state.errorCode) {
-            AiCoordinatorError.CONFIGURATION -> R.string.ai_error_configuration
+    AiSubmissionStatus.FAILED -> stringResource(errorResource(state.errorCode))
+}
 
-            AiCoordinatorError.TIMEOUT -> R.string.ai_error_timeout
+private fun errorResource(error: AiCoordinatorError?): Int = when (error) {
+    AiCoordinatorError.CONFIGURATION -> R.string.ai_error_configuration
 
-            AiCoordinatorError.NETWORK -> R.string.ai_error_network
+    AiCoordinatorError.TIMEOUT -> R.string.ai_error_timeout
 
-            AiCoordinatorError.PROVIDER -> R.string.ai_error_provider
+    AiCoordinatorError.NETWORK -> R.string.ai_error_network
 
-            AiCoordinatorError.INVALID_RESPONSE -> R.string.ai_error_invalid_response
+    AiCoordinatorError.AUTHENTICATION -> R.string.ai_error_authentication
 
-            AiCoordinatorError.INTERNAL,
-            null -> R.string.ai_error_internal
-        }
-    )
+    AiCoordinatorError.RATE_LIMIT -> R.string.ai_error_rate_limit
+
+    AiCoordinatorError.REQUEST_PARAMETERS -> R.string.ai_error_request_parameters
+
+    AiCoordinatorError.PROVIDER -> R.string.ai_error_provider
+
+    AiCoordinatorError.INVALID_RESPONSE -> R.string.ai_error_invalid_response
+
+    AiCoordinatorError.INTERNAL,
+    null -> R.string.ai_error_internal
 }

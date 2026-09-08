@@ -193,7 +193,7 @@ class AiResponseParser(
     }
 
     private fun rejected(): AiParseResult.Rejected =
-        AiParseResult.Rejected("The assistant response could not be applied safely.")
+        AiParseResult.Rejected("AI 返回的操作格式不符合要求，本轮未修改日程。请重试或拆分请求。")
 
     private companion object {
         val ADD_FIELDS = setOf(

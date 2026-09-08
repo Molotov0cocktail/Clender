@@ -121,6 +121,25 @@ class AiComposerQuickAiC1bContractTest {
     }
 
     @Test
+    @Config(qualifiers = "zh-rCN")
+    fun providerCategoriesExplainConcreteRecoveryInChinese() {
+        listOf(
+            "AUTHENTICATION" to "API Key",
+            "RATE_LIMIT" to "稍后重试",
+            "REQUEST_PARAMETERS" to "模型名称和参数"
+        ).forEach { (code, expected) ->
+            setComposer(
+                AiSubmissionUiState(
+                    isActive = true,
+                    status = AiSubmissionStatus.FAILED,
+                    errorCode = AiCoordinatorError.valueOf(code)
+                )
+            )
+            composeRule.onNodeWithText(expected, substring = true).assertIsDisplayed()
+        }
+    }
+
+    @Test
     fun unconfiguredAndFiniteFailureOfferReachableRecoveryWithoutRawDetails() {
         var settings = 0
         setComposer(

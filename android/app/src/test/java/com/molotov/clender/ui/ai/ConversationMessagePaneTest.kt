@@ -22,6 +22,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.molotov.clender.app.ClenderApplication
 import com.molotov.clender.core.model.Message
@@ -129,6 +130,30 @@ class ConversationMessagePaneTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText(thinking.content).assertDoesNotExist()
+    }
+
+    @Test
+    fun unmatchedBoldMarkerAndUserInputRemainVerbatim() {
+        val content = "保留 **未闭合 <script>text</script>"
+        setMessageContent(messages = listOf(message(29, MessageRole.ASSISTANT, content)))
+        composeRule.onNodeWithText(content).assertIsDisplayed()
+        setMessageContent(messages = listOf(message(29, MessageRole.USER, "**原始输入**")))
+        composeRule.onNodeWithText("**原始输入**").assertIsDisplayed()
+    }
+
+    @Test
+    fun assistantBoldFormattingRemovesMarkersAndRetainsSafeLiteralHtmlAndLinks() {
+        setMessageContent(
+            messages = listOf(
+                message(30, MessageRole.ASSISTANT, "- **周六课程**\n<b>文字</b> https://example.invalid")
+            )
+        )
+        val node = composeRule.onNodeWithText("- 周六课程\n<b>文字</b> https://example.invalid")
+            .assertIsDisplayed()
+            .fetchSemanticsNode()
+        val text = node.config[SemanticsProperties.Text].single()
+        assertTrue(text.spanStyles.any { it.item.fontWeight == FontWeight.Bold })
+        assertFalse(node.config.contains(SemanticsActions.OnClick))
     }
 
     @Test

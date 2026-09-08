@@ -139,6 +139,8 @@ class PolicyTestCase(unittest.TestCase):
                 parts = path.relative_to(ANDROID_ROOT).parts
                 if parts[:2] == ("tests", "policy") or any(part in {"test", "androidTest"} for part in parts):
                     continue
+                if name.endswith(".kt") and parts[:3] == ("app", "src", "liveTest"):
+                    continue
                 files.append(path)
         return sorted(set(files))
 
