@@ -9,6 +9,5 @@
     <dimen name="widget_status_margin_top">8dp</dimen>
     <dimen name="widget_row_margin_top">6dp</dimen>
     <dimen name="widget_row_min_height">24dp</dimen>
-    <dimen name="widget_time_width">52dp</dimen>
     <dimen name="widget_row_horizontal_gap">6dp</dimen>
 </resources>

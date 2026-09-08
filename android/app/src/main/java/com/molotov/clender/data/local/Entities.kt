@@ -41,7 +41,13 @@ data class EventEntity(
     @ColumnInfo(name = "updated_at")
     val updatedAt: Instant,
     @ColumnInfo(name = "deleted_at")
-    val deletedAt: Instant?
+    val deletedAt: Instant?,
+    @ColumnInfo(name = "notification_enabled", defaultValue = "0")
+    val notificationEnabled: Boolean = false,
+    @ColumnInfo(name = "alarm_enabled", defaultValue = "0")
+    val alarmEnabled: Boolean = false,
+    @ColumnInfo(name = "timer_minutes", defaultValue = "0")
+    val timerMinutes: Int = 0
 )
 
 @Entity(tableName = "conversations")
@@ -93,7 +99,10 @@ internal fun EventEntity.toDomain(): Event = Event(
     createdAt = createdAt,
     syncUid = syncUid,
     updatedAt = updatedAt,
-    deletedAt = deletedAt
+    deletedAt = deletedAt,
+    notificationEnabled = notificationEnabled,
+    alarmEnabled = alarmEnabled,
+    timerMinutes = timerMinutes
 )
 
 internal fun Event.toEntity(): EventEntity = EventEntity(
@@ -107,7 +116,10 @@ internal fun Event.toEntity(): EventEntity = EventEntity(
     createdAt = createdAt,
     syncUid = syncUid,
     updatedAt = updatedAt,
-    deletedAt = deletedAt
+    deletedAt = deletedAt,
+    notificationEnabled = notificationEnabled,
+    alarmEnabled = alarmEnabled,
+    timerMinutes = timerMinutes
 )
 
 internal fun ConversationEntity.toDomain(): Conversation =

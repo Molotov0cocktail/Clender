@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.molotov.clender.ui.foundation.AppearanceUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -85,7 +87,18 @@ class SettingsViewModel(private val port: SettingsPort) : ViewModel() {
     }
 
     val updateAi: (AiSettingsDraft) -> Unit = { value ->
-        mutableState.value = mutableState.value.copy(ai = value)
+        val current = mutableState.value
+        val providerChanged = value.endpoint != current.ai.endpoint
+        val next = if (!providerChanged && value.model != current.ai.model) {
+            value.applyCapabilities(current.modelCapabilities[value.model])
+        } else {
+            value
+        }
+        mutableState.value = current.copy(
+            ai = next,
+            models = if (providerChanged) emptyList() else current.models,
+            modelCapabilities = if (providerChanged) emptyMap() else current.modelCapabilities
+        )
         refreshDirty()
     }
 
@@ -218,6 +231,7 @@ class SettingsViewModel(private val port: SettingsPort) : ViewModel() {
         runOperation(SettingsStatus.FETCHING) {
             try {
                 val result = port.fetchModels(draft, mutation, secret)
+                currentCoroutineContext().ensureActive()
                 applyFetchResult(draft, mutation, result)
             } finally {
                 secret?.fill(NULL_CHAR)
@@ -349,7 +363,8 @@ class SettingsViewModel(private val port: SettingsPort) : ViewModel() {
             webDavPasswordRemoveConfirmation = false,
             webDavPasswordRemovePending = false,
             connectionResult = null,
-            syncNowResult = null
+            syncNowResult = null,
+            status = SettingsStatus.READY
         )
         restorePersistedDrafts()
     }
@@ -432,12 +447,20 @@ class SettingsViewModel(private val port: SettingsPort) : ViewModel() {
                 yield()
                 block()
             } catch (failure: CancellationException) {
-                setStatus(SettingsStatus.CANCELLED)
+                if (operationJob ===
+                    currentCoroutineContext()[Job]
+                ) {
+                    setStatus(SettingsStatus.CANCELLED)
+                }
                 throw failure
             } catch (_: RuntimeException) {
-                setStatus(SettingsStatus.INTERNAL)
+                if (operationJob ===
+                    currentCoroutineContext()[Job]
+                ) {
+                    setStatus(SettingsStatus.INTERNAL)
+                }
             } finally {
-                operationInProgress = false
+                if (operationJob === currentCoroutineContext()[Job]) operationInProgress = false
             }
         }
     }
@@ -477,7 +500,24 @@ class SettingsViewModel(private val port: SettingsPort) : ViewModel() {
         } else {
             result.decision.toStatus()
         }
-        mutableState.value = mutableState.value.copy(models = models, status = status)
+        val capabilities = if (result.decision == ModelFetchDecision.SUCCESS) {
+            result.capabilities.filterKeys { it in models }
+        } else {
+            mutableState.value.modelCapabilities
+        }
+        val current = mutableState.value
+        val draftWithLimits = if (result.decision == ModelFetchDecision.SUCCESS) {
+            current.ai.applyCapabilities(capabilities[current.ai.model])
+        } else {
+            current.ai
+        }
+        mutableState.value = current.copy(
+            models = models,
+            status = status,
+            ai = draftWithLimits,
+            modelCapabilities = capabilities
+        )
+        refreshDirty()
     }
 
     private fun applyWebDavSaved(draft: WebDavSettingsDraft, mutation: ApiKeyMutation) {

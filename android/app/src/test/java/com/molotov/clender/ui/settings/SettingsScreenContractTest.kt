@@ -57,6 +57,36 @@ class SettingsScreenContractTest {
     fun closeHost() = composeHost.close()
 
     @Test
+    fun t66SystemContractCannotBeEditedAndThinkingEffortCanBeSelected() {
+        var selected: AiSettingsDraft? = null
+        setScreen(
+            readyState().copy(section = SettingsSection.AI),
+            actions = actions(onAiChange = { selected = it })
+        )
+        composeRule.onNodeWithTag("settings_ai_system_prompt").assertDoesNotExist()
+        pageTarget("settings_ai_effort").performClick()
+        composeRule.onNodeWithTag("settings_ai_effort_low").assertIsDisplayed().performClick()
+        composeRule.runOnIdle { assertTrue(selected?.thinkingEffort?.name == "LOW") }
+    }
+
+    @Test
+    fun t66ThinkingEffortOffersLowMediumHighAndMaxChoices() {
+        setScreen(readyState().copy(section = SettingsSection.AI))
+        pageTarget("settings_ai_effort").performClick()
+        listOf("low", "medium", "high", "max").forEach {
+            composeRule.onNodeWithTag("settings_ai_effort_$it").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun t66FetchedModelsCanBeSelected() {
+        setScreen(
+            readyState().copy(section = SettingsSection.AI, models = listOf("synthetic-model"))
+        )
+        composeRule.onNodeWithText("synthetic-model").performScrollTo().assertHasClickAction()
+    }
+
+    @Test
     fun applicationAndAiSectionsExposeReachableControlsAndSelection() {
         setScreen(readyState())
         target("settings_section_application").assertIsSelected()
@@ -66,6 +96,9 @@ class SettingsScreenContractTest {
         field("settings_app_font")
         field("settings_widget_font")
         pageTarget("settings_save_application")
+        pageTarget("event_alert_notifications_settings")
+        pageTarget("event_alert_background_settings")
+        pageTarget("event_alert_app_settings")
 
         setScreen(readyState().copy(section = SettingsSection.AI))
         target("settings_section_ai").assertIsSelected()
@@ -77,7 +110,6 @@ class SettingsScreenContractTest {
             "settings_ai_max_output",
             "settings_ai_context",
             "settings_ai_effort",
-            "settings_ai_system_prompt",
             "settings_ai_personality"
         ).forEach(::field)
         listOf(
@@ -316,11 +348,12 @@ class SettingsScreenContractTest {
         fun actions(
             onAppearanceChange: (AppearanceSettingsDraft) -> Unit = {},
             onSecretInput: (CharArray) -> Unit = {},
-            onRequestRemoveKey: () -> Unit = {}
+            onRequestRemoveKey: () -> Unit = {},
+            onAiChange: (AiSettingsDraft) -> Unit = {}
         ) = SettingsActions(
             onSectionChange = {},
             onAppearanceChange = onAppearanceChange,
-            onAiChange = {},
+            onAiChange = onAiChange,
             onSecretInput = onSecretInput,
             onSaveAppearance = {},
             onSaveAi = {},

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="important_alarm_playback_title">重要闹钟正在响铃</string>
+    <string name="important_alarm_playback_description">可在事项通知中停止提醒</string>
+</resources>

@@ -1,3 +1,13 @@
+## T66 Android 可读性、提醒与 AI（2026-09-08，完成）
+
+当前用户授权 Android 日历/Widget/全面屏、系统提醒、AI实际执行和模型参数/Thinking修复，任务与测试矩阵见 doc/tasks/T66-android-usability-ai-alerts.md。main/3e687d4干净基线，独立子agent先测试后实现；仅Android，不测试/构建Windows，不读取真实PC数据。本轮提醒所需最小权限/Room显式迁移属于新授权，历史任务禁止通知/Alarm和冻结仅约束历史范围；不新增后台网络或依赖。用户授权非影响最终功能的细节自主决策。完整verify-all已通过：196suites/1941tests（UI76/828），111发布夹具与foundation/boundary各88项，全部静态与构建门禁通过；431源码/schema摘要无漂移。最终5f5e签名APK/AAB审计与API26/36自然闹钟原题/停止验收通过。
+
+Android当前接口：Room v2显式迁移本机notificationEnabled/alarmEnabled/timerMinutes，旧事项全部关闭，新增reminder默认通知；WebDAV v1保持原格式且同UUID保留本机策略。单次系统调度由独立alert适配器、非导出Receiver与immutable PendingIntent处理；通知/精确权限拒绝、频道关闭和OEM后台入口可见。AI固定内嵌操作契约，updateWithResult返回真实changed，元数据驱动所选模型预算，Thinking改为枚举选择。日历使用独立配色与安全文字空间，Widget按实际host尺寸显示完整时间和不透明度预览，系统栏随主题适配。维护失败、修复与最终验收证据保留在T66任务记录。
+
+设备验收修订（T66，2026-09-08）：候选383cb出现通知准时送达但闹钟静音，已修复为独立播放器；候选2ecd的recoverBuilder污染事项通知，最终改独立Builder并以5f5e原题/Stop验收通过。按用户必要后台权限授权，T66任务追加重要闹钟专用非导出mediaPlayback前台服务及测试矩阵，仅响铃期间运行；此修订取代上文/历史“不加前台服务”限制，仍不加全屏/网络/电池豁免。声音初始化失败不得报成功，停止/改删必须释放，遵守频道静音与系统音量/DND。完成状态以T66最新验证记录为准。
+
+维护记录（2026-09-08，T66）：日历/Widget/系统栏、Event与Room v2、AI执行与模型设置、alert平台/播放服务、测试/策略及本任务文档更新；196suites/1941tests零失败/错误/跳过与四类泄漏，完整verify-all 96tasks/4m45s通过，431源码/schema摘要无漂移。最终APK SHA256 5f5e84db72b6df8d86aca7020e6ede7e33c50247df0a644fa601f589a0dc57b9（1,846,237bytes），AAB哈希及设备恢复/关闭回执见T66。仅Android，无PC源码/测试/构建或真实数据读取；无真实Provider、厂商真机或人工听音声明。系统热改字号后须重新保存Widget设置，未知模型上限依赖服务端元数据；厂商后台权限需用户设置。提交以本地Git日志为准，不推送。
+
 # AGENTS.md — Clender 工程协作指南
 
 ## T65 PC 本地应用更新（2026-09-07，完成）
@@ -15,7 +25,7 @@
 
 > **适用范围：** 本文件位于工程根目录，规则适用于整个仓库。若子目录以后出现更具体的 `AGENTS.md`，子目录规则只能补充本文件，不得降低这里的质量、测试和维护要求。
 >
-> **上次功能基线（历史）：** 2026-09-06，双端外观与背景（T60–T63）。当前以顶部 T64/main 交付为准。`doc/` 中的旧文档保留历史背景，代码现状、本文件、`doc/appearance-design.md`、`doc/pc-experience-design.md` 与 Android 子契约优先。
+> **上次功能基线（历史）：** 2026-09-06，双端外观与背景（T60–T63）。当前以顶部 T66/main 交付为准。`doc/` 中的旧文档保留历史背景，代码现状、本文件、`doc/appearance-design.md`、`doc/pc-experience-design.md` 与 Android 子契约优先。
 
 ## 🚨 强制维护门禁（所有代理和开发者必须遵守）
 

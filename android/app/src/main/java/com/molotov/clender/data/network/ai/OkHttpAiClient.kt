@@ -78,15 +78,20 @@ class OkHttpAiClient(
     }
 
     override suspend fun fetchModels(settings: AiSettings, apiKey: CharArray): List<String> =
-        withWipedKey(apiKey) { authorization ->
-            val modelsUrl = AiEndpointValidator.modelsUrl(settings.endpoint).toString()
-            val request = requestBuilder(modelsUrl)
-                .header("Authorization", authorization)
-                .get()
-                .build()
-            val body = execute(request, timeoutPolicy.modelsCall, timeoutPolicy.modelsRead)
-            parseModels(body)
-        }
+        fetchModelCatalog(settings, apiKey).map(AiModelDescriptor::id)
+
+    override suspend fun fetchModelCatalog(
+        settings: AiSettings,
+        apiKey: CharArray
+    ): List<AiModelDescriptor> = withWipedKey(apiKey) { authorization ->
+        val modelsUrl = AiEndpointValidator.modelsUrl(settings.endpoint).toString()
+        val request = requestBuilder(modelsUrl)
+            .header("Authorization", authorization)
+            .get()
+            .build()
+        val body = execute(request, timeoutPolicy.modelsCall, timeoutPolicy.modelsRead)
+        parseModels(body)
+    }
 
     override suspend fun complete(
         settings: AiSettings,
@@ -249,14 +254,15 @@ class OkHttpAiClient(
     }
 
     @Suppress("ThrowsCount")
-    private fun parseModels(body: String): List<String> {
+    private fun parseModels(body: String): List<AiModelDescriptor> {
         val root = parseObject(body)
         val data = root["data"] as? JsonArray ?: throw AiProtocolException()
         return data.map { item ->
             val model = item as? JsonObject ?: throw AiProtocolException()
-            (model["id"] as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.contentOrNull
+            val id = (model["id"] as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.contentOrNull
                 ?.takeIf(String::isNotBlank)
                 ?: throw AiProtocolException()
+            AiModelDescriptor(id, model.modelCapabilities())
         }
     }
 

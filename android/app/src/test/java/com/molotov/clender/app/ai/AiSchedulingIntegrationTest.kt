@@ -81,11 +81,55 @@ class AiSchedulingIntegrationTest {
     }
 
     @Test
+    fun aiReminderPolicyIsPersistedAndCanBeDisabledThroughSameValidatedWritePath() = runBlocking {
+        val addWithPolicy = add(1).dropLast(1) +
+            ""","notification_enabled":false,"alarm_enabled":true,"timer_minutes":15}"""
+        complete("""{"operations":[$addWithPolicy]}""")
+        val created = events.observeDate(day).first().single()
+        assertFalse(created.notificationEnabled)
+        assertTrue(created.alarmEnabled)
+        assertEquals(15, created.timerMinutes)
+        complete(
+            """{"action":"update","event_id":${created.id},"notification_enabled":true,
+                |"alarm_enabled":false,"timer_minutes":0}
+            """.trimMargin()
+        )
+        val updated = events.observeDate(day).first().single()
+        assertTrue(updated.notificationEnabled)
+        assertFalse(updated.alarmEnabled)
+        assertEquals(0, updated.timerMinutes)
+    }
+
+    @Test
+    fun t66ReplyOnlyHasExplicitNoWriteReceipt() = runBlocking {
+        val replies = complete("""{"operations":[$REPLY]}""")
+        assertTrue(replies.first().startsWith("No schedule changes were made."))
+        assertEquals(0, events.observeDate(day).first().size)
+        assertTrue(mutations.isEmpty())
+    }
+
+    @Test
+    fun t66PlainClaimHasExplicitNoWriteReceipt() = runBlocking {
+        val replies = complete("All scheduled")
+        assertTrue(replies.first().startsWith("No schedule changes were made."))
+        assertEquals(0, events.observeDate(day).first().size)
+        assertTrue(mutations.isEmpty())
+    }
+
+    @Test
+    fun t66SuccessReceiptComesFromRoomWrites() = runBlocking {
+        val replies = complete("""{"operations":[${add(1)},$REPLY]}""")
+        assertTrue(replies.first().startsWith("1 schedule operation(s) completed."))
+        assertEquals(1, events.observeDate(day).first().size)
+    }
+
+    @Test
     fun nineEventsAndReplyPersistOnceAndRefreshMonthCounts() = runBlocking {
         val operations = (1..9).joinToString(",") { add(it) }
         val reply = complete("""{"operations":[$operations,$REPLY]}""")
 
-        assertEquals(listOf("All scheduled"), reply)
+        assertTrue(reply.single().startsWith("9 schedule operation(s) completed."))
+        assertTrue(reply.single().endsWith("All scheduled"))
         assertEquals(9, events.observeDate(day).first().size)
         assertEquals(9, events.observeMonthCounts(YearMonth.from(day)).first()[day])
         assertEquals(9, (mutations.single() as ScheduleMutation.Batch).mutations.size)

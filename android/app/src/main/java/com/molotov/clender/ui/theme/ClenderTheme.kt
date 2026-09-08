@@ -94,6 +94,7 @@ fun buildAppTypography(appFontSizeSp: Int): Typography {
 @Composable
 fun ClenderTheme(appearance: AppearanceUiState, content: @Composable () -> Unit) {
     val dark = resolveIsDark(appearance.themeMode, isSystemInDarkTheme())
+    ThemeSystemBars(dark, clenderColorScheme(dark).background)
     MaterialTheme(
         colorScheme = clenderColorScheme(dark),
         typography = buildAppTypography(appearance.appFontSizeSp),

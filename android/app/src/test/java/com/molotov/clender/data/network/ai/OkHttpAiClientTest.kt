@@ -85,6 +85,46 @@ class OkHttpAiClientTest {
     }
 
     @Test
+    fun modelCatalogRetainsProviderLimitsAndRejectsMalformedOptionalLimits() = runBlocking {
+        server.enqueue(
+            MockResponse(
+                body = """{"data":[{"id":"known","context_length":128000,"top_provider":{
+                    |"context_length":64000,"max_completion_tokens":8192}},
+                    |{"id":"unknown","context_length":"128000","max_output_tokens":-1}]}
+                """.trimMargin()
+            )
+        )
+        val key = testKey()
+        val catalog = client.fetchModelCatalog(settings(basePathEndpoint()), key)
+        assertEquals(listOf("known", "unknown"), catalog.map { it.id })
+        assertEquals(AiModelCapabilities(64000, 8192), catalog.first().capabilities)
+        assertEquals(AiModelCapabilities(), catalog.last().capabilities)
+        assertTrue(key.all { it == '\u0000' })
+        assertEquals("GET", server.takeRequest().method)
+    }
+
+    @Test
+    fun selectedThinkingEffortIsUsedInActualRequestPayload() = runBlocking {
+        ThinkingEffort.entries.forEach { effort ->
+            server.enqueue(
+                MockResponse(body = """{"choices":[{"message":{"content":"hello"}}]}""")
+            )
+            client.complete(
+                settings(basePathEndpoint()).copy(thinkingEnabled = true, thinkingEffort = effort),
+                testKey(),
+                listOf(AiRequestMessage("user", "Synthetic"))
+            )
+            val payload = Json.parseToJsonElement(
+                requireNotNull(server.takeRequest().body).utf8()
+            ).jsonObject
+            assertEquals(
+                effort.name.lowercase(),
+                payload["reasoning_effort"]?.jsonPrimitive?.content
+            )
+        }
+    }
+
+    @Test
     fun defaultTimeoutPolicyLocksModelsAndChatContracts() {
         val policy = AiTimeoutPolicy()
 

@@ -80,6 +80,8 @@ private fun LazyListScope.editorFieldItems(
     }
     item { DescriptionField(form, !saving, onFormChange) }
     item { DurationField(form, !saving, onFormChange) }
+    item { EventAlertFields(form, !saving, onFormChange) }
+    item { AlertPermissionSection() }
 }
 
 private fun LazyListScope.editorStatusItems(

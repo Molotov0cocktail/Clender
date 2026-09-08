@@ -4,6 +4,8 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -19,6 +21,7 @@ import com.molotov.clender.ui.app.ClenderAppModels
 import com.molotov.clender.ui.app.ClenderAppSettingsModels
 import com.molotov.clender.ui.calendar.CalendarViewModel
 import com.molotov.clender.ui.event.EventCrudViewModel
+import com.molotov.clender.ui.event.LocalEventAlertRuntime
 import com.molotov.clender.ui.navigation.AppDestination
 import com.molotov.clender.ui.navigation.AppRoute
 import com.molotov.clender.ui.settings.SettingsViewModel
@@ -33,6 +36,7 @@ import java.util.UUID
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         val shellViewModel = ViewModelProvider(this)[AppShellViewModel::class.java]
         if (savedInstanceState == null) routeWidgetEntry(intent)
         val initialShellState = shellViewModel.state.value
@@ -91,22 +95,29 @@ class MainActivity : ComponentActivity() {
             } else {
                 null
             }
-            ClenderApp(
-                viewModel = shellViewModel,
-                calendarViewModel = calendarViewModel,
-                eventCrudViewModel = eventCrudViewModel,
-                models = ClenderAppModels(
-                    ai = ClenderAppAiModels(
-                        conversation = conversationViewModel,
-                        submission = aiSubmissionViewModel
-                    ),
-                    settings = ClenderAppSettingsModels(
-                        appearance = appearanceViewModel,
-                        settings = settingsViewModel
+            CompositionLocalProvider(LocalEventAlertRuntime provides container.alertRuntime) {
+                ClenderApp(
+                    viewModel = shellViewModel,
+                    calendarViewModel = calendarViewModel,
+                    eventCrudViewModel = eventCrudViewModel,
+                    models = ClenderAppModels(
+                        ai = ClenderAppAiModels(
+                            conversation = conversationViewModel,
+                            submission = aiSubmissionViewModel
+                        ),
+                        settings = ClenderAppSettingsModels(
+                            appearance = appearanceViewModel,
+                            settings = settingsViewModel
+                        )
                     )
                 )
-            )
+            }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        (application as ClenderApplication).container.alertRuntime.refresh()
     }
 
     override fun onNewIntent(intent: Intent) {

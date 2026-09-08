@@ -8,6 +8,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.room.Room
 import androidx.work.WorkManager
+import com.molotov.clender.alert.PlatformEventAlerts
+import com.molotov.clender.alert.SharedPreferencesAlertLedger
 import com.molotov.clender.app.ai.AiCoordinator
 import com.molotov.clender.app.ai.AiCoordinatorDependencies
 import com.molotov.clender.app.ai.AiOperationGate
@@ -15,6 +17,7 @@ import com.molotov.clender.app.ai.AiProcessLifecycleBinding
 import com.molotov.clender.app.ai.AiSubmissionDecision
 import com.molotov.clender.app.ai.AiSubmissionGateway
 import com.molotov.clender.app.ai.ConfiguredAiSubmissionGateway
+import com.molotov.clender.app.alert.EventAlertRuntime
 import com.molotov.clender.app.settings.AiSettingsApplicationService
 import com.molotov.clender.app.settings.AiSettingsAtomicPort
 import com.molotov.clender.app.settings.AppearanceSettingsApplicationService
@@ -102,6 +105,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
@@ -144,7 +148,7 @@ class AppContainer internal constructor(
             applicationContext,
             ClenderDatabase::class.java,
             DATABASE_NAME
-        ).build()
+        ).addMigrations(ClenderDatabase.MIGRATION_1_2).build()
     }
     private val database: ClenderDatabase by databaseHolder
 
@@ -414,6 +418,17 @@ class AppContainer internal constructor(
     private val aiScopeHolder = lazy {
         CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
+    private val alertRuntimeHolder = lazy {
+        EventAlertRuntime(
+            roomEventRepository.observeVisible(),
+            roomEventRepository::findById,
+            PlatformEventAlerts(applicationContext),
+            SharedPreferencesAlertLedger(applicationContext),
+            appClock
+        )
+    }
+    val alertRuntime: EventAlertRuntime
+        get() = alertRuntimeHolder.value
     private val aiSubmissionGatewayHolder = lazy {
         val coordinator = AiCoordinator(
             scope = aiScopeHolder.value,
@@ -514,12 +529,16 @@ class AppContainer internal constructor(
             uidGenerator = SyncUidGenerator {
                 UUID.randomUUID().toString().replace("-", "")
             },
-            mutationSink = mutationVersionSignal
+            mutationSink = ScheduleMutationSink { mutation ->
+                mutationVersionSignal.onMutation(mutation)
+                alertRuntime.refresh()
+            }
         )
     }
 
     internal fun close() {
         if (!closed.compareAndSet(false, true)) return
+        if (alertRuntimeHolder.isInitialized()) alertRuntimeHolder.value.close()
         closeWidgetRuntime()
         if (settingsPortHolder.isInitialized()) settingsPortHolder.value.cancelModelFetch()
         if (webDavSettingsServiceHolder.isInitialized()) {
@@ -538,6 +557,7 @@ class AppContainer internal constructor(
         }
         if (aiScopeHolder.isInitialized()) aiScopeHolder.value.cancel()
         dataStoreScope.cancel()
+        runBlocking { requireNotNull(dataStoreScope.coroutineContext[Job]).join() }
         if (databaseHolder.isInitialized()) database.close()
     }
 
@@ -565,6 +585,7 @@ class AppContainer internal constructor(
             val session = client.openSession(password)
             try {
                 val result = SyncService(RoomSyncRecordStore(roomEventRepository), session).sync()
+                if (result.localChanged) alertRuntime.refresh()
                 WebDavRunResult.Completed(
                     uploaded = result.uploaded,
                     localChanged = result.localChanged,

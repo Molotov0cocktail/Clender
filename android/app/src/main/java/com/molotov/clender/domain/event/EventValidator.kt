@@ -9,6 +9,7 @@ import java.time.ZoneOffset
 private const val MIN_SUPPORTED_YEAR = 1
 private const val MAX_SUPPORTED_YEAR = 9999
 private const val NANOS_PER_MICROSECOND = 1_000
+const val MAX_TIMER_MINUTES: Int = 1_440
 
 class EventValidationException(message: String) : IllegalArgumentException(message)
 
@@ -33,6 +34,10 @@ object EventValidator {
         }
         valid(event.title.trim().isNotEmpty(), "Event title must not be blank")
         valid(event.estimatedDurationMinutes >= 0, "Estimated duration must not be negative")
+        valid(
+            event.timerMinutes in 0..MAX_TIMER_MINUTES,
+            "Timer must be between 0 and 1440 minutes"
+        )
         validMinutePrecision(event.startTime, "Start time")
         event.endTime?.let { validMinutePrecision(it, "End time") }
         valid(syncUidShape.matches(event.syncUid), "Sync uid must be 32 lowercase hex characters")

@@ -4,6 +4,7 @@ import com.molotov.clender.app.ai.AiOperationGate
 import com.molotov.clender.data.network.ai.AiClient
 import com.molotov.clender.data.network.ai.AiEndpointValidator
 import com.molotov.clender.data.network.ai.AiHttpException
+import com.molotov.clender.data.network.ai.AiModelCapabilities
 import com.molotov.clender.data.network.ai.AiNetworkException
 import com.molotov.clender.data.network.ai.AiProtocolException
 import com.molotov.clender.data.network.ai.AiRequestCancelledException
@@ -37,7 +38,8 @@ enum class ModelFetchDecision {
 
 data class ModelFetchResult(
     val decision: ModelFetchDecision,
-    val models: List<String> = emptyList()
+    val models: List<String> = emptyList(),
+    val capabilities: Map<String, AiModelCapabilities> = emptyMap()
 )
 
 data class PersistedAiSettings(val settings: AiSettings, val keyConfigured: Boolean)
@@ -155,9 +157,11 @@ class AiSettingsApplicationService(
 
     private suspend fun fetchFromProvider(settings: AiSettings, key: CharArray): ModelFetchResult =
         try {
+            val catalog = client.fetchModelCatalog(settings, key).distinctBy { it.id }
             ModelFetchResult(
                 ModelFetchDecision.SUCCESS,
-                client.fetchModels(settings, key).distinct()
+                catalog.map { it.id },
+                catalog.associate { it.id to it.capabilities }
             )
         } catch (_: AiTimeoutException) {
             ModelFetchResult(ModelFetchDecision.TIMEOUT)

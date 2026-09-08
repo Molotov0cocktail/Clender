@@ -150,7 +150,6 @@
     <string name="settings_ai_context">上下文窗口</string>
     <string name="settings_ai_thinking">启用 Thinking</string>
     <string name="settings_ai_effort">Thinking 强度</string>
-    <string name="settings_ai_system_prompt">系统提示词</string>
     <string name="settings_ai_personality">人格</string>
     <string name="settings_fetch_models">获取模型</string>
     <string name="settings_save_ai">保存 AI 设置</string>

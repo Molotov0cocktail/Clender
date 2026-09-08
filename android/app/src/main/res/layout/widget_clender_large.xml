@@ -80,9 +80,7 @@
         android:id="@+id/widget_more"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:ellipsize="end"
         android:gravity="end"
-        android:maxLines="1"
         android:text="@string/widget_more_placeholder"
         android:textSize="@dimen/widget_status_text_size"
         android:visibility="gone" />

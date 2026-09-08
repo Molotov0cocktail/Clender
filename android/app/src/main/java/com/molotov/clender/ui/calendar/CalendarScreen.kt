@@ -261,7 +261,8 @@ private fun timelineModel(
         dates,
         layout,
         eventLabels(model.state.events, model.locale, labels),
-        model.locale
+        model.locale,
+        eventDisplayLabels(model.state.events, model.locale, labels)
     )
 }
 

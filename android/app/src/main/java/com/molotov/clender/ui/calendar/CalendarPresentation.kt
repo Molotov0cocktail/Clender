@@ -9,6 +9,7 @@ import com.molotov.clender.ui.event.EventListLabels
 import com.molotov.clender.ui.event.EventListPresenter
 import com.molotov.clender.ui.event.EventListUiState
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private const val PER_HOUR_LOGICAL_HEIGHT = 60f
@@ -61,6 +62,26 @@ internal fun eventLabels(
         null
     }
 }.toMap()
+
+internal fun eventDisplayLabels(
+    events: List<Event>,
+    locale: Locale,
+    labels: EventListLabels
+): Map<Long, String> {
+    val validIds = eventLabels(events, locale, labels).keys
+    return events.filter { it.id in validIds }.associate { event ->
+        val end = event.endTime
+        val pattern = if (end == null || event.startTime.toLocalDate() == end.toLocalDate()) {
+            "HH:mm"
+        } else {
+            "MM-dd HH:mm"
+        }
+        val format = DateTimeFormatter.ofPattern(pattern, locale)
+        val time =
+            event.startTime.format(format) + if (end != null) " – ${end.format(format)}" else ""
+        event.id to "${event.title}\n$time"
+    }
+}
 
 internal fun layoutEvents(
     events: List<Event>,

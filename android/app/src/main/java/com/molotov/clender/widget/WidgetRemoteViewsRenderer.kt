@@ -107,10 +107,34 @@ object WidgetRemoteViewsRenderer {
         model: WidgetRenderModel,
         legacySizeClass: SizeClass,
         appWidgetId: Int
-    ): RemoteViews = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        renderResponsive(context, model, appWidgetId)
-    } else {
-        render(context, model, legacySizeClass, appWidgetId)
+    ): RemoteViews {
+        val sizes = WidgetHostLayout.sizes(context, appWidgetId)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (sizes.isEmpty()) {
+                return RemoteViews(
+                    renderResponsiveMap(context, model, appWidgetId)
+                )
+            }
+            val mappings = mutableMapOf<SizeF, RemoteViews>()
+            sizes.forEach { size ->
+                val sizeClass = WidgetHostLayout.sizeClass(size)
+                mappings[size] = render(
+                    context,
+                    WidgetHostLayout.fit(context, model, size, sizeClass),
+                    sizeClass,
+                    appWidgetId
+                )
+            }
+            RemoteViews(mappings)
+        } else {
+            val size = sizes.firstOrNull() ?: defaultSize(legacySizeClass)
+            render(
+                context,
+                WidgetHostLayout.fit(context, model, size, legacySizeClass),
+                legacySizeClass,
+                appWidgetId
+            )
+        }
     }
 
     internal fun isResponsiveApi(sdkInt: Int): Boolean = sdkInt >= Build.VERSION_CODES.S
@@ -206,11 +230,13 @@ object WidgetRemoteViewsRenderer {
     @RequiresApi(Build.VERSION_CODES.S)
     fun renderResponsiveMap(context: Context, model: WidgetRenderModel): Map<SizeF, RemoteViews> =
         linkedMapOf(
-            SizeF(SMALL_DP, SMALL_DP) to render(context, model, SizeClass.SMALL),
-            SizeF(MEDIUM_DP, SMALL_DP) to render(context, model, SizeClass.MEDIUM),
-            SizeF(SMALL_DP, MEDIUM_DP) to render(context, model, SizeClass.MEDIUM),
-            SizeF(MEDIUM_DP, MEDIUM_DP) to render(context, model, SizeClass.LARGE)
-        )
+            SizeF(SMALL_DP, SMALL_DP) to SizeClass.SMALL,
+            SizeF(MEDIUM_DP, SMALL_DP) to SizeClass.MEDIUM,
+            SizeF(SMALL_DP, MEDIUM_DP) to SizeClass.MEDIUM,
+            SizeF(MEDIUM_DP, MEDIUM_DP) to SizeClass.LARGE
+        ).mapValues { (size, sizeClass) ->
+            render(context, WidgetHostLayout.fit(context, model, size, sizeClass), sizeClass)
+        }
 
     @RequiresApi(Build.VERSION_CODES.S)
     fun renderResponsiveMap(
@@ -218,11 +244,18 @@ object WidgetRemoteViewsRenderer {
         model: WidgetRenderModel,
         appWidgetId: Int
     ): Map<SizeF, RemoteViews> = linkedMapOf(
-        SizeF(SMALL_DP, SMALL_DP) to render(context, model, SizeClass.SMALL, appWidgetId),
-        SizeF(MEDIUM_DP, SMALL_DP) to render(context, model, SizeClass.MEDIUM, appWidgetId),
-        SizeF(SMALL_DP, MEDIUM_DP) to render(context, model, SizeClass.MEDIUM, appWidgetId),
-        SizeF(MEDIUM_DP, MEDIUM_DP) to render(context, model, SizeClass.LARGE, appWidgetId)
-    )
+        SizeF(SMALL_DP, SMALL_DP) to SizeClass.SMALL,
+        SizeF(MEDIUM_DP, SMALL_DP) to SizeClass.MEDIUM,
+        SizeF(SMALL_DP, MEDIUM_DP) to SizeClass.MEDIUM,
+        SizeF(MEDIUM_DP, MEDIUM_DP) to SizeClass.LARGE
+    ).mapValues { (size, sizeClass) ->
+        render(
+            context,
+            WidgetHostLayout.fit(context, model, size, sizeClass),
+            sizeClass,
+            appWidgetId
+        )
+    }
 }
 
 private fun renderContent(
@@ -235,7 +268,16 @@ private fun renderContent(
     val displayableRows = model.rows.filter { it.temporalState != EventTemporalState.PAST }
     val visibleRows = displayableRows.take(sizeClass.capacity)
     if (visibleRows.isEmpty()) {
-        renderFiniteStatus(context, views, R.string.widget_empty)
+        if (model.remainingCount > 0) {
+            views.setViewVisibility(R.id.widget_status, View.VISIBLE)
+            views.setTextViewText(
+                R.id.widget_status,
+                context.getString(R.string.widget_more, model.remainingCount)
+            )
+            views.setViewVisibility(R.id.widget_more, View.GONE)
+        } else {
+            renderFiniteStatus(context, views, R.string.widget_empty)
+        }
         return
     }
     views.setViewVisibility(R.id.widget_status, View.GONE)
@@ -303,6 +345,12 @@ private fun layoutFor(sizeClass: SizeClass): Int = when (sizeClass) {
 }
 
 private fun locale(context: Context): Locale = context.resources.configuration.locales[0]
+
+private fun defaultSize(sizeClass: SizeClass): SizeF = when (sizeClass) {
+    SizeClass.SMALL -> SizeF(SMALL_DP, SMALL_DP)
+    SizeClass.MEDIUM -> SizeF(MEDIUM_DP, SMALL_DP)
+    SizeClass.LARGE -> SizeF(MEDIUM_DP, MEDIUM_DP)
+}
 
 private fun colors(context: Context, theme: WidgetThemeMode, opacityPercent: Int): WidgetColors {
     val dark = when (theme) {

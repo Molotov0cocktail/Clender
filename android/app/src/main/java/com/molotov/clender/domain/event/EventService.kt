@@ -46,7 +46,10 @@ data class AddEventCommand(
     val startTime: LocalDateTime,
     val endTime: LocalDateTime? = null,
     val description: String = "",
-    val estimatedDurationMinutes: Int = 0
+    val estimatedDurationMinutes: Int = 0,
+    val notificationEnabled: Boolean = eventType == EventType.REMINDER,
+    val alarmEnabled: Boolean = false,
+    val timerMinutes: Int = 0
 )
 
 data class EventPatch(
@@ -55,14 +58,20 @@ data class EventPatch(
     val startTime: FieldUpdate<LocalDateTime> = FieldUpdate.Unchanged,
     val endTime: FieldUpdate<LocalDateTime?> = FieldUpdate.Unchanged,
     val description: FieldUpdate<String> = FieldUpdate.Unchanged,
-    val estimatedDurationMinutes: FieldUpdate<Int> = FieldUpdate.Unchanged
+    val estimatedDurationMinutes: FieldUpdate<Int> = FieldUpdate.Unchanged,
+    val notificationEnabled: FieldUpdate<Boolean> = FieldUpdate.Unchanged,
+    val alarmEnabled: FieldUpdate<Boolean> = FieldUpdate.Unchanged,
+    val timerMinutes: FieldUpdate<Int> = FieldUpdate.Unchanged
 ) {
     fun isEmpty(): Boolean = eventType === FieldUpdate.Unchanged &&
         title === FieldUpdate.Unchanged &&
         startTime === FieldUpdate.Unchanged &&
         endTime === FieldUpdate.Unchanged &&
         description === FieldUpdate.Unchanged &&
-        estimatedDurationMinutes === FieldUpdate.Unchanged
+        estimatedDurationMinutes === FieldUpdate.Unchanged &&
+        notificationEnabled === FieldUpdate.Unchanged &&
+        alarmEnabled === FieldUpdate.Unchanged &&
+        timerMinutes === FieldUpdate.Unchanged
 }
 
 class InvalidEventPatchException : IllegalArgumentException("Event patch must not be empty")
@@ -71,6 +80,10 @@ class EventNotFoundException(id: Long) : NoSuchElementException("Event $id was n
 
 class TombstonedEventException(id: Long) : IllegalStateException("Event $id is already deleted")
 
+data class EventUpdateResult(val event: Event, val changed: Boolean)
+
+// update remains a compatibility facade; AI consumes the actual mutation result from updateWithResult.
+@Suppress("TooManyFunctions")
 class EventService(
     private val repository: EventRepository,
     private val clock: Clock,
@@ -113,7 +126,10 @@ class EventService(
                 createdAt = now,
                 syncUid = uidGenerator.generate(),
                 updatedAt = now,
-                deletedAt = null
+                deletedAt = null,
+                notificationEnabled = command.notificationEnabled,
+                alarmEnabled = command.alarmEnabled,
+                timerMinutes = command.timerMinutes
             )
         )
         return mutationSink.persistAndNotify(
@@ -122,7 +138,9 @@ class EventService(
         )
     }
 
-    suspend fun update(id: Long, patch: EventPatch): Event {
+    suspend fun update(id: Long, patch: EventPatch): Event = updateWithResult(id, patch).event
+
+    suspend fun updateWithResult(id: Long, patch: EventPatch): EventUpdateResult {
         requireNonEmptyPatch(patch)
         val current = findMutableEvent(id)
 
@@ -143,14 +161,24 @@ class EventService(
             estimatedDurationMinutes = patch.estimatedDurationMinutes.orElse(
                 current.estimatedDurationMinutes
             ),
-            updatedAt = clock.instant().truncatedTo(ChronoUnit.MICROS)
+            updatedAt = clock.instant().truncatedTo(ChronoUnit.MICROS),
+            notificationEnabled = patch.notificationEnabled.orElse(current.notificationEnabled),
+            alarmEnabled = patch.alarmEnabled.orElse(current.alarmEnabled),
+            timerMinutes = patch.timerMinutes.orElse(current.timerMinutes)
         )
-        return mutationSink.persistAndNotify(
+        val validated = EventValidator.validatePersisted(candidate)
+        if (validated.copy(updatedAt = current.updatedAt) ==
+            current
+        ) {
+            return EventUpdateResult(current, false)
+        }
+        val stored = mutationSink.persistAndNotify(
             operation = {
-                repository.update(EventValidator.validatePersisted(candidate))
+                repository.update(validated)
             },
             mutation = ScheduleMutation::Updated
         )
+        return EventUpdateResult(stored, true)
     }
 
     suspend fun delete(id: Long): Boolean {

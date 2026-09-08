@@ -66,7 +66,12 @@ class RoomEventRepository(private val database: ClenderDatabase) : EventReposito
                 if (existing != null && !candidateWins(incoming, existing)) {
                     return@forEach
                 }
-                val candidate = incoming.copy(id = existing?.id ?: 0L)
+                val candidate = incoming.copy(
+                    id = existing?.id ?: 0L,
+                    notificationEnabled = existing?.notificationEnabled ?: false,
+                    alarmEnabled = existing?.alarmEnabled ?: false,
+                    timerMinutes = existing?.timerMinutes ?: 0
+                )
                 val stored = if (existing == null) {
                     normalizeNew(candidate)
                 } else {

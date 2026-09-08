@@ -84,7 +84,8 @@ internal class ProductionSettingsPort(
             val result = aiService().fetchModels(draft.toDataSettings(), dataMutation)
             com.molotov.clender.ui.settings.ModelFetchResult(
                 decision = result.decision.toUiDecision(),
-                models = result.models
+                models = result.models,
+                capabilities = result.capabilities
             )
         } finally {
             modelFetchActive.set(false)

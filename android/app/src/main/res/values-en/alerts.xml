@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="alert_section_title">Alerts on this device</string>
+    <string name="alert_notification">Notification at start</string>
+    <string name="alert_alarm">Important alarm at start</string>
+    <string name="alert_alarm_explanation">Use alarms only for very important events. When both are enabled, the alarm replaces the start notification.</string>
+    <string name="alert_timer">Timer duration (minutes)</string>
+    <string name="alert_timer_explanation">0 disables the timer; 1–1440 minutes count from the event start. The timer has its own completion notification.</string>
+    <string name="alert_permissions_title">Reminders and background operation</string>
+    <string name="alert_grant_notifications">Allow notifications</string>
+    <string name="alert_notification_settings">Notification and sound settings</string>
+    <string name="alert_exact_settings">Alarms and precise reminders</string>
+    <string name="alert_battery_settings">Battery optimization settings</string>
+    <string name="alert_app_settings">App details and device autostart</string>
+    <string name="alert_notifications_ready">Notifications are allowed. Sound and vibration follow the system channel settings.</string>
+    <string name="alert_notifications_blocked">Notifications are blocked: notifications, alarm sound and timer completion cannot be delivered. Your events are still saved.</string>
+    <string name="alert_exact_ready">Precise reminders are allowed.</string>
+    <string name="alert_exact_blocked">Precise reminders are not allowed. Important alarms are not scheduled; ordinary notifications and timers may be delayed.</string>
+    <string name="alert_channel_blocked">A reminder sound channel is disabled. Check notification and sound settings for this app.</string>
+    <string name="alert_background_explanation">For timely reminders, allow background operation and check battery optimization. Some devices also require an autostart setting in App details. These device permissions cannot be granted automatically. After a restart, future reminders are restored; after force-stopping the app, reopen it to restore reminders.</string>
+    <string name="alert_settings_unavailable">This device did not open that settings screen. Open the app’s settings from Android Settings.</string>
+    <string name="alert_mode_alarm">Start: important alarm (replaces the ordinary start notification)</string>
+    <string name="alert_mode_notification">Start: ordinary notification</string>
+    <string name="alert_mode_off">Start notification and important alarm are off.</string>
+    <string name="alert_timer_waiting">Timer starts with the event; finishes at %1$s.</string>
+    <string name="alert_timer_running">Timer remaining: %1$d min; finishes at %2$s.</string>
+    <string name="alert_timer_finished">Timer reached its deadline at %1$s. Delivery status is shown separately.</string>
+    <string name="alert_status_scheduled">Future reminders are scheduled.</string>
+    <string name="alert_status_inexact">Reminders are scheduled, but may be delayed without precise-reminder permission.</string>
+    <string name="alert_status_no_exact">Important alarm is not scheduled: allow precise reminders first.</string>
+    <string name="alert_status_failed">Reminder scheduling failed. Reopen the app and check the permissions below.</string>
+    <string name="alert_status_past">No future reminder is pending. Past reminders are not replayed.</string>
+    <string name="alert_status_delivered">Reminder delivered to the system notification channel.</string>
+</resources>

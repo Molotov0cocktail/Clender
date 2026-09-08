@@ -167,12 +167,14 @@ class WidgetLocalRefreshReceiverTest {
             .parse(org.xml.sax.InputSource(java.io.StringReader(manifestSource())))
         val nodes = document.getElementsByTagName("receiver")
         val receivers = (0 until nodes.length).map { nodes.item(it) as org.w3c.dom.Element }
-        assertEquals(3, receivers.size)
+        assertEquals(5, receivers.size)
         assertEquals(
             setOf(
                 ".widget.ClenderWidgetProvider",
                 ".widget.WidgetLocalRefreshReceiver",
-                ".widget.WidgetBootReceiver"
+                ".widget.WidgetBootReceiver",
+                ".alert.EventAlertReceiver",
+                ".alert.AlertRestoreReceiver"
             ),
             receivers.map { it.getAttribute("android:name") }.toSet()
         )

@@ -114,11 +114,22 @@ class ManifestSecurityTests(PolicyTestCase):
                 ("receiver", ".widget.ClenderWidgetProvider"),
                 ("receiver", ".widget.WidgetLocalRefreshReceiver"),
                 ("receiver", ".widget.WidgetBootReceiver"),
+                ("receiver", ".alert.EventAlertReceiver"),
+                ("receiver", ".alert.AlertRestoreReceiver"),
+                ("service", ".alert.ImportantAlarmService"),
                 ("service", "androidx.room.MultiInstanceInvalidationService"),
             },
             {(tag, node.get(A + "name")) for tag, node in components},
             "source manifest component delta must remain exact",
         )
+        alarm_service = next(node for tag, node in components
+                             if tag == "service" and node.get(A + "name") == ".alert.ImportantAlarmService")
+        self.assertEqual(
+            {A + "name": ".alert.ImportantAlarmService", A + "enabled": "true",
+             A + "exported": "false", A + "foregroundServiceType": "mediaPlayback"},
+            alarm_service.attrib,
+        )
+        self.assertEqual([], list(alarm_service))
         configuration = next(
             node
             for tag, node in components
@@ -220,13 +231,44 @@ class ManifestSecurityTests(PolicyTestCase):
         self.assertEqual([], boot.findall(".//category"))
         self.assertEqual([], boot.findall(".//data"))
         self.assertEqual([], boot.findall("meta-data"))
+        for name in ("EventAlertReceiver", "AlertRestoreReceiver"):
+            receiver = next(node for tag, node in components
+                            if tag == "receiver" and node.get(A + "name") == f".alert.{name}")
+            self.assertEqual(
+                {"name": f".alert.{name}", "enabled": "true", "exported": "false"},
+                {key.removeprefix(A): value for key, value in receiver.attrib.items()},
+            )
+            if name == "EventAlertReceiver":
+                self.assertEqual([], list(receiver))
+            else:
+                self.assertEqual(["intent-filter"], [node.tag for node in receiver])
+                intent_filter = receiver.find("intent-filter")
+                self.assertEqual({}, intent_filter.attrib)
+                self.assertEqual(["action"] * 4, [node.tag for node in intent_filter])
+                self.assertEqual(
+                    sorted((
+                        "android.intent.action.BOOT_COMPLETED",
+                        "android.intent.action.TIME_SET",
+                        "android.intent.action.TIMEZONE_CHANGED",
+                        "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED",
+                    )),
+                    sorted(node.get(A + "name") for node in intent_filter),
+                )
+                for action in intent_filter:
+                    self.assertEqual({A + "name"}, set(action.attrib))
+                    self.assertEqual([], list(action))
 
     def test_manifest_has_no_debug_test_flags_or_sensitive_permissions(self) -> None:
         root, application = self._manifest()
         assert application is not None
         self.assertNotEqual("true", application.get(A + "debuggable"), "main manifest must not enable debuggable")
         self.assertNotEqual("true", application.get(A + "testOnly"), "main manifest must not enable testOnly")
-        allowed = {"android.permission.INTERNET", "android.permission.RECEIVE_BOOT_COMPLETED"}
+        allowed = {
+            "android.permission.INTERNET", "android.permission.RECEIVE_BOOT_COMPLETED",
+            "android.permission.POST_NOTIFICATIONS", "android.permission.SCHEDULE_EXACT_ALARM",
+            "android.permission.WAKE_LOCK",
+            "android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        }
         permissions = {
             node.get(A + "name")
             for node in root.findall("uses-permission")
@@ -261,11 +303,22 @@ class ManifestSecurityTests(PolicyTestCase):
                 "PendingIntent.getForegroundService(",
             ):
                 if platform_call in text:
-                    platform_factories.append(
-                        (source.relative_to(self.path("")).as_posix(), platform_call)
+                    platform_factories.extend(
+                        [(source.relative_to(self.path("")).as_posix(), platform_call)] * text.count(platform_call)
+                    )
+            if "PendingIntent.get" in text:
+                self.assertIn("PendingIntent.FLAG_IMMUTABLE", text)
+            for forbidden in ("FLAG_MUTABLE", "FLAG_ALLOW_UNSAFE_IMPLICIT_INTENT"):
+                self.assertNotIn(forbidden, text)
+            for platform_type in ("AlarmManager", "NotificationManager"):
+                if platform_type in text:
+                    self.assertEqual(
+                        "app/src/main/java/com/molotov/clender/alert/PlatformEventAlerts.kt",
+                        source.relative_to(self.path("")).as_posix(),
+                        "alert platform calls must remain in the exact local adapter",
                     )
         self.assertEqual(
-            [
+            sorted([
                 (
                     "app/src/main/java/com/molotov/clender/widget/WidgetPendingIntentFactory.kt",
                     "PendingIntent.getActivity(",
@@ -274,9 +327,17 @@ class ManifestSecurityTests(PolicyTestCase):
                     "app/src/main/java/com/molotov/clender/widget/WidgetPendingIntentFactory.kt",
                     "PendingIntent.getBroadcast(",
                 ),
-            ],
-            platform_factories,
-            "P2B2a permits one shared getActivity and one local-refresh getBroadcast factory only",
+                (
+                    "app/src/main/java/com/molotov/clender/alert/AlertPendingIntents.kt",
+                    "PendingIntent.getActivity(",
+                ),
+                (
+                    "app/src/main/java/com/molotov/clender/alert/AlertPendingIntents.kt",
+                    "PendingIntent.getBroadcast(",
+                ),
+            ]),
+            sorted(platform_factories),
+            "only the exact Widget and alert immutable factories may create platform tokens",
         )
         renderer = self.read_text(
             "app/src/main/java/com/molotov/clender/widget/WidgetRemoteViewsRenderer.kt"
@@ -291,7 +352,7 @@ class ManifestSecurityTests(PolicyTestCase):
         for forbidden in (
             "class WidgetRefreshWorker",
             "PeriodicWorkRequest", "setExpedited(", "setForeground(",
-            "setForegroundAsync(", "AlarmManager", "NotificationManager",
+            "setForegroundAsync(",
         ):
             self.assertNotIn(forbidden, production_text)
 

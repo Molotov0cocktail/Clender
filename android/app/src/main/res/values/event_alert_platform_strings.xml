@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="event_alert_notification_channel">日程通知</string>
+    <string name="event_alert_alarm_channel">重要事项闹钟</string>
+    <string name="event_alert_timer_channel">事项计时到期</string>
+    <string name="event_alert_stop">停止提醒</string>
+</resources>

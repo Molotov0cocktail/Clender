@@ -57,6 +57,19 @@ class WidgetConfigurationScreenTest {
     fun closeHost() = composeHost.close()
 
     @Test
+    fun opacityPreviewAndExplanationFollowTheCurrentDraft() {
+        listOf(0, 50, 100).forEach { opacity ->
+            setScreen(content(draft(opacity = opacity)))
+            composeRule.onNodeWithTag("widget_opacity_explanation")
+                .performScrollTo().assertIsDisplayed()
+            composeRule.onNodeWithTag("widget_opacity_preview")
+                .performScrollTo().assertIsDisplayed()
+            composeRule.onNodeWithTag("widget_opacity_preview_value")
+                .assertTextContains("$opacity%", substring = true)
+        }
+    }
+
+    @Test
     fun contentExposesAllStableControlsWithReachableTargetsAndRadioRoles() {
         setScreen(content())
 

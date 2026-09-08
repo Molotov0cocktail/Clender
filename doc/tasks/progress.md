@@ -1,4 +1,10 @@
-# T64 当前交付（2026-09-07）
+# T66 当前交付（2026-09-08，完成）
+
+Android 可读性、Widget、全面屏、提醒与 AI 执行/模型参数修复，详见 T66-android-usability-ai-alerts.md。main/3e687d4 干净基线；独立子 agent 分工，仅 Android，不构建 Windows。
+
+已完成所有目标，按设备失败证据补齐响铃期间的mediaPlayback服务，并修复失效铃声IOException与汇总通知污染。最终verify-all：196suites/1941tests（UI76/828）、全部静态、111发布夹具与foundation/boundary各88项通过；431源码/schema摘要零漂移。APK SHA256 5f5e84db72b6df8d86aca7020e6ede7e33c50247df0a644fa601f589a0dc57b9；APK/AAB签名审计、API26/36自然后台播放/原题/Stop、真实Widget与明暗日历验收完成。设备恢复后身份关闭，旧383cb/2ecd失败证据保留。仅Android、无Windows构建或真实数据读取；本地提交以Git日志为准，不推送。限制：改系统字号后重新保存Widget设置，模型上限依赖服务端元数据，厂商自启动需手动设置。
+
+# T64 历史交付（2026-09-07）
 
 已从main/773c2dc恢复正确基线并完成Android排程/日历整合、Drawer美化。背景/图标完整保留，PC零改动且不测试构建。1806应用测试、完整门禁、签名与API26/36各26组验收通过，设备恢复关闭。交付到main并按用户要求删除本地Android分支；提交及删除回执见Git日志/最终答复。T64任务记录含已知旧系统栏限制与验收范围。
 

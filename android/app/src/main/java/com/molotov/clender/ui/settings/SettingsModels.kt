@@ -1,5 +1,6 @@
 package com.molotov.clender.ui.settings
 
+import com.molotov.clender.data.network.ai.AiModelCapabilities
 import com.molotov.clender.data.settings.AiEndpointPolicy
 import com.molotov.clender.data.settings.ThinkingEffort
 import com.molotov.clender.data.settings.WebDavSettingsPolicy
@@ -216,7 +217,8 @@ enum class ModelFetchDecision {
 
 data class ModelFetchResult(
     val decision: ModelFetchDecision,
-    val models: List<String> = emptyList()
+    val models: List<String> = emptyList(),
+    val capabilities: Map<String, AiModelCapabilities> = emptyMap()
 )
 
 enum class WebDavSaveDecision {
@@ -382,7 +384,8 @@ data class SettingsUiState(
     val dirty: Boolean = false,
     val status: SettingsStatus = SettingsStatus.INACTIVE,
     val validationErrors: Set<SettingsValidationError> = emptySet(),
-    val models: List<String> = emptyList()
+    val models: List<String> = emptyList(),
+    val modelCapabilities: Map<String, AiModelCapabilities> = emptyMap()
 ) {
     val widgetFontSizeSp: Int
         get() = appearance.widgetFontSize.toIntOrNull()

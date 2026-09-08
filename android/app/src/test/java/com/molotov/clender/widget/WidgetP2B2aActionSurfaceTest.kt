@@ -2,17 +2,20 @@ package com.molotov.clender.widget
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.os.Bundle
 import android.util.SizeF
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
+import com.molotov.clender.R
 import com.molotov.clender.domain.calendar.EventTemporalState
 import com.molotov.clender.domain.widget.WidgetActionSpec
 import com.molotov.clender.domain.widget.WidgetPresentationPolicy.SizeClass
@@ -30,6 +33,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [26, 36])
@@ -336,12 +340,13 @@ class WidgetP2B2aRemoteViewsActionTest {
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class WidgetP2B2aResponsiveActionTest {
     private val context: Context
         get() = RuntimeEnvironment.getApplication()
 
     @Test
-    fun fourResponsiveMappingsKeepTwoFourFourEightRowsAndOnly250SquareRefresh() {
+    fun fourResponsiveMappingsKeepWholeRowsAndOnly250SquareRefresh() {
         val map = WidgetRemoteViewsRenderer.renderResponsiveMap(
             context,
             WidgetRenderModel(
@@ -364,10 +369,18 @@ class WidgetP2B2aResponsiveActionTest {
         assertEquals(capacities.keys, map.keys)
         map.forEach { (size, views) ->
             val root = views.apply(context, FrameLayout(context))
-            assertEquals(
-                capacities.getValue(size),
-                descendants(root).count { it.tag == EVENT_ROW_TAG }
+            val rows = descendants(root).filter { it.tag == EVENT_ROW_TAG }
+            assertTrue(rows.size <= capacities.getValue(size))
+            if (size.height == 110f) {
+                assertEquals("No complete row and footer fit below this header", 0, rows.size)
+            } else {
+                assertTrue("A 250dp host must show actionable complete rows", rows.isNotEmpty())
+                assertTrue(rows.all { it.hasOnClickListeners() })
+            }
+            assertTrue(
+                allText(root).contains(context.getString(R.string.widget_more, 10 - rows.size))
             )
+            assertRowsFit(root, rows, size)
             val refreshId = context.resources.getIdentifier(
                 "widget_refresh",
                 "id",
@@ -376,6 +389,60 @@ class WidgetP2B2aResponsiveActionTest {
             assertNotEquals("missing refresh id", 0, refreshId)
             val refresh = descendants(root).singleOrNull { it.id == refreshId }
             assertEquals(size == SizeF(250f, 250f), refresh?.hasOnClickListeners() == true)
+        }
+    }
+
+    @Test
+    fun actualTallHostKeepsEightActionableRowsAndRefresh() {
+        val manager = AppWidgetManager.getInstance(context)
+        shadowOf(manager).addBoundWidget(
+            78,
+            AppWidgetProviderInfo().apply {
+                provider = ComponentName(context, ClenderWidgetProvider::class.java)
+            }
+        )
+        manager.updateAppWidgetOptions(
+            78,
+            Bundle().apply {
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 360)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 360)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 900)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 900)
+            }
+        )
+        val model = WidgetRenderModel(
+            LocalDate.of(2026, 9, 2),
+            WidgetRenderStatus.CONTENT,
+            (1L..10L).map { reflectedRow(it, time = "09:00–11:00", title = "row $it") },
+            0,
+            13,
+            100,
+            WidgetThemeMode.SYSTEM
+        )
+        val root = WidgetRemoteViewsRenderer.renderForHost(context, model, SizeClass.LARGE, 78)
+            .apply(context, FrameLayout(context))
+        val rows = descendants(root).filter { it.tag == EVENT_ROW_TAG }
+        assertEquals(8, rows.size)
+        assertTrue(rows.all { it.hasOnClickListeners() })
+        assertTrue(root.findViewById<View>(R.id.widget_refresh).hasOnClickListeners())
+        assertTrue(root.findViewById<View>(R.id.widget_quick_ai).hasOnClickListeners())
+        assertTrue(root.findViewById<View>(R.id.widget_configure).hasOnClickListeners())
+        assertTrue(allText(root).contains(context.getString(R.string.widget_more, 2)))
+    }
+
+    private fun assertRowsFit(root: View, rows: List<View>, size: SizeF) {
+        val width = (size.width * context.resources.displayMetrics.density).toInt()
+        val height = (size.height * context.resources.displayMetrics.density).toInt()
+        root.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY)
+        )
+        root.layout(0, 0, width, height)
+        if (rows.isNotEmpty()) {
+            val rowContainer = root.findViewById<ViewGroup>(R.id.widget_rows)
+            val more = root.findViewById<View>(R.id.widget_more)
+            assertTrue(more.bottom <= height - root.paddingBottom)
+            assertTrue(rows.all { rowContainer.top + it.bottom <= more.top })
         }
     }
 }

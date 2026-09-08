@@ -57,6 +57,12 @@ class AiContextProvider(
                     }
                     append(" duration=")
                     append(event.estimatedDurationMinutes)
+                    append(" notification_enabled=")
+                    append(event.notificationEnabled)
+                    append(" alarm_enabled=")
+                    append(event.alarmEnabled)
+                    append(" timer_minutes=")
+                    append(event.timerMinutes)
                     append('\n')
                 }
             }

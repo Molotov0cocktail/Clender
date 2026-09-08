@@ -2,10 +2,16 @@ package com.molotov.clender.ui.calendar
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -14,25 +20,48 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.molotov.clender.R
 import com.molotov.clender.domain.calendar.CalendarBlock
 
 private val MINIMUM_BLOCK_TOUCH_SIZE = 48.dp
+private const val BLOCK_HOURS_PER_DAY = 24
 
+// Keep optional visual inputs separate from full accessibility labels and event callbacks.
+@Suppress("LongParameterList")
 @Composable
 fun TimelineEventBlock(
     block: CalendarBlock,
     onEventClick: (Long) -> Unit,
     onOverflowClick: (List<Long>) -> Unit,
     modifier: Modifier = Modifier,
-    eventLabels: Map<Long, String> = emptyMap()
+    eventLabels: Map<Long, String> = emptyMap(),
+    displayLabels: Map<Long, String> = emptyMap(),
+    markerLabelHeight: Dp = MINIMUM_BLOCK_TOUCH_SIZE
 ) {
     val eventIds = validEventIds(block) ?: return
     val label = eventLabels[block.id]?.trim()?.takeIf { it.isNotEmpty() && !block.overflow }
     val state = blockStateDescription(block, eventIds.size)
     val description = listOfNotNull(label, state).joinToString(separator = ", ")
+    val colors = calendarEventColors(
+        block.id,
+        MaterialTheme.colorScheme.background.luminance() < CALENDAR_DARK_BACKGROUND_THRESHOLD
+    )
+    val visualHeight = HOUR_HEIGHT * BLOCK_HOURS_PER_DAY * block.heightFraction.coerceIn(0f, 1f)
+    val labelHeight = if (block.marker) {
+        markerLabelHeight.coerceIn(
+            0.dp,
+            MINIMUM_BLOCK_TOUCH_SIZE
+        )
+    } else {
+        visualHeight
+    }
+    val minimumTextHeight = with(LocalDensity.current) {
+        MaterialTheme.typography.labelLarge.fontSize.toDp() + 6.dp
+    }
     val tag = if (block.overflow) {
         "calendar_overflow_${block.column}_${block.topMinute}"
     } else {
@@ -55,10 +84,17 @@ fun TimelineEventBlock(
                 }
             }
     ) {
-        if (label != null) {
+        if (label != null && labelHeight >= minimumTextHeight) {
             Text(
-                text = label,
-                maxLines = 2,
+                text = displayLabels[block.id] ?: label,
+                modifier = Modifier
+                    .heightIn(max = labelHeight)
+                    .clipToBounds()
+                    .padding(start = 8.dp, end = 8.dp, top = 3.dp, bottom = 3.dp),
+                color = colors.foreground,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                maxLines = if (block.marker) 1 else 2,
                 overflow = TextOverflow.Ellipsis
             )
         }

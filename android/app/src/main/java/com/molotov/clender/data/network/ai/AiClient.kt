@@ -14,6 +14,11 @@ data class AiCompletion(
 interface AiClient {
     suspend fun fetchModels(settings: AiSettings, apiKey: CharArray): List<String>
 
+    suspend fun fetchModelCatalog(
+        settings: AiSettings,
+        apiKey: CharArray
+    ): List<AiModelDescriptor> = fetchModels(settings, apiKey).map { AiModelDescriptor(it) }
+
     suspend fun complete(
         settings: AiSettings,
         apiKey: CharArray,

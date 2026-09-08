@@ -20,10 +20,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
@@ -43,7 +44,8 @@ import kotlin.math.roundToInt
 private const val HOURS_PER_DAY = 24
 private const val DAY_COLUMN_COUNT = 1
 private const val WEEK_COLUMN_COUNT = 7
-private const val OVERLAP_STRIPE_STEP_PX = 12f
+private const val OVERLAP_STRIPE_STEP_DP = 6f
+private const val MINIMUM_INSET_DIVISOR = 4f
 internal val HOUR_HEIGHT = 60.dp
 
 @Composable
@@ -97,7 +99,8 @@ fun CalendarTimeline(
                         dates = dates,
                         layoutResult = layoutResult,
                         eventLabels = model.eventLabels,
-                        bodyWidth = dimensions.bodyWidth
+                        bodyWidth = dimensions.bodyWidth,
+                        displayLabels = model.displayLabels
                     ),
                     onEventClick = onEventClick,
                     onOverflowClick = onOverflowClick
@@ -119,14 +122,16 @@ data class CalendarTimelineModel(
     val dates: List<LocalDate>,
     val layoutResult: CalendarLayoutResult,
     val eventLabels: Map<Long, String> = emptyMap(),
-    val locale: java.util.Locale = java.util.Locale.getDefault()
+    val locale: java.util.Locale = java.util.Locale.getDefault(),
+    val displayLabels: Map<Long, String> = emptyMap()
 )
 
 private data class TimelineBodyModel(
     val dates: List<LocalDate>,
     val layoutResult: CalendarLayoutResult,
     val eventLabels: Map<Long, String>,
-    val bodyWidth: Dp
+    val bodyWidth: Dp,
+    val displayLabels: Map<Long, String>
 )
 
 @Composable
@@ -194,7 +199,8 @@ private fun TimelineBody(
         columnWidth = columnWidth,
         timelineHeight = timelineHeight,
         eventLabels = model.eventLabels,
-        columnCount = dates.size
+        columnCount = dates.size,
+        displayLabels = model.displayLabels
     )
     Box(
         modifier = Modifier
@@ -222,8 +228,7 @@ private fun TimelineVisualLayer(
     layoutDirection: LayoutDirection
 ) {
     val gridColor = MaterialTheme.colorScheme.outlineVariant
-    val blockColor = MaterialTheme.colorScheme.primaryContainer
-    val overlapColor = MaterialTheme.colorScheme.onPrimaryContainer
+    val dark = MaterialTheme.colorScheme.background.luminance() < CALENDAR_DARK_BACKGROUND_THRESHOLD
     Canvas(
         modifier = Modifier
             .fillMaxSize()
@@ -241,8 +246,7 @@ private fun TimelineVisualLayer(
             drawTimelineBlock(
                 block,
                 columnCount,
-                blockColor,
-                overlapColor,
+                calendarEventColors(block.id, dark),
                 layoutDirection
             )
         }
@@ -252,8 +256,7 @@ private fun TimelineVisualLayer(
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTimelineBlock(
     block: CalendarBlock,
     columnCount: Int,
-    blockColor: Color,
-    overlapColor: Color,
+    colors: CalendarEventColors,
     layoutDirection: LayoutDirection
 ) {
     if (block.column !in 0 until columnCount || block.lane !in 0 until block.laneCount) return
@@ -274,24 +277,56 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTimelineBlock(
     val height = max(1f, size.height * block.heightFraction.coerceIn(0f, 1f))
     if (block.marker) {
         drawLine(
-            color = blockColor,
+            color = colors.accent,
             start = Offset(left, top),
             end = Offset(left + laneWidth, top),
-            strokeWidth = 4f,
+            strokeWidth = 3.dp.toPx(),
             cap = StrokeCap.Round
         )
     } else {
-        drawRect(blockColor, Offset(left, top), Size(laneWidth, height))
+        val inset = minOf(
+            1.dp.toPx(),
+            height / MINIMUM_INSET_DIVISOR,
+            laneWidth / MINIMUM_INSET_DIVISOR
+        )
+        drawRoundRect(
+            colors.background,
+            Offset(left + inset, top + inset),
+            Size(laneWidth - inset * 2, height - inset * 2),
+            CornerRadius(4.dp.toPx())
+        )
+        drawLine(
+            colors.accent,
+            Offset(left + minOf(3.dp.toPx(), laneWidth / 2f), top + inset),
+            Offset(left + minOf(3.dp.toPx(), laneWidth / 2f), top + height - inset),
+            strokeWidth = minOf(2.dp.toPx(), laneWidth / 2f)
+        )
     }
     if (block.overlapRanges.isNotEmpty() || block.overflow) {
-        var stripeX = left
-        while (stripeX < left + laneWidth) {
-            drawLine(
-                overlapColor,
-                Offset(stripeX, top),
-                Offset((stripeX + height).coerceAtMost(left + laneWidth), top + height)
-            )
-            stripeX += OVERLAP_STRIPE_STEP_PX
-        }
+        drawOverlapEdge(Offset(left, top), Size(laneWidth, height), colors)
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOverlapEdge(
+    position: Offset,
+    bounds: Size,
+    colors: CalendarEventColors
+) {
+    val stripeWidth = minOf(6.dp.toPx(), bounds.width / MINIMUM_INSET_DIVISOR)
+    val inset = minOf(
+        1.dp.toPx(),
+        bounds.width / MINIMUM_INSET_DIVISOR,
+        bounds.height / MINIMUM_INSET_DIVISOR
+    )
+    val right = position.x + bounds.width - inset
+    val bottom = position.y + bounds.height - inset
+    var stripeY = position.y + inset
+    while (stripeY < bottom) {
+        drawLine(
+            colors.accent,
+            Offset(right - stripeWidth, stripeY),
+            Offset(right, minOf(stripeY + stripeWidth, bottom))
+        )
+        stripeY += OVERLAP_STRIPE_STEP_DP.dp.toPx()
     }
 }

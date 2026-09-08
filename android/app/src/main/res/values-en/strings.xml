@@ -152,7 +152,6 @@
     <string name="settings_ai_context">Context window</string>
     <string name="settings_ai_thinking">Thinking enabled</string>
     <string name="settings_ai_effort">Thinking effort</string>
-    <string name="settings_ai_system_prompt">System prompt</string>
     <string name="settings_ai_personality">Personality</string>
     <string name="settings_fetch_models">Fetch models</string>
     <string name="settings_save_ai">Save AI settings</string>

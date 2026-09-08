@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="event_alert_notification_channel">Schedule notifications</string>
+    <string name="event_alert_alarm_channel">Important event alarms</string>
+    <string name="event_alert_timer_channel">Event timers</string>
+    <string name="event_alert_stop">Stop alert</string>
+</resources>

@@ -5,6 +5,7 @@ import com.molotov.clender.core.model.EventType
 import com.molotov.clender.domain.event.AddEventCommand
 import com.molotov.clender.domain.event.EventPatch
 import com.molotov.clender.domain.event.FieldUpdate
+import com.molotov.clender.domain.event.MAX_TIMER_MINUTES
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -18,7 +19,8 @@ enum class EventFormError {
     OUT_OF_RANGE_ESTIMATED_DURATION,
     MISSING_END_TIME,
     END_NOT_AFTER_START,
-    REMINDER_END_TIME_PRESENT
+    REMINDER_END_TIME_PRESENT,
+    INVALID_TIMER
 }
 
 data class EventFormState(
@@ -27,7 +29,10 @@ data class EventFormState(
     val startTime: LocalDateTime,
     val endTime: LocalDateTime?,
     val description: String,
-    val estimatedDurationInput: String
+    val estimatedDurationInput: String,
+    val notificationEnabled: Boolean = eventType == EventType.REMINDER,
+    val alarmEnabled: Boolean = false,
+    val timerMinutesInput: String = "0"
 ) {
     constructor(
         eventType: EventType,
@@ -49,6 +54,11 @@ data class EventFormState(
         get() = buildSet {
             if (title.isBlank()) add(EventFormError.BLANK_TITLE)
             durationError(estimatedDurationInput)?.let(::add)
+            if (timerMinutesInput.isEmpty() || !timerMinutesInput.all(Char::isAsciiDigit) ||
+                timerMinutesInput.toIntOrNull()?.let { it in 0..MAX_TIMER_MINUTES } != true
+            ) {
+                add(EventFormError.INVALID_TIMER)
+            }
             when (eventType) {
                 EventType.REMINDER -> if (endTime != null) {
                     add(EventFormError.REMINDER_END_TIME_PRESENT)
@@ -85,7 +95,10 @@ data class EventFormState(
             startTime = startTime.toMinutePrecision(),
             endTime = endTime?.toMinutePrecision(),
             description = description,
-            estimatedDurationMinutes = requireNotNull(parsedDuration())
+            estimatedDurationMinutes = requireNotNull(parsedDuration()),
+            notificationEnabled = notificationEnabled,
+            alarmEnabled = alarmEnabled,
+            timerMinutes = timerMinutesInput.toInt()
         )
     }
 
@@ -107,7 +120,10 @@ data class EventFormState(
                 changed(original.endTime, normalizedEnd)
             },
             description = changed(original.description, description),
-            estimatedDurationMinutes = changed(original.estimatedDurationMinutes, duration)
+            estimatedDurationMinutes = changed(original.estimatedDurationMinutes, duration),
+            notificationEnabled = changed(original.notificationEnabled, notificationEnabled),
+            alarmEnabled = changed(original.alarmEnabled, alarmEnabled),
+            timerMinutes = changed(original.timerMinutes, timerMinutesInput.toInt())
         )
     }
 
@@ -131,7 +147,10 @@ data class EventFormState(
             startTime = event.startTime.toMinutePrecision(),
             endTime = event.endTime?.toMinutePrecision(),
             description = event.description,
-            estimatedDurationInput = event.estimatedDurationMinutes.toString()
+            estimatedDurationInput = event.estimatedDurationMinutes.toString(),
+            notificationEnabled = event.notificationEnabled,
+            alarmEnabled = event.alarmEnabled,
+            timerMinutesInput = event.timerMinutes.toString()
         )
     }
 }

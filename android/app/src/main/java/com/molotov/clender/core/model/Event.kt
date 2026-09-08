@@ -24,5 +24,8 @@ data class Event(
     val createdAt: Instant,
     val syncUid: String,
     val updatedAt: Instant,
-    val deletedAt: Instant?
+    val deletedAt: Instant?,
+    val notificationEnabled: Boolean = false,
+    val alarmEnabled: Boolean = false,
+    val timerMinutes: Int = 0
 )

@@ -35,7 +35,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.molotov.clender.R
-import com.molotov.clender.data.settings.ThinkingEffort
+import com.molotov.clender.ui.event.AlertPermissionSection
 import com.molotov.clender.ui.foundation.ThemeMode
 
 @Composable
@@ -205,6 +205,7 @@ private fun ApplicationSettingsSection(
         Text(stringResource(R.string.settings_save_application))
     }
     BackgroundSettingsSection()
+    AlertPermissionSection()
 }
 
 @Composable
@@ -229,7 +230,7 @@ private fun AiSettingsSection(
     AiConnectionSettings(state, operationActive, actions, secretText) { secretText = it }
     AiGenerationSettings(state, operationActive, actions)
     AiPromptSettings(state, operationActive, actions)
-    ModelFetchStatus(state)
+    ModelFetchStatus(state, operationActive, actions)
     AiOperationButtons(operationActive, actions)
 }
 
@@ -326,15 +327,7 @@ private fun AiGenerationSettings(
         )
     )
     ThinkingToggle(state, operationActive, actions)
-    SettingsTextField(
-        state.ai.thinkingEffort.name,
-        {
-            val effort = runCatching { ThinkingEffort.valueOf(it.uppercase()) }
-                .getOrDefault(state.ai.thinkingEffort)
-            actions.onAiChange(state.ai.copy(thinkingEffort = effort))
-        },
-        SettingsFieldOptions(R.string.settings_ai_effort, "settings_ai_effort", !operationActive)
-    )
+    ThinkingEffortSelector(state, operationActive, actions)
 }
 
 @Composable
@@ -343,16 +336,7 @@ private fun AiPromptSettings(
     operationActive: Boolean,
     actions: SettingsActions
 ) {
-    SettingsTextField(
-        state.ai.systemPrompt,
-        { actions.onAiChange(state.ai.copy(systemPrompt = it)) },
-        SettingsFieldOptions(
-            R.string.settings_ai_system_prompt,
-            "settings_ai_system_prompt",
-            !operationActive,
-            singleLine = false
-        )
-    )
+    Text(stringResource(R.string.ai_embedded_contract))
     SettingsTextField(
         state.ai.personality,
         { actions.onAiChange(state.ai.copy(personality = it)) },
@@ -390,7 +374,11 @@ private fun AiOperationButtons(operationActive: Boolean, actions: SettingsAction
 }
 
 @Composable
-private fun ModelFetchStatus(state: SettingsUiState) {
+private fun ModelFetchStatus(
+    state: SettingsUiState,
+    operationActive: Boolean,
+    actions: SettingsActions
+) {
     when (state.status) {
         SettingsStatus.FETCHING -> CircularProgressIndicator(
             modifier = Modifier
@@ -427,7 +415,14 @@ private fun ModelFetchStatus(state: SettingsUiState) {
         SettingsStatus.TESTING,
         SettingsStatus.VALIDATION_FAILED -> Unit
     }
+    ModelCapabilityHint(state)
     state.models.forEach { model ->
-        Text(model, modifier = Modifier.fillMaxWidth())
+        OutlinedButton(
+            onClick = { actions.onAiChange(state.ai.copy(model = model)) },
+            enabled = !operationActive,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(model)
+        }
     }
 }

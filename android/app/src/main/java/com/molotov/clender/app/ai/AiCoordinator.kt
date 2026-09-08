@@ -269,7 +269,7 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
         val request = budgeter.build(
             AiBudgetInput(
                 mandatorySystemContract = DEFAULT_AI_SYSTEM_CONTRACT,
-                systemPrompt = settings.systemPrompt,
+                systemPrompt = "",
                 personality = settings.personality,
                 scheduleContext = scheduleContext,
                 history = history,
@@ -294,7 +294,7 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
             remainingTokenDelta = 0
         }
         val replies = when (val parsed = parser.parse(completion.content)) {
-            is AiParseResult.PlainReply -> listOf(parsed.message)
+            is AiParseResult.PlainReply -> listOf(noChangeReply(listOf(parsed.message)))
             is AiParseResult.Rejected -> listOf(parsed.userMessage)
             is AiParseResult.Operations -> executor.execute(parsed.operations).operationReplies()
         }
@@ -329,19 +329,29 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
 private fun AiExecutionReport.operationReplies(): List<String> {
     val eventOutcomes = outcomes.filter { it.action in setOf("add", "update", "delete") }
     val failed = eventOutcomes.count { !it.success }
-    val completed = eventOutcomes.count { it.success }
+    val completed = eventOutcomes.count { it.success && it.changed }
     return when {
         failed > 0 -> listOf(
             "$completed schedule operation(s) completed; $failed could not be applied. " +
                 "Check the calendar before trying again."
         )
 
-        replies.isNotEmpty() -> replies
+        scheduleChanged -> listOf(
+            "$completed schedule operation(s) completed. 已实际完成 $completed 项日程操作。" +
+                modelReply(replies)
+        )
 
-        scheduleChanged -> listOf("Schedule operations completed.")
-
-        else -> listOf("No schedule operation could be applied.")
+        else -> listOf(noChangeReply(replies))
     }
+}
+
+private fun noChangeReply(replies: List<String>): String =
+    "No schedule changes were made. 本轮未修改日程。" + modelReply(replies)
+
+private fun modelReply(replies: List<String>): String = if (replies.isEmpty()) {
+    ""
+} else {
+    "\n\nAssistant reply / 模型回复：\n" + replies.joinToString("\n")
 }
 
 private fun Clock.nowMicros() = instant().truncatedTo(ChronoUnit.MICROS)

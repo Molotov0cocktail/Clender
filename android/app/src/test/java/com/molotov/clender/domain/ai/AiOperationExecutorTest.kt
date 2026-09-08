@@ -27,6 +27,40 @@ import org.junit.Test
 
 class AiOperationExecutorTest {
     @Test
+    fun concurrentTargetUpdateCannotCreateAReceiptWithoutThisRequestsMutation() = runBlocking {
+        val repository = AiEventRepository()
+        val mutations = RecordingAiMutationSink()
+        val service = eventService(repository, mutations)
+        val event = service.add(reminder("original").command)
+        mutations.values.clear()
+        repository.afterNextFind = {
+            repository.values[event.id] = event.copy(title = "target")
+        }
+        val report = AiOperationExecutor(service).execute(
+            listOf(AiOperation.Update(event.id, EventPatch(title = FieldUpdate.Set("target"))))
+        )
+        assertEquals(mutations.values.isNotEmpty(), report.scheduleChanged)
+        assertEquals(mutations.values.isNotEmpty(), report.outcomes.single().changed)
+    }
+
+    @Test
+    fun t66IdenticalUpdateDoesNotWriteOrReportScheduleChanged() = runBlocking {
+        val repository = AiEventRepository()
+        val mutations = RecordingAiMutationSink()
+        val service = eventService(repository, mutations)
+        val created = service.add(reminder("unchanged").command)
+        mutations.values.clear()
+        val writesBefore = repository.writeCalls
+        val report = AiOperationExecutor(service).execute(
+            listOf(AiOperation.Update(created.id, EventPatch(title = FieldUpdate.Set("unchanged"))))
+        )
+        assertFalse(report.scheduleChanged)
+        assertEquals(writesBefore, repository.writeCalls)
+        assertTrue(mutations.values.isEmpty())
+        assertEquals(created, repository.values[created.id])
+    }
+
+    @Test
     fun scheduleOperationsRunInOrderThroughEventServiceAndBatchOnce() = runBlocking {
         val repository = AiEventRepository()
         val mutations = RecordingAiMutationSink()
@@ -191,8 +225,15 @@ private class AiEventRepository : EventRepository {
     var nextFailure: RuntimeException? = null
     var failOnWriteCall = 1
     private var nextId = 1L
+    var afterNextFind: (() -> Unit)? = null
 
-    override suspend fun findById(id: Long): Event? = values[id]
+    override suspend fun findById(id: Long): Event? {
+        val snapshot = values[id]
+        val action = afterNextFind
+        afterNextFind = null
+        action?.invoke()
+        return snapshot
+    }
 
     override suspend fun insert(event: Event): Event {
         writeCalls += 1

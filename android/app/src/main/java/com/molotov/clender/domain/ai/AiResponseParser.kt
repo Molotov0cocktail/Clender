@@ -7,6 +7,7 @@ import com.molotov.clender.core.model.WallClockCodec
 import com.molotov.clender.domain.event.AddEventCommand
 import com.molotov.clender.domain.event.EventPatch
 import com.molotov.clender.domain.event.FieldUpdate
+import com.molotov.clender.domain.event.MAX_TIMER_MINUTES
 import java.time.LocalDateTime
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -143,7 +144,11 @@ class AiResponseParser(
                 startTime = start,
                 endTime = end,
                 description = value.optionalString("description") ?: "",
-                estimatedDurationMinutes = duration
+                estimatedDurationMinutes = duration,
+                notificationEnabled =
+                    value.optionalBoolean("notification_enabled") ?: (type == EventType.REMINDER),
+                alarmEnabled = value.optionalBoolean("alarm_enabled") ?: false,
+                timerMinutes = value.optionalTimerMinutes() ?: 0
             )
         )
     }
@@ -157,7 +162,11 @@ class AiResponseParser(
             startTime = value.fieldTime("start_time"),
             endTime = value.fieldNullableTime("end_time"),
             description = value.fieldString("description"),
-            estimatedDurationMinutes = value.fieldNonNegativeInt("estimated_duration")
+            estimatedDurationMinutes = value.fieldNonNegativeInt("estimated_duration"),
+            notificationEnabled = value.fieldBoolean("notification_enabled"),
+            alarmEnabled = value.fieldBoolean("alarm_enabled"),
+            timerMinutes =
+                value.optionalTimerMinutes()?.let { FieldUpdate.Set(it) } ?: FieldUpdate.Unchanged
         )
         if (patch.isEmpty()) throw RejectedOperationException()
         validateUpdateTemporalFields(patch)
@@ -194,7 +203,10 @@ class AiResponseParser(
             "start_time",
             "end_time",
             "description",
-            "estimated_duration"
+            "estimated_duration",
+            "notification_enabled",
+            "alarm_enabled",
+            "timer_minutes"
         )
         val UPDATE_FIELDS = ADD_FIELDS + "event_id"
         val DELETE_FIELDS = setOf("action", "event_id")
@@ -258,6 +270,21 @@ private fun JsonObject.optionalNonNegativeInt(name: String): Int? {
     val primitive = this[name] as? JsonPrimitive ?: throw RejectedOperationException()
     if (primitive.isString || primitive.booleanOrNull != null) throw RejectedOperationException()
     return primitive.intOrNull?.takeIf { it >= 0 } ?: throw RejectedOperationException()
+}
+
+private fun JsonObject.optionalBoolean(name: String): Boolean? {
+    if (name !in this) return null
+    return (this[name] as? JsonPrimitive)?.takeUnless(JsonPrimitive::isString)?.booleanOrNull
+        ?: throw RejectedOperationException()
+}
+
+private fun JsonObject.fieldBoolean(name: String): FieldUpdate<Boolean> =
+    optionalBoolean(name)?.let { FieldUpdate.Set(it) } ?: FieldUpdate.Unchanged
+
+private fun JsonObject.optionalTimerMinutes(): Int? {
+    val value = optionalNonNegativeInt("timer_minutes") ?: return null
+    if (value > MAX_TIMER_MINUTES) throw RejectedOperationException()
+    return value
 }
 
 private fun JsonObject.fieldEventType(name: String): FieldUpdate<EventType> =

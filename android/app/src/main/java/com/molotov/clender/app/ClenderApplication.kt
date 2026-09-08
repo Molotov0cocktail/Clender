@@ -6,7 +6,9 @@ import android.content.ComponentName
 import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.molotov.clender.alert.EventAlertRuntimeOwner
 import com.molotov.clender.app.ai.AiSubmissionGateway
+import com.molotov.clender.app.alert.EventAlertRuntime
 import com.molotov.clender.app.widget.WidgetAutomaticRefreshPort
 import com.molotov.clender.app.widget.WidgetConfigurationRuntimePort
 import com.molotov.clender.domain.conversation.ConversationIdGenerator
@@ -31,7 +33,8 @@ class ClenderApplication :
     WidgetProviderRuntimeOwner,
     WidgetConfigurationActivityOwner,
     WidgetAutomaticRefreshOwner,
-    QuickAiActivityOwner {
+    QuickAiActivityOwner,
+    EventAlertRuntimeOwner {
     val container: AppContainer by lazy {
         AppContainer(this).also { created ->
             if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -54,6 +57,9 @@ class ClenderApplication :
 
     override val widgetAutomaticRefreshScope: CoroutineScope
         get() = container.widgetProviderScope
+
+    override val alertRuntime: EventAlertRuntime
+        get() = container.alertRuntime
 
     override val widgetAutomaticRefreshRuntime: WidgetAutomaticRefreshPort
         get() = container.widgetAutomaticRefreshRuntime

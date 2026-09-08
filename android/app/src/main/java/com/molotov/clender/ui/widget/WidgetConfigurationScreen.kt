@@ -131,6 +131,7 @@ private fun ConfigurationForm(
 ) {
     TimeRangeControls(draft, enabled, actions)
     AppearanceControls(draft, enabled, actions)
+    WidgetAppearancePreview(draft)
     ThemeControls(draft.theme, enabled, actions.onThemeChange)
     if (status != null) {
         StatusText(status)

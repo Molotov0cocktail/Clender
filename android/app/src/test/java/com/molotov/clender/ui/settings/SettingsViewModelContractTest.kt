@@ -2,8 +2,12 @@ package com.molotov.clender.ui.settings
 
 import android.os.Looper
 import androidx.lifecycle.ViewModel
+import com.molotov.clender.data.network.ai.AiModelCapabilities
 import com.molotov.clender.data.settings.ThinkingEffort
 import com.molotov.clender.ui.foundation.ThemeMode
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -25,6 +29,72 @@ class SettingsViewModelContractTest {
         tracked.forEach(::clearViewModel)
         tracked.clear()
         idleMain()
+    }
+
+    @Test
+    fun cancelledFetchCannotPublishLateCatalogIntoAnotherProviderDraft() {
+        val port = FakeSettingsPort(ignoreFetchCancellation = true)
+        val model = activeViewModel(port)
+        model.fetchModels()
+        idleMain()
+        model.leaveSettings()
+        model.updateAi(model.state.value.ai.copy(endpoint = "https://another.example/v1"))
+        val expected = model.state.value.ai
+        port.finishFetch(
+            ModelFetchResult(
+                ModelFetchDecision.SUCCESS,
+                listOf("model-current"),
+                mapOf("model-current" to AiModelCapabilities(64000, 8192))
+            )
+        )
+        idleMain()
+        assertEquals(expected, model.state.value.ai)
+        assertTrue(model.state.value.models.isEmpty())
+        assertTrue(model.state.value.modelCapabilities.isEmpty())
+    }
+
+    @Test
+    fun fetchedCurrentModelLimitsUpdateDraftAndSelectedOtherModelUsesItsOwnLimits() {
+        val port = FakeSettingsPort(
+            fetchResults = ArrayDeque(
+                listOf(
+                    ModelFetchResult(
+                        ModelFetchDecision.SUCCESS,
+                        listOf("model-current", "other", "unknown"),
+                        mapOf(
+                            "model-current" to AiModelCapabilities(64000, 8192),
+                            "other" to AiModelCapabilities(32000, 4096)
+                        )
+                    )
+                )
+            )
+        )
+        val model = activeViewModel(port)
+        model.fetchModels()
+        idleMain()
+        assertEquals("64000", model.state.value.ai.contextWindow)
+        assertEquals("8192", model.state.value.ai.maxOutputTokens)
+        assertTrue(model.state.value.dirty)
+        model.updateAi(model.state.value.ai.copy(model = "other"))
+        assertEquals("32000", model.state.value.ai.contextWindow)
+        assertEquals("4096", model.state.value.ai.maxOutputTokens)
+        model.updateAi(
+            model.state.value.ai.copy(model = "unknown", thinkingEffort = ThinkingEffort.LOW)
+        )
+        assertEquals("32000", model.state.value.ai.contextWindow)
+        model.saveAi()
+        idleMain()
+        assertEquals(ThinkingEffort.LOW, port.aiSaves.single().draft.thinkingEffort)
+        model.updateAi(model.state.value.ai.copy(thinkingEffort = ThinkingEffort.HIGH))
+        model.leaveSettings()
+        assertEquals(ThinkingEffort.LOW, model.state.value.ai.thinkingEffort)
+        val currentDraft = model.state.value.ai
+        model.updateAi(currentDraft.copy(endpoint = "https://another.example/v1"))
+        assertTrue(model.state.value.models.isEmpty())
+        assertTrue(model.state.value.modelCapabilities.isEmpty())
+        model.updateAi(model.state.value.ai.copy(model = "model-current"))
+        assertEquals(currentDraft.contextWindow, model.state.value.ai.contextWindow)
+        assertEquals(currentDraft.maxOutputTokens, model.state.value.ai.maxOutputTokens)
     }
 
     @Test
@@ -277,6 +347,7 @@ class SettingsViewModelContractTest {
         private val saveDecision: SettingsSaveDecision = SettingsSaveDecision.SUCCESS,
         private val autoCompleteSave: Boolean = true,
         private val autoCompleteFetch: Boolean = true,
+        private val ignoreFetchCancellation: Boolean = false,
         private val fetchResults: ArrayDeque<ModelFetchResult> = ArrayDeque(
             listOf(ModelFetchResult(ModelFetchDecision.SUCCESS, listOf("model-current")))
         )
@@ -289,6 +360,7 @@ class SettingsViewModelContractTest {
         var chatCancellationCalls = 0
         private var pendingSave: CompletableDeferred<SettingsSaveDecision>? = null
         private var pendingFetch: CompletableDeferred<ModelFetchResult>? = null
+        private var uncheckedFetch: Continuation<ModelFetchResult>? = null
 
         override suspend fun load(): PersistedSettings {
             loads += 1
@@ -316,8 +388,11 @@ class SettingsViewModelContractTest {
             key: CharArray?
         ): ModelFetchResult {
             fetches += 1
-            if (autoCompleteFetch) return fetchResults.removeFirst()
-            return CompletableDeferred<ModelFetchResult>().also { pendingFetch = it }.await()
+            return when {
+                ignoreFetchCancellation -> suspendCoroutine { uncheckedFetch = it }
+                autoCompleteFetch -> fetchResults.removeFirst()
+                else -> CompletableDeferred<ModelFetchResult>().also { pendingFetch = it }.await()
+            }
         }
 
         override fun cancelModelFetch() {
@@ -330,6 +405,8 @@ class SettingsViewModelContractTest {
         }
 
         fun finishFetch(value: ModelFetchResult) {
+            uncheckedFetch?.resume(value)
+            uncheckedFetch = null
             pendingFetch?.complete(value)
         }
 

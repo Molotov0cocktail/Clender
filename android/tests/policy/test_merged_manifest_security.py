@@ -80,6 +80,10 @@ class MergedManifestSecurityTests(PolicyTestCase):
                 self.assertEqual(
                     {
                         "android.permission.INTERNET",
+                        "android.permission.POST_NOTIFICATIONS",
+                        "android.permission.SCHEDULE_EXACT_ALARM",
+                        "android.permission.FOREGROUND_SERVICE",
+                        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
                         f"{package_name}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
                         *self.WORK_PERMISSIONS,
                     },
@@ -121,6 +125,22 @@ class MergedManifestSecurityTests(PolicyTestCase):
                         "name": "com.molotov.clender.widget.WidgetBootReceiver",
                         "enabled": "true",
                         "exported": "false",
+                    },
+                    ("receiver", "com.molotov.clender.alert.EventAlertReceiver"): {
+                        "name": "com.molotov.clender.alert.EventAlertReceiver",
+                        "enabled": "true",
+                        "exported": "false",
+                    },
+                    ("receiver", "com.molotov.clender.alert.AlertRestoreReceiver"): {
+                        "name": "com.molotov.clender.alert.AlertRestoreReceiver",
+                        "enabled": "true",
+                        "exported": "false",
+                    },
+                    ("service", "com.molotov.clender.alert.ImportantAlarmService"): {
+                        "name": "com.molotov.clender.alert.ImportantAlarmService",
+                        "enabled": "true",
+                        "exported": "false",
+                        "foregroundServiceType": "mediaPlayback",
                     },
                     ("service", "androidx.work.impl.background.systemjob.SystemJobService"): {
                         "name": "androidx.work.impl.background.systemjob.SystemJobService",
@@ -173,6 +193,8 @@ class MergedManifestSecurityTests(PolicyTestCase):
                     },
                 }
                 components = self._components(application)
+                self.assertEqual([], list(components[("service",
+                    "com.molotov.clender.alert.ImportantAlarmService")]))
                 actual = {key: self._android_attributes(node) for key, node in components.items()}
                 self.assertEqual(expected, actual)
 
@@ -218,6 +240,14 @@ class MergedManifestSecurityTests(PolicyTestCase):
                     ("receiver", "com.molotov.clender.widget.WidgetBootReceiver"): [
                         (("android.intent.action.BOOT_COMPLETED",), ()),
                     ],
+                    ("receiver", "com.molotov.clender.alert.AlertRestoreReceiver"): [
+                        (tuple(sorted((
+                            "android.intent.action.BOOT_COMPLETED",
+                            "android.intent.action.TIME_SET",
+                            "android.intent.action.TIMEZONE_CHANGED",
+                            "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED",
+                        ))), ()),
+                    ],
                 }
                 actual_filters = {
                     key: filters
@@ -225,6 +255,21 @@ class MergedManifestSecurityTests(PolicyTestCase):
                     if (filters := self._filters(node))
                 }
                 self.assertEqual(expected_filters, actual_filters)
+                for name in ("EventAlertReceiver", "AlertRestoreReceiver"):
+                    receiver = components[("receiver", f"com.molotov.clender.alert.{name}")]
+                    self.assertEqual([], receiver.findall("meta-data"))
+                    self.assertEqual([], receiver.findall(".//data"))
+                    self.assertEqual([], receiver.findall(".//category"))
+                    if name == "EventAlertReceiver":
+                        self.assertEqual([], list(receiver))
+                    else:
+                        self.assertEqual(["intent-filter"], [node.tag for node in receiver])
+                        intent_filter = receiver.find("intent-filter")
+                        self.assertEqual({}, intent_filter.attrib)
+                        self.assertEqual(["action"] * 4, [node.tag for node in intent_filter])
+                        for action in intent_filter:
+                            self.assertEqual({A + "name"}, set(action.attrib))
+                            self.assertEqual([], list(action))
 
                 self.assertNotEqual("true", application.get(A + "testOnly"))
                 for (tag, name), node in components.items():
@@ -240,8 +285,9 @@ class MergedManifestSecurityTests(PolicyTestCase):
                         )
                     if tag == "service":
                         self.assertFalse(
-                            lowered.startswith("com.molotov.clender."),
-                            "application-owned services are forbidden",
+                            lowered.startswith("com.molotov.clender.") and
+                            name != "com.molotov.clender.alert.ImportantAlarmService",
+                            "only the important alarm playback service is allowed",
                         )
                     if tag == "provider":
                         self.assertFalse(lowered.startswith("androidx.test.") or "testprovider" in lowered)

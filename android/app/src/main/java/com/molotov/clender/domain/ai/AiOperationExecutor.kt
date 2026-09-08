@@ -5,7 +5,12 @@ import java.util.concurrent.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
-data class AiOperationOutcome(val action: String, val success: Boolean, val message: String)
+data class AiOperationOutcome(
+    val action: String,
+    val success: Boolean,
+    val message: String,
+    val changed: Boolean = success && action != "reply"
+)
 
 data class AiExecutionReport(
     val outcomes: List<AiOperationOutcome>,
@@ -21,37 +26,54 @@ class AiOperationExecutor(private val eventService: EventService) {
         eventService.runBatched { scoped ->
             for (operation in operations) {
                 currentCoroutineContext().ensureActive()
-                try {
-                    when (operation) {
-                        is AiOperation.Add -> {
-                            scoped.add(operation.command)
-                            scheduleChanged = true
-                        }
-
-                        is AiOperation.Update -> {
-                            scoped.update(operation.eventId, operation.patch)
-                            scheduleChanged = true
-                        }
-
-                        is AiOperation.Delete -> {
-                            if (!scoped.delete(operation.eventId)) {
-                                outcomes += failure(operation)
-                                continue
-                            }
-                            scheduleChanged = true
-                        }
-
-                        is AiOperation.Reply -> replies += operation.message
-                    }
-                    outcomes += success(operation)
+                val outcome = try {
+                    apply(operation, scoped, replies)
                 } catch (error: CancellationException) {
                     throw error
                 } catch (_: RuntimeException) {
-                    outcomes += failure(operation)
+                    failure(operation)
                 }
+                outcomes += outcome
+                scheduleChanged = scheduleChanged || outcome.changed
             }
         }
         return AiExecutionReport(outcomes, replies, scheduleChanged)
+    }
+
+    private suspend fun apply(
+        operation: AiOperation,
+        scoped: EventService,
+        replies: MutableList<String>
+    ): AiOperationOutcome = when (operation) {
+        is AiOperation.Add -> {
+            scoped.add(operation.command)
+            success(operation)
+        }
+
+        is AiOperation.Update -> {
+            val result = scoped.updateWithResult(operation.eventId, operation.patch)
+            if (result.changed) {
+                success(
+                    operation
+                )
+            } else {
+                AiOperationOutcome("update", true, "Already up to date", false)
+            }
+        }
+
+        is AiOperation.Delete -> if (scoped.delete(
+                operation.eventId
+            )
+        ) {
+            success(operation)
+        } else {
+            failure(operation)
+        }
+
+        is AiOperation.Reply -> {
+            replies += operation.message
+            success(operation)
+        }
     }
 
     private fun success(operation: AiOperation) = AiOperationOutcome(

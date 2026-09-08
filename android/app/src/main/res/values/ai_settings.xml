@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_embedded_contract">日程操作指令已内嵌，仅通过校验的实际操作才能修改日历。</string>
+    <string name="ai_model_limits_received">已填入供应商提供的能力字段，缺失字段保留当前值；输出预算会为输入预留空间，可继续手动调整。</string>
+    <string name="ai_model_limits_unknown">供应商未提供模型能力参数，已保留当前值，请根据供应商文档核对。</string>
+</resources>

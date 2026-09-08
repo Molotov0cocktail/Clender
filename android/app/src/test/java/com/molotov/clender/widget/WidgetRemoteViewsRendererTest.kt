@@ -471,7 +471,13 @@ class WidgetResponsiveRemoteViewsTest {
         )
         map.forEach { (size, views) ->
             val root = views.apply(context, FrameLayout(context))
-            assertEquals(expectedCapacities.getValue(size), countRows(root))
+            val rows = countRows(root)
+            assertTrue(
+                "$size capacity remains an upper bound",
+                rows <= expectedCapacities.getValue(size)
+            )
+            val hidden = 12 - rows
+            assertTrue(allTextForBudget(root).any { it.contains(hidden.toString()) })
         }
     }
 
@@ -576,6 +582,9 @@ class WidgetResponsiveRemoteViewsTest {
         visit(root)
         return rows
     }
+
+    private fun allTextForBudget(root: View): List<String> = descendants(root)
+        .filterIsInstance<TextView>().map { it.text.toString() }
 
     private fun descendants(root: View): List<View> {
         val result = mutableListOf<View>()

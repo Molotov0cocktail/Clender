@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="alert_section_title">本机提醒方式</string>
+    <string name="alert_notification">事项开始时通知</string>
+    <string name="alert_alarm">事项开始时响重要闹钟</string>
+    <string name="alert_alarm_explanation">仅非常重要的事项建议启用闹钟。两者同时开启时，开始时只响闹钟，不重复通知。</string>
+    <string name="alert_timer">计时器时长（分钟）</string>
+    <string name="alert_timer_explanation">0 关闭计时器；1–1440 分钟从事项开始时起算，到期单独通知。</string>
+    <string name="alert_permissions_title">提醒与后台运行</string>
+    <string name="alert_grant_notifications">允许发送通知</string>
+    <string name="alert_notification_settings">通知与声音设置</string>
+    <string name="alert_exact_settings">闹钟与精确提醒权限</string>
+    <string name="alert_battery_settings">电池优化设置</string>
+    <string name="alert_app_settings">应用详情与厂商自启动</string>
+    <string name="alert_notifications_ready">已允许通知。声音与振动遵循系统通知频道设置。</string>
+    <string name="alert_notifications_blocked">通知权限未开启：无法发送通知、播放闹钟声音或提示计时到期。事项本身仍会保存。</string>
+    <string name="alert_exact_ready">已允许精确提醒。</string>
+    <string name="alert_exact_blocked">未允许精确提醒：重要闹钟不会调度；普通通知和计时器可能延迟。</string>
+    <string name="alert_channel_blocked">部分提醒通知频道已关闭，请检查本应用的通知与声音设置。</string>
+    <string name="alert_background_explanation">要及时提醒，请允许应用后台运行并检查电池优化。部分手机还需在应用详情中允许自启动；厂商权限无法由应用统一自动开启。重启后会恢复未来提醒；若手动强行停止应用，须重新打开应用才能恢复提醒。</string>
+    <string name="alert_settings_unavailable">当前设备未打开该设置页，请从系统设置进入本应用设置。</string>
+    <string name="alert_mode_alarm">开始时：重要闹钟（替代普通开始通知）</string>
+    <string name="alert_mode_notification">开始时：普通通知</string>
+    <string name="alert_mode_off">事项开始通知与重要闹钟均已关闭。</string>
+    <string name="alert_timer_waiting">将在事项开始时计时，到期时间：%1$s。</string>
+    <string name="alert_timer_running">计时剩余 %1$d 分钟，到期时间：%2$s。</string>
+    <string name="alert_timer_finished">计时已于 %1$s 到期；实际通知投递结果以单独状态为准。</string>
+    <string name="alert_status_scheduled">未来提醒已调度。</string>
+    <string name="alert_status_inexact">已调度提醒，但没有精确提醒权限时可能延迟。</string>
+    <string name="alert_status_no_exact">重要闹钟尚未调度，请先允许精确提醒。</string>
+    <string name="alert_status_failed">提醒调度失败，请重新打开应用并检查下方权限。</string>
+    <string name="alert_status_past">当前没有未来提醒；不会重放已过去的提醒。</string>
+    <string name="alert_status_delivered">提醒已投递到系统通知频道。</string>
+</resources>

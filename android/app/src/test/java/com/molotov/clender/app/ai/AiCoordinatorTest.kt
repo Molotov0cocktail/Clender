@@ -60,6 +60,19 @@ class AiCoordinatorTest {
     }
 
     @Test
+    fun t66LegacySystemPromptNeverOverridesEmbeddedOperationContract() = runBlocking {
+        conversations.create(conversation("a"))
+        val legacy = "LEGACY_SYSTEM_SENTINEL"
+        assertTrue(
+            coordinator.submit("a", "hello", settings().copy(systemPrompt = legacy), testKey())
+        )
+        waitUntil { client.completeCalls.get() == 1 }
+        assertFalse(client.lastMessages.any { it.content.contains(legacy) })
+        client.nextCompletion.complete(replyCompletion("hello"))
+        waitUntil { coordinator.state.value == AiCoordinatorState.Idle }
+    }
+
+    @Test
     fun singleFlightRejectsSecondSubmissionAndCapturesOriginatingConversation() = runBlocking {
         conversations.create(conversation("a"))
         conversations.create(conversation("b"))
@@ -76,7 +89,11 @@ class AiCoordinatorTest {
         waitUntil { coordinator.state.value == AiCoordinatorState.Idle }
 
         assertEquals(
-            listOf(MessageRole.USER to "first", MessageRole.ASSISTANT to "reply-a"),
+            listOf(
+                MessageRole.USER to "first",
+                MessageRole.ASSISTANT to
+                    "No schedule changes were made. 本轮未修改日程。\n\nAssistant reply / 模型回复：\nreply-a"
+            ),
             conversations.messages.getValue("a").map { it.role to it.content }
         )
         assertTrue(conversations.messages["b"].orEmpty().isEmpty())
@@ -257,7 +274,11 @@ class AiCoordinatorTest {
             conversations.messages.getValue("a").map(Message::role)
         )
         assertEquals(
-            listOf("add it", "private thinking", "done"),
+            listOf(
+                "add it",
+                "private thinking",
+                "1 schedule operation(s) completed. 已实际完成 1 项日程操作。\n\nAssistant reply / 模型回复：\ndone"
+            ),
             conversations.messages.getValue("a").map(Message::content)
         )
         assertTrue(conversations.tokenDeltas.all { it >= 0 })

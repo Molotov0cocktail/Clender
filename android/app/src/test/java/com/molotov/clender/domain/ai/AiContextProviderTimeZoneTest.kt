@@ -160,8 +160,11 @@ class AiContextProviderTimeZoneTest {
         ) { ZoneId.of("Asia/Shanghai") }
         assertEquals(
             "Current local date/time: 2026-09-06 08:00; weekday: Sunday.\nVisible schedules:\n" +
-                "- id=1 type=reminder title=early start=2026-09-06 09:00 duration=0\n" +
-                "- id=2 type=timespan title=later start=2026-09-06 10:00 end=2026-09-06 11:00 duration=0",
+                "- id=1 type=reminder title=early start=2026-09-06 09:00 duration=0" +
+                " notification_enabled=false alarm_enabled=false timer_minutes=0\n" +
+                "- id=2 type=timespan title=later start=2026-09-06 10:00 " +
+                "end=2026-09-06 11:00 duration=0" +
+                " notification_enabled=false alarm_enabled=false timer_minutes=0",
             context.build()
         )
         assertEquals(start, early.startTime)

@@ -45,6 +45,8 @@ internal fun TimelineSemanticOverlay(
             renderableBlocks.forEach { block ->
                 TimelineBlockOverlay(
                     block = block,
+                    markerLabelHeight = overlayLayout.timelineHeight *
+                        markerLabelSpaceFraction(block, renderableBlocks),
                     layout = overlayLayout,
                     onEventClick = onEventClick,
                     onOverflowClick = onOverflowClick
@@ -69,6 +71,7 @@ internal fun TimelineSemanticOverlay(
 @Composable
 private fun TimelineBlockOverlay(
     block: CalendarBlock,
+    markerLabelHeight: Dp,
     layout: TimelineOverlayLayout,
     onEventClick: (Long) -> Unit,
     onOverflowClick: (List<Long>) -> Unit
@@ -82,10 +85,23 @@ private fun TimelineBlockOverlay(
         onEventClick = onEventClick,
         onOverflowClick = onOverflowClick,
         eventLabels = layout.eventLabels,
+        displayLabels = layout.displayLabels,
+        markerLabelHeight = markerLabelHeight,
         modifier = Modifier
             .requiredWidth(laneWidth)
             .requiredHeight(visualHeight.coerceAtLeast(MINIMUM_OVERLAY_WIDTH))
     )
+}
+
+internal fun markerLabelSpaceFraction(block: CalendarBlock, blocks: List<CalendarBlock>): Float {
+    val left = block.lane.toFloat() / block.laneCount
+    val right = (block.lane + 1f) / block.laneCount
+    val nextTop = blocks.asSequence().filter { other ->
+        other !== block && other.column == block.column && other.topFraction >= block.topFraction &&
+            other.lane.toFloat() / other.laneCount < right &&
+            (other.lane + 1f) / other.laneCount > left
+    }.minOfOrNull { it.topFraction } ?: 1f
+    return (nextTop - block.topFraction).coerceAtLeast(0f)
 }
 
 private fun timelineBlockLeft(
@@ -115,5 +131,6 @@ internal data class TimelineOverlayLayout(
     val columnWidth: Dp,
     val timelineHeight: Dp,
     val eventLabels: Map<Long, String>,
-    val columnCount: Int
+    val columnCount: Int,
+    val displayLabels: Map<Long, String> = emptyMap()
 )

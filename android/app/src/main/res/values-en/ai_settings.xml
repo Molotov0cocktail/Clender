@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_embedded_contract">Scheduling instructions are built in. Only validated operations can change your calendar.</string>
+    <string name="ai_model_limits_received">Supplied capability fields were filled from provider metadata; missing fields keep your values. Output reserves room for your request. You can adjust these values.</string>
+    <string name="ai_model_limits_unknown">The provider did not supply model limits. Your token values are retained; check them against the provider documentation.</string>
+</resources>

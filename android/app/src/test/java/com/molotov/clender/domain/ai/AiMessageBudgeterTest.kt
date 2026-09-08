@@ -13,6 +13,49 @@ class AiMessageBudgeterTest {
     private val budgeter = AiMessageBudgeter()
 
     @Test
+    fun t66HugeContextCannotEraseNewestUserRequestOrCurrentTime() {
+        val request = "Move event 42 to 15:00 today"
+        val time = "Current local date/time: 2026-09-08 11:30"
+        val result = budgeter.build(
+            AiBudgetInput(
+                mandatorySystemContract = "contract",
+                systemPrompt = "",
+                personality = "style ".repeat(500),
+                scheduleContext = "$time\n" + "old event ".repeat(2_000),
+                history = listOf(Message(1, "c", MessageRole.USER, request, Instant.EPOCH)),
+                contextWindow = 500,
+                maxOutputTokens = 100
+            )
+        )
+        assertTrue(result.messages.any { it.role == "user" && it.content == request })
+        assertTrue(result.messages.first().content.contains(time))
+        assertTrue(result.inputTokenEstimate <= 350)
+    }
+
+    @Test
+    fun hugeLatestMessageKeepsCurrentTimeAndMarksOmittedText() {
+        val time = "Current local date/time: 2026-09-08 11:30"
+        val result = budgeter.build(
+            AiBudgetInput(
+                mandatorySystemContract = "contract",
+                systemPrompt = "",
+                personality = "",
+                scheduleContext = "$time\n" + "event ".repeat(1_000),
+                history = listOf(
+                    Message(1, "c", MessageRole.USER, "x".repeat(4_000) + "end", Instant.EPOCH)
+                ),
+                contextWindow = 500,
+                maxOutputTokens = 100
+            )
+        )
+        assertTrue(result.messages.first().content.contains(time))
+        assertEquals("user", result.messages.last().role)
+        assertTrue(result.messages.last().content.startsWith("[Earlier message text omitted]"))
+        assertTrue(result.messages.last().content.endsWith("end"))
+        assertTrue(result.inputTokenEstimate <= 350)
+    }
+
+    @Test
     fun tokenEstimateIsConservativeOverUtf8BytesAndIncludesMessageOverhead() {
         assertEquals(0, budgeter.estimateTokens(""))
         assertEquals(1, budgeter.estimateTokens("abc"))
@@ -45,7 +88,7 @@ class AiMessageBudgeterTest {
                 personality = "patient",
                 scheduleContext = "date and sanitized event summaries",
                 history = history,
-                contextWindow = 500,
+                contextWindow = 700,
                 maxOutputTokens = 100
             )
         )
@@ -54,8 +97,8 @@ class AiMessageBudgeterTest {
         assertTrue(result.messages.first().content.contains("system contract"))
         assertFalse(result.messages.any { it.role == "think" })
         assertTrue(result.messages.last().content.endsWith("内容".repeat(30)))
-        assertTrue(result.inputTokenEstimate <= 350)
-        assertEquals(maxOf(32, 500 / 10), result.safetyMarginTokens)
+        assertTrue(result.inputTokenEstimate <= 530)
+        assertEquals(maxOf(32, 700 / 10), result.safetyMarginTokens)
     }
 
     @Test

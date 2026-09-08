@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_opacity_explanation" formatted="false">Background opacity: 0% is transparent and 100% is solid. Text stays opaque. Save to apply; tap Edit in the widget header to adjust again.</string>
+    <string name="widget_opacity_preview_value">Background preview · %1$d%%</string>
+    <string name="widget_opacity_preview_event">Example event\n10:40–12:00</string>
+</resources>
