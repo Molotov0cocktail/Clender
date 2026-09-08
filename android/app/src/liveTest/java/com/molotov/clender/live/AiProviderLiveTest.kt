@@ -128,6 +128,13 @@ class AiProviderLiveTest {
                 client.verifyLastCompletion()
                 val messages = conversations.observeMessages(CONVERSATION_ID).first()
                 val reply = messages.last { it.role == MessageRole.ASSISTANT }.content
+                val applied = Regex("^已实际完成 ([0-9]+) 项日程操作").find(reply)?.groupValues?.get(1)
+                val failed = Regex("^已实际完成 [0-9]+ 项日程操作，([0-9]+) 项未能执行")
+                    .find(reply)?.groupValues?.get(1)
+                val snapshot = visible(events).map {
+                    "id=${it.id}:notify=${it.notificationEnabled}:alarm=${it.alarmEnabled}:timer=${it.timerMinutes}"
+                }
+                println("LIVE round=$round applied=$applied failed=$failed syntheticPolicies=$snapshot")
                 assertTrue("Actual receipt count round $round", reply.startsWith("已实际完成 $expectedChanges 项日程操作。"))
                 assertEquals(1, Regex("已实际完成").findAll(reply).count())
                 assertFalse(reply.contains("Assistant reply"))
@@ -137,7 +144,10 @@ class AiProviderLiveTest {
                 println("LIVE round=$round changes=$expectedChanges thinkingCjk=$chinese englishWords=$englishWords " +
                     "httpCalls=${audit.size()} tokens=${client.totalTokens}")
                 assertEquals(round, client.completedCalls)
-                val tokens = conversations.findConversation(CONVERSATION_ID)!!.tokenCount
+                val storedConversation = conversations.findConversation(CONVERSATION_ID)!!
+                val tokens = storedConversation.tokenCount
+                assertEquals(client.lastRequestEstimate, storedConversation.lastInputTokenEstimate)
+                assertEquals(settings.contextWindow, storedConversation.lastContextWindow)
                 assertTrue(tokens > 0)
                 assertEquals("Room must count native aggregated usage exactly once", client.totalTokens, tokens)
                 println("LIVE round=$round businessCalls=${client.completedCalls} httpCalls=${audit.size()} " +
@@ -191,8 +201,57 @@ class AiProviderLiveTest {
             turn("这是隔离测试，请删除当前日历剩下的全部三个合成事项，使用当前可见编号。", 3, 3)
             assertTrue(visible(events).isEmpty())
             assertTrue(events.observeMonthCounts(YearMonth.of(2026, 9)).first().isEmpty())
-            assertEquals(3, client.completedCalls)
-            println("LIVE roomCreated=4 roomUpdated=1 roomDeleted=4 remaining=0 keyWipes=3 PASS")
+            turn(
+                "明天给我安排三件事：早上9点提醒喝水，只发普通通知；" +
+                    "9点05分叫我起床，要响重要闹钟不要普通通知；" +
+                    "9点10分到10点10分专注学习，开始时通知和重要闹钟都打开，" +
+                    "开始后1分钟再用计时器提醒。标题分别叫合成喝水、合成起床、合成专注。",
+                3, 4
+            )
+            val mixed = visible(events).associateBy(Event::title)
+            assertEquals(3, mixed.size)
+            val water = mixed.getValue("合成喝水")
+            val wake = mixed.getValue("合成起床")
+            val focus = mixed.getValue("合成专注")
+            assertEquals(LocalDateTime.parse("2026-09-09T09:00"), water.startTime)
+            assertTrue(water.notificationEnabled)
+            assertFalse(water.alarmEnabled)
+            assertEquals(0, water.timerMinutes)
+            assertEquals(LocalDateTime.parse("2026-09-09T09:05"), wake.startTime)
+            assertFalse(wake.notificationEnabled)
+            assertTrue(wake.alarmEnabled)
+            assertEquals(0, wake.timerMinutes)
+            assertEquals(EventType.TIMESPAN, focus.eventType)
+            assertEquals(LocalDateTime.parse("2026-09-09T09:10"), focus.startTime)
+            assertEquals(LocalDateTime.parse("2026-09-09T10:10"), focus.endTime)
+            assertTrue(focus.notificationEnabled)
+            assertTrue(focus.alarmEnabled)
+            assertEquals(1, focus.timerMinutes)
+            turn(
+                "合成喝水也打开重要闹钟并在开始后2分钟计时；" +
+                    "合成起床改成只通知不响闹钟；合成专注的计时改成3分钟。其它设置和时间不要改。",
+                3, 5
+            )
+            val changed = visible(events).associateBy(Event::id)
+            assertEquals(water.copy(alarmEnabled = true, timerMinutes = 2).copy(
+                updatedAt = changed.getValue(water.id).updatedAt
+            ), changed.getValue(water.id))
+            assertEquals(wake.copy(notificationEnabled = true, alarmEnabled = false).copy(
+                updatedAt = changed.getValue(wake.id).updatedAt
+            ), changed.getValue(wake.id))
+            assertEquals(focus.copy(timerMinutes = 3).copy(
+                updatedAt = changed.getValue(focus.id).updatedAt
+            ), changed.getValue(focus.id))
+            turn("把这三个合成事项的通知、闹钟和计时都关闭，保留事项本身。", 3, 6)
+            val disabled = visible(events)
+            assertEquals(3, disabled.size)
+            assertTrue(disabled.all { !it.notificationEnabled && !it.alarmEnabled && it.timerMinutes == 0 })
+            assertEquals(mixed.values.map(Event::id).toSet(), disabled.map(Event::id).toSet())
+            turn("删除这三个合成事项。", 3, 7)
+            assertTrue(visible(events).isEmpty())
+            assertTrue(events.observeMonthCounts(YearMonth.of(2026, 9)).first().isEmpty())
+            assertEquals(7, client.completedCalls)
+            println("LIVE roomCreated=7 roomUpdated=7 roomDeleted=7 remaining=0 keyWipes=7 PASS")
         } finally {
             key.fill('\u0000')
             try {
@@ -225,6 +284,7 @@ class AiProviderLiveTest {
 private class WipeCheckingClient(private val delegate: AiClient, private val audit: LiveHttpAudit) : AiClient by delegate {
     var completedCalls = 0
     var totalTokens = 0
+    var lastRequestEstimate: Int? = null
     private var lastCompletion: AiCompletion? = null
     private var lastObservations = emptyList<HttpObservation>()
     private var keysWiped = true
@@ -235,6 +295,11 @@ private class WipeCheckingClient(private val delegate: AiClient, private val aud
         messages: List<AiRequestMessage>
     ): AiCompletion {
         val firstHttp = audit.size()
+        lastRequestEstimate = AiMessageBudgeter().countTokens(messages)
+        val visibleIds = messages.filter { it.role == "system" }.flatMap {
+            Regex("(?m)^- id=([0-9]+) ").findAll(it.content).map { match -> match.groupValues[1] }.toList()
+        }
+        println("LIVE businessRequest=${completedCalls + 1} syntheticVisibleIds=$visibleIds")
         return try {
             delegate.complete(settings, apiKey, messages).also { completion ->
                 lastObservations = audit.since(firstHttp)
@@ -253,11 +318,18 @@ private class WipeCheckingClient(private val delegate: AiClient, private val aud
     fun verifyLastCompletion() {
         assertTrue("Native client must erase its key", keysWiped)
         val completion = requireNotNull(lastCompletion)
-        val firstSuccess = lastObservations.indexOfFirst { it.status in 200..299 }
-        assertTrue("Business response must have an observed successful HTTP response", firstSuccess >= 0)
-        assertEquals("Native client must preserve original operation content byte for byte",
-            lastObservations[firstSuccess].contentDigest, digest(completion.content))
+        val lastSuccess = lastObservations.indexOfLast { it.status in 200..299 }
+        assertTrue("Business response must have an observed successful HTTP response", lastSuccess >= 0)
+        assertEquals("Native client must preserve final operation content byte for byte",
+            lastObservations[lastSuccess].contentDigest, digest(completion.content))
+        assertTrue("A business call has at most one compatibility fallback and one correction",
+            lastObservations.size <= 3)
         val successful = lastObservations.filter { it.status in 200..299 }
+        assertTrue("There is at most one format correction", successful.size <= 2)
+        if (successful.size == 2) {
+            assertFalse("A valid first operation batch must never be retried",
+                successful.first().operationDiagnostic.startsWith("operations_"))
+        }
         assertEquals("All successful request usage must be aggregated", successful.sumOf { it.totalTokens },
             completion.usage.totalTokens)
         assertEquals(successful.sumOf { it.promptTokens }, completion.usage.promptTokens)
@@ -381,7 +453,10 @@ private fun operationDiagnostic(content: String): String {
             id.booleanOrNull == null && (id.longOrNull ?: 0) > 0) "positive_integer" else "invalid"
         "index=$index,singleParse=${parseClassification(operation.toString())},action=$action," +
             "eventType=$eventType,unknownFields=${operation.keys.count { it !in known }}," +
-            "fields=$fieldTypes,times=$times,id=$idType"
+            "fields=$fieldTypes,times=$times,id=$idType,idValue=${id?.longOrNull}," +
+            "notify=${(operation["notification_enabled"] as? JsonPrimitive)?.booleanOrNull}," +
+            "alarm=${(operation["alarm_enabled"] as? JsonPrimitive)?.booleanOrNull}," +
+            "timer=${(operation["timer_minutes"] as? JsonPrimitive)?.intOrNull}"
     }
     return "$classification,$rootShape,operationCount=${objects.size},envelopeUnknown=$envelopeUnknown,details=$details"
 }

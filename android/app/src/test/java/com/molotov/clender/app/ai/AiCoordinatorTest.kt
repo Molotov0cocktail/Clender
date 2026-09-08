@@ -4,10 +4,13 @@ import com.molotov.clender.core.model.Conversation
 import com.molotov.clender.core.model.Event
 import com.molotov.clender.core.model.Message
 import com.molotov.clender.core.model.MessageRole
+import com.molotov.clender.data.network.ai.AiAccountedException
 import com.molotov.clender.data.network.ai.AiClient
+import com.molotov.clender.data.network.ai.AiClientException
 import com.molotov.clender.data.network.ai.AiCompletion
 import com.molotov.clender.data.network.ai.AiCompletionUsage
 import com.molotov.clender.data.network.ai.AiHttpException
+import com.molotov.clender.data.network.ai.AiProtocolException
 import com.molotov.clender.data.network.ai.AiTimeoutException
 import com.molotov.clender.data.settings.AiSettings
 import com.molotov.clender.data.settings.ThinkingEffort
@@ -61,6 +64,52 @@ class AiCoordinatorTest {
     }
 
     @Test
+    fun workingStateIdentifiesThePersistedUserMessageForCurrentRoundFeedback() = runBlocking {
+        conversations.create(conversation("a"))
+        assertTrue(coordinator.submit("a", "本轮合成请求", settings(), testKey()))
+        waitUntil { client.completeCalls.get() == 1 }
+        val user = conversations.messages.getValue("a").last { it.role == MessageRole.USER }
+        val working = coordinator.state.value as AiCoordinatorState.Working
+        assertEquals("a", working.conversationId)
+        assertEquals(user.id, working.requestUserMessageId)
+        client.nextCompletion.complete(replyCompletion("合成回复"))
+        Unit
+    }
+
+    @Test
+    fun invalidCorrectionAccountsConsumedUsageAndDoesNotWriteEvents() =
+        accountedFailure(AiProtocolException(), AiCoordinatorError.INVALID_RESPONSE)
+
+    @Test
+    fun rateLimitedCorrectionAccountsFirstResponseAndRetainsFailureCategory() = accountedFailure(
+        AiHttpException(429, "PRIVATE_BODY_SENTINEL"),
+        AiCoordinatorError.RATE_LIMIT
+    )
+
+    @Test
+    fun timedOutCorrectionAccountsFirstResponseAndRetainsFailureCategory() =
+        accountedFailure(AiTimeoutException(), AiCoordinatorError.TIMEOUT)
+
+    private fun accountedFailure(failure: AiClientException, expected: AiCoordinatorError) =
+        runBlocking {
+            conversations.create(conversation("a"))
+            assertTrue(coordinator.submit("a", "设置合成提醒", settings(), testKey()))
+            waitUntil { client.completeCalls.get() == 1 }
+            client.nextCompletion.completeExceptionally(
+                AiAccountedException(failure, AiCompletionUsage(10, 5, 15))
+            )
+            waitUntil { coordinator.state.value !is AiCoordinatorState.Working }
+            assertEquals(AiCoordinatorState.Failed(expected), coordinator.state.value)
+            assertEquals(15, conversations.findConversation("a")?.tokenCount)
+            assertEquals(1, conversations.tokenDeltas.count { it == 15 })
+            assertEquals(0, events.writeCalls)
+            val receipt = conversations.messages.getValue("a").last()
+            assertEquals(MessageRole.ASSISTANT, receipt.role)
+            assertTrue(receipt.content.contains("本轮未修改日程"))
+            assertFalse(receipt.content.contains("PRIVATE_BODY_SENTINEL"))
+        }
+
+    @Test
     fun unauthorizedProviderResponseHasRecoverableAuthenticationStatus() =
         httpStatus(401, "AUTHENTICATION")
 
@@ -108,6 +157,55 @@ class AiCoordinatorTest {
         assertEquals(2, conversations.messages.getValue("a").size)
         assertEquals(2, conversations.findConversation("a")?.tokenCount)
     }
+
+    @Test
+    fun receiptOnlyHistoryKeepsAcknowledgementsBetweenUserRequestsWithoutThinkingOrWrites() =
+        runBlocking {
+            conversations.create(conversation("a"))
+            val receipts = listOf(
+                "已实际完成 3 项日程操作。",
+                "本轮未修改日程。",
+                "已实际完成 1 项日程操作，1 项未能执行。请先核对日历再重试。",
+                "AI 返回的操作格式不符合要求，本轮未修改日程。请重试或拆分请求。",
+                "AI 请求未完成，本轮未修改日程。",
+                "The assistant response could not be applied safely."
+            )
+            receipts.forEachIndexed { index, receipt ->
+                listOf(
+                    MessageRole.USER to "历史请求 $index",
+                    MessageRole.THINK to "PRIVATE_THINK_SENTINEL",
+                    MessageRole.ASSISTANT to receipt
+                ).forEach { (role, body) ->
+                    conversations.appendMessageAndIncrementTokens(
+                        "a",
+                        role,
+                        body,
+                        fixedClock.instant().minusSeconds(1),
+                        0
+                    )
+                }
+            }
+            assertTrue(coordinator.submit("a", "创建新的合成提醒", settings(), testKey()))
+            waitUntil { client.completeCalls.get() == 1 }
+            val history = client.lastMessages.filter { it.role != "system" }
+            assertEquals(
+                receipts.flatMap { listOf("user", "assistant") } + "user",
+                history.map { it.role }
+            )
+            assertEquals(
+                receipts.map { "应用已处理该历史请求，实际结果：$it" },
+                history.filter { it.role == "assistant" }.map { it.content }
+            )
+            assertFalse(client.lastMessages.any { "PRIVATE_THINK_SENTINEL" in it.content })
+            assertEquals(
+                receipts,
+                conversations.messages.getValue("a").filter { it.role == MessageRole.ASSISTANT }
+                    .map { it.content }
+            )
+            assertEquals(0, events.writeCalls)
+            client.nextCompletion.complete(replyCompletion("收到"))
+            waitUntil { coordinator.state.value == AiCoordinatorState.Idle }
+        }
 
     @Test
     fun legacyApplicationReceiptsAreNotEchoedIntoProviderHistory() = runBlocking {

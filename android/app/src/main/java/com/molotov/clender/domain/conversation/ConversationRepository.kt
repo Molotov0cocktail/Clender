@@ -11,6 +11,9 @@ interface ConversationRepository {
 
     suspend fun findConversation(id: String): Conversation?
 
+    suspend fun recordContextUsage(id: String, inputTokens: Int, contextWindow: Int): Boolean =
+        false
+
     suspend fun listConversations(): List<Conversation>
 
     fun observeMessages(conversationId: String): Flow<List<Message>>

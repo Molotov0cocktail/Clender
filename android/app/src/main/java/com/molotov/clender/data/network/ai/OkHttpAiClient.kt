@@ -12,8 +12,6 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -67,6 +65,7 @@ class OkHttpAiClient(
         .build()
     private val inFlight = AtomicReference<Call?>()
     private val cancellationRequested = AtomicReference<Call?>()
+    private val chatSession = AtomicReference<AiChatSession?>()
 
     private sealed interface TerminalOutcome {
         data class Success(val body: String) : TerminalOutcome
@@ -100,36 +99,88 @@ class OkHttpAiClient(
         messages: List<AiRequestMessage>
     ): AiCompletion = withWipedKey(apiKey) { authorization ->
         validateChatSettings(settings)
-        val url = AiEndpointValidator.chatUrl(settings.endpoint).toString()
+        val session = AiChatSession(
+            AiEndpointValidator.chatUrl(settings.endpoint).toString(),
+            authorization,
+            timeoutPolicy.chatCall
+        )
+        if (!chatSession.compareAndSet(null, session)) {
+            throw AiClientException("Another AI request is already active")
+        }
         try {
-            executeChat(url, authorization, settings, messages, true)
-        } catch (error: AiHttpException) {
-            if (error.statusCode !in THINKING_FALLBACK_STATUS_CODES) throw error
-            currentCoroutineContext().ensureActive()
-            executeChat(url, authorization, settings, messages, false)
+            val original = initialChat(session, settings, messages)
+            val needsCorrection = AiContractCorrection.applies(messages) &&
+                !AiContractCorrection.accepts(original)
+            val completion = if (needsCorrection) {
+                correctChat(session, settings, messages, original)
+            } else {
+                original
+            }
+            session.ensureActive()
+            completion
+        } finally {
+            chatSession.compareAndSet(session, null)
         }
     }
 
     override fun cancelInFlight() {
+        chatSession.get()?.cancel()
         inFlight.get()?.let { call ->
             cancellationRequested.set(call)
             call.cancel()
         }
     }
 
-    private suspend fun executeChat(
-        url: String,
-        authorization: String,
+    private suspend fun initialChat(
+        session: AiChatSession,
+        settings: AiSettings,
+        messages: List<AiRequestMessage>
+    ): AiCompletion = try {
+        executeChat(session, settings, messages)
+    } catch (error: AiHttpException) {
+        if (error.statusCode !in THINKING_FALLBACK_STATUS_CODES) throw error
+        session.ensureActive()
+        session.includeExtensions = false
+        executeChat(session, settings, messages)
+    }
+
+    private suspend fun correctChat(
+        session: AiChatSession,
         settings: AiSettings,
         messages: List<AiRequestMessage>,
-        includeThinking: Boolean
+        original: AiCompletion
     ): AiCompletion {
-        val payload = chatPayload(settings, messages, includeThinking).toString()
-        val request = requestBuilder(url)
-            .header("Authorization", authorization)
+        var usage = original.usage
+        return try {
+            session.ensureActive()
+            val correction = AiContractCorrection.messages(settings, messages, original)
+            val corrected = executeChat(session, settings, correction)
+            usage = AiContractCorrection.usage(original.usage, corrected.usage)
+            AiContractCorrection.ensureAccepted(corrected)
+            corrected.copy(usage = usage)
+        } catch (cancelled: AiRequestCancelledException) {
+            throw cancelled
+        } catch (error: AiClientException) {
+            session.ensureActive()
+            throw AiAccountedException(error, usage)
+        }
+    }
+
+    private suspend fun executeChat(
+        session: AiChatSession,
+        settings: AiSettings,
+        messages: List<AiRequestMessage>
+    ): AiCompletion {
+        session.ensureActive()
+        val payload = chatPayload(settings, messages, session.includeExtensions).toString()
+        val request = requestBuilder(session.url)
+            .header("Authorization", session.authorization)
             .post(payload.toRequestBody(JSON_MEDIA_TYPE))
             .build()
-        return parseCompletion(execute(request, timeoutPolicy.chatCall, timeoutPolicy.chatRead))
+        val body = execute(request, session.remaining(), timeoutPolicy.chatRead)
+        val completion = parseCompletion(body)
+        session.ensureActive()
+        return completion
     }
 
     private suspend fun execute(
@@ -326,6 +377,7 @@ class OkHttpAiClient(
             }
         )
         if (includeThinking) {
+            put("response_format", buildJsonObject { put("type", "json_object") })
             val effort = effectiveThinkingEffort(settings)
             put(
                 "thinking",

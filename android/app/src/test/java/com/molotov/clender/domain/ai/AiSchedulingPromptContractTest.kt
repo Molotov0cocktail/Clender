@@ -7,6 +7,35 @@ import org.junit.Test
 
 class AiSchedulingPromptContractTest {
     @Test
+    fun contractLimitsRootFieldsAndDistinguishesAddDefaultsFromUpdatePolicy() {
+        val contract = requestContract()
+        assertTrue(contract.contains("根对象只允许operations"))
+        assertTrue(contract.contains("新增提醒默认通知"))
+        assertTrue(contract.contains("update无默认"))
+        assertTrue(contract.contains("未传字段保留旧值"))
+        assertTrue(contract.contains("notification_enabled=true,alarm_enabled=false"))
+    }
+
+    @Test
+    fun contractUsesOnlyCurrentVisibleIdsInsteadOfDeletedHistory() {
+        assertTrue(requestContract().contains("ID仅用当前可见快照，禁用已删历史或示例ID"))
+    }
+
+    @Test
+    fun mixedAlertExampleIsExecutableAndOperationsCannotBeHiddenInReplyText() {
+        val contract = requestContract()
+        val example = contract.substringAfter("Mixed example: ").substringBefore('\n')
+        val parsed = AiResponseParser().parse(example)
+        assertTrue(parsed is AiParseResult.Operations)
+        val operations = (parsed as AiParseResult.Operations).operations
+        assertTrue(operations.any { it is AiOperation.Add && it.command.notificationEnabled })
+        assertTrue(operations.any { it is AiOperation.Add && it.command.alarmEnabled })
+        assertTrue(operations.any { it is AiOperation.Add && it.command.timerMinutes > 0 })
+        assertTrue(contract.contains("reply.message仅放自然语言，禁止嵌入operations"))
+        assertTrue(contract.contains("通知、闹钟、计时可与普通事项操作混合在同一operations数组"))
+    }
+
+    @Test
     fun providerContractIncludesAnExecutableEnvelopeWithExplicitActionDiscriminator() {
         val contract = requestContract()
         val example = contract.substringAfter("Example: ").substringBefore('\n')

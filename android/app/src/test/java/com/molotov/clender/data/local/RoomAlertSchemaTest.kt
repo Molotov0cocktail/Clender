@@ -14,12 +14,12 @@ import org.robolectric.annotation.Config
 @Config(sdk = [26, 36])
 class RoomAlertSchemaTest {
     @Test
-    fun roomVersionTwoPersistsLocalAlertColumnsWithDisabledDefaults() {
+    fun currentRoomSchemaPreservesDisabledLocalAlertDefaults() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = Room.inMemoryDatabaseBuilder(context, ClenderDatabase::class.java).build()
         try {
             val sqlite = database.openHelper.writableDatabase
-            assertEquals("Local alerts require an explicit v2 schema", 2, sqlite.version)
+            assertEquals("Current schema retains the migrated local alerts", 3, sqlite.version)
             val columns = sqlite.query("PRAGMA table_info(events)").use { cursor ->
                 buildMap {
                     while (cursor.moveToNext()) {

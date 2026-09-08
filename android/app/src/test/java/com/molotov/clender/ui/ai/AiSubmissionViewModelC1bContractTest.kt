@@ -2,6 +2,7 @@ package com.molotov.clender.ui.ai
 
 import android.os.Looper
 import androidx.lifecycle.ViewModel
+import com.molotov.clender.app.ai.AiContextUsage
 import com.molotov.clender.app.ai.AiCoordinatorError
 import com.molotov.clender.app.ai.AiCoordinatorState
 import com.molotov.clender.app.ai.AiSubmissionDecision
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,6 +31,76 @@ class AiSubmissionViewModelC1bContractTest {
         trackedViewModels.forEach(::clearViewModel)
         trackedViewModels.clear()
         idleMain()
+    }
+
+    @Test
+    fun contextMetricsUpdateIndependentlyAndSurviveStatusDismissAndPreflightFailure() {
+        val fixture = fixture(AiSubmissionDecision.UNCONFIGURED)
+        fixture.viewModel.activate()
+        val usage = AiContextUsage(HEX_A, 2000, 8000)
+        fixture.gateway.contextUsage.value = usage
+        idleMain()
+        assertEquals(usage, fixture.viewModel.state.value.contextUsage)
+        fixture.gateway.coordinatorState.value = AiCoordinatorState.Working(HEX_A)
+        idleMain()
+        fixture.gateway.coordinatorState.value = AiCoordinatorState.Idle
+        idleMain()
+        fixture.viewModel.dismissStatus()
+        idleMain()
+        assertEquals(usage, fixture.viewModel.state.value.contextUsage)
+        fixture.viewModel.updateDraft("请求")
+        fixture.viewModel.submit(HEX_A)
+        idleMain()
+        assertEquals(usage, fixture.viewModel.state.value.contextUsage)
+    }
+
+    @Test
+    fun workingBindsRequestOwnerAndDismissClearsIt() {
+        val fixture = fixture()
+        fixture.viewModel.activate()
+        fixture.gateway.coordinatorState.value = AiCoordinatorState.Working(HEX_A, 7)
+        idleMain()
+        assertEquals(HEX_A, fixture.viewModel.state.value.requestConversationId)
+        assertEquals(7L, fixture.viewModel.state.value.requestUserMessageId)
+        fixture.gateway.coordinatorState.value = AiCoordinatorState.Idle
+        idleMain()
+        assertEquals(HEX_A, fixture.viewModel.state.value.requestConversationId)
+        assertEquals(7L, fixture.viewModel.state.value.requestUserMessageId)
+        fixture.viewModel.dismissStatus()
+        idleMain()
+        assertNull(fixture.viewModel.state.value.requestConversationId)
+        assertNull(fixture.viewModel.state.value.requestUserMessageId)
+    }
+
+    @Test
+    fun newSubmissionClearsOldFeedbackBeforePreflightFailure() {
+        val fixture = fixture(AiSubmissionDecision.UNCONFIGURED, autoCompleteSubmit = false)
+        fixture.viewModel.activate()
+        fixture.gateway.coordinatorState.value = AiCoordinatorState.Working(HEX_A, 7)
+        idleMain()
+        fixture.gateway.coordinatorState.value = AiCoordinatorState.Idle
+        idleMain()
+        fixture.viewModel.updateDraft("新的请求")
+        fixture.viewModel.submit("b".repeat(32))
+        idleMain()
+        assertEquals(AiSubmissionStatus.IDLE, fixture.viewModel.state.value.status)
+        assertNull(fixture.viewModel.state.value.requestConversationId)
+        assertNull(fixture.viewModel.state.value.requestUserMessageId)
+        fixture.gateway.finishSubmit(AiSubmissionDecision.UNCONFIGURED)
+        idleMain()
+        assertEquals(AiSubmissionStatus.UNCONFIGURED, fixture.viewModel.state.value.status)
+        assertNull(fixture.viewModel.state.value.requestConversationId)
+        assertNull(fixture.viewModel.state.value.requestUserMessageId)
+    }
+
+    @Test
+    fun acceptedFastRequestBindsOwnerEvenIfWorkingEmissionWasConflated() {
+        val fixture = fixture()
+        fixture.viewModel.activate()
+        fixture.viewModel.updateDraft("请求")
+        fixture.viewModel.submit(HEX_A)
+        idleMain()
+        assertEquals(HEX_A, fixture.viewModel.state.value.requestConversationId)
     }
 
     @Test
@@ -211,6 +283,7 @@ class AiSubmissionViewModelC1bContractTest {
     ) : AiSubmissionGateway {
         val coordinatorState = MutableStateFlow<AiCoordinatorState>(AiCoordinatorState.Idle)
         override val state: StateFlow<AiCoordinatorState> = coordinatorState
+        override val contextUsage = MutableStateFlow<AiContextUsage?>(null)
         val submissions = mutableListOf<Pair<String, String>>()
         var acknowledgements = 0
         var cancelled = false

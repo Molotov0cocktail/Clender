@@ -24,6 +24,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.molotov.clender.R
 import com.molotov.clender.app.ClenderApplication
 import com.molotov.clender.core.model.Message
 import com.molotov.clender.core.model.MessageRole
@@ -65,6 +66,38 @@ class ConversationMessagePaneTest {
     }
 
     @Test
+    fun assistantShowsOnlyModelBodyWithoutVisibleRoleOrReceiptLabels() {
+        setMessageContent(
+            messages = listOf(
+                message(
+                    8,
+                    MessageRole.ASSISTANT,
+                    "已实际完成 2 项日程操作。\n\n模型回复：\n课程已安排。"
+                )
+            )
+        )
+        composeRule.onNodeWithText("课程已安排。").assertIsDisplayed()
+        composeRule.onNodeWithText("已实际完成", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("模型回复", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText(
+            composeHost.activity.getString(R.string.conversation_role_assistant)
+        ).assertDoesNotExist()
+        assertTrue(roleDescription(message(8, MessageRole.ASSISTANT, "")).isNotBlank())
+    }
+
+    @Test
+    fun receiptOnlyAssistantDoesNotCreateAnEmptyBubbleAndUserRemainsVisible() {
+        setMessageContent(
+            messages = listOf(
+                message(7, MessageRole.USER, "安排课程"),
+                message(8, MessageRole.ASSISTANT, "本轮未修改日程。")
+            )
+        )
+        composeRule.onNodeWithText("安排课程").assertIsDisplayed()
+        composeRule.onNodeWithTag("conversation_message_assistant_8").assertDoesNotExist()
+    }
+
+    @Test
     fun userAssistantAndThinkingHaveDistinctBoundedRoleSemantics() {
         val messages = listOf(
             message(1, MessageRole.USER, "user body", "2026-08-31T01:00:00Z"),
@@ -83,6 +116,29 @@ class ConversationMessagePaneTest {
         composeRule.onNodeWithTag("conversation_message_user_1").assertIsDisplayed()
         composeRule.onNodeWithTag("conversation_message_assistant_2").assertIsDisplayed()
         composeRule.onNodeWithTag("conversation_message_think_3").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN")
+    fun chineseThinkingToggleShowsItsExpandAndCollapseAction() {
+        assertVisibleThinkingActions("展开思考", "收起思考")
+    }
+
+    @Test
+    @Config(qualifiers = "en-rUS")
+    fun englishThinkingToggleShowsItsExpandAndCollapseAction() {
+        assertVisibleThinkingActions("Expand thinking", "Collapse thinking")
+    }
+
+    private fun assertVisibleThinkingActions(expand: String, collapse: String) {
+        val thinking = message(10, MessageRole.THINK, "可展开的思考内容")
+        setMessageContent(messages = listOf(thinking))
+        composeRule.onNodeWithText(thinking.content).assertDoesNotExist()
+        composeRule.onNodeWithText(expand).assertIsDisplayed().performClick()
+        composeRule.onNodeWithText(thinking.content).assertIsDisplayed()
+        composeRule.onNodeWithText(collapse).assertIsDisplayed().performClick()
+        composeRule.onNodeWithText(thinking.content).assertDoesNotExist()
+        composeRule.onNodeWithText(expand).assertIsDisplayed()
     }
 
     @Test

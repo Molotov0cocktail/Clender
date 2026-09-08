@@ -19,13 +19,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.molotov.clender.R
+import com.molotov.clender.app.ai.AiContextUsage
 import com.molotov.clender.app.ai.AiCoordinatorError
+
+private const val INCOMPLETE_REQUEST_RECEIPT = "AI 请求未完成，本轮未修改日程。"
 
 data class AiComposerActions(
     val onDraftChange: (String) -> Unit,
@@ -37,7 +39,9 @@ data class AiComposerActions(
 data class AiComposerPresentation(
     val approximateTokenCount: Int = 0,
     val tagPrefix: String = "ai_composer",
-    val scrollable: Boolean = true
+    val scrollable: Boolean = true,
+    val executionFeedback: String? = null,
+    val contextUsage: AiContextUsage? = null
 )
 
 data class AiConversationSubmissionActions(
@@ -78,24 +82,12 @@ fun AiComposer(
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (presentation.approximateTokenCount >= 0) {
-            val tokenLabel = stringResource(
-                R.string.ai_token_count_approximate,
-                presentation.approximateTokenCount.coerceAtLeast(0)
-            )
-            Text(
-                text = tokenLabel,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier
-                    .testTag("ai_conversation_token_count")
-                    .semantics { contentDescription = tokenLabel }
-            )
-        }
         SubmissionStatus(
             state,
             actions.onDismissStatus,
             actions.onOpenSettings,
-            presentation.tagPrefix
+            presentation.tagPrefix,
+            presentation.executionFeedback
         )
         OutlinedTextField(
             value = state.draft,
@@ -108,15 +100,21 @@ fun AiComposer(
             maxLines = 5,
             label = { Text(stringResource(R.string.ai_composer_input)) }
         )
-        TextButton(
-            onClick = actions.onSend,
-            enabled = canSend,
-            modifier = Modifier
-                .align(Alignment.End)
-                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                .testTag("${presentation.tagPrefix}_send")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(stringResource(R.string.ai_composer_send))
+            AiComposerMetrics(presentation, Modifier.weight(1f))
+            TextButton(
+                onClick = actions.onSend,
+                enabled = canSend,
+                modifier = Modifier
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .testTag("${presentation.tagPrefix}_send")
+            ) {
+                Text(stringResource(R.string.ai_composer_send))
+            }
         }
     }
 }
@@ -126,9 +124,11 @@ private fun SubmissionStatus(
     state: AiSubmissionUiState,
     onDismissStatus: () -> Unit,
     onOpenSettings: () -> Unit,
-    tagPrefix: String
+    tagPrefix: String,
+    executionFeedback: String?
 ) {
-    val statusText = statusText(state) ?: return
+    val defaultText = statusText(state) ?: return
+    val statusText = feedbackStatusText(state.status, executionFeedback, defaultText)
     val statusTag = when (state.status) {
         AiSubmissionStatus.WORKING -> "${tagPrefix}_working"
 
@@ -175,6 +175,16 @@ private fun SubmissionStatus(
             )
         }
     }
+}
+
+private fun feedbackStatusText(
+    status: AiSubmissionStatus,
+    feedback: String?,
+    defaultText: String
+): String = when {
+    status != AiSubmissionStatus.COMPLETED && status != AiSubmissionStatus.FAILED -> defaultText
+    feedback == INCOMPLETE_REQUEST_RECEIPT -> "$feedback\n$defaultText"
+    else -> feedback?.takeIf(String::isNotBlank) ?: defaultText
 }
 
 @Composable

@@ -19,6 +19,7 @@ enum class AiSubmissionDecision {
 
 interface AiSubmissionGateway {
     val state: StateFlow<AiCoordinatorState>
+    val contextUsage: StateFlow<AiContextUsage?> get() = emptyAiContextUsage
 
     suspend fun submit(conversationId: String, message: String): AiSubmissionDecision
 
@@ -32,6 +33,7 @@ class ConfiguredAiSubmissionGateway(
     private val operationGate: AiOperationGate = AiOperationGate()
 ) : AiSubmissionGateway {
     override val state: StateFlow<AiCoordinatorState> = coordinator.state
+    override val contextUsage: StateFlow<AiContextUsage?> = coordinator.contextUsage
 
     override suspend fun submit(conversationId: String, message: String): AiSubmissionDecision =
         when {

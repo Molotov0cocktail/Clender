@@ -97,7 +97,7 @@
     <string name="conversation_offline_hint">AI sending will be enabled after setup is complete</string>
     <string name="conversation_list_empty">No conversations</string>
     <string name="conversation_messages_empty">No messages in this conversation</string>
-    <string name="conversation_token_count">Approximate tokens (provider reported): %1$d</string>
+    <string name="conversation_token_count">Cumulative tokens (provider reported): %1$d</string>
     <string name="conversation_create">New conversation</string>
     <string name="conversation_rename">Rename</string>
     <string name="conversation_clear">Clear messages</string>
@@ -116,9 +116,13 @@
     <string name="conversation_thinking_collapse">Collapse thinking</string>
     <string name="conversation_thinking_expanded">Expanded</string>
     <string name="conversation_thinking_collapsed">Collapsed</string>
-    <string name="ai_token_count_approximate">Approximate tokens (provider reported): %1$d</string>
+    <string name="ai_token_count_cumulative">Cumulative Tokens: %1$d</string>
+    <string name="ai_token_count_explanation">Conversation cumulative Tokens: %1$d, from provider reported input and output usage, not current context occupancy.</string>
+    <string name="ai_context_unknown">Last context: not estimated</string>
+    <string name="ai_context_estimate">Last context ~%1$d / %2$d · %3$d%%</string>
+    <string name="ai_context_explanation">%1$s. Estimated input Tokens at the last submission and its configured context window.</string>
     <string name="ai_composer_input">Message for AI</string>
-    <string name="ai_composer_send">Send message</string>
+    <string name="ai_composer_send">Send</string>
     <string name="ai_status_working">Thinking</string>
     <string name="ai_status_completed">Request completed; view the AI conversation for results</string>
     <string name="ai_status_cancelled">Request cancelled</string>

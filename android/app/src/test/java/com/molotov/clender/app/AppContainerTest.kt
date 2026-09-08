@@ -85,7 +85,7 @@ class AppContainerTest {
         val databaseFile = application.getDatabasePath(AppContainer.DATABASE_NAME)
         databaseFile.parentFile?.mkdirs()
         SQLiteDatabase.openOrCreateDatabase(databaseFile, null).use { database ->
-            database.version = 2
+            database.version = 4
             database.execSQL("CREATE TABLE sentinel(value TEXT NOT NULL)")
             database.execSQL("INSERT INTO sentinel(value) VALUES ('preserve')")
         }

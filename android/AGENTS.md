@@ -1,3 +1,11 @@
+# T68 Android 混合提醒 AI 与会话指标（2026-09-09，完成，保留验收限制）
+
+基线main/de59500，仅Android，三个独立子agent先RED后实现，主agent串行验证。AI请求JSON对象模式；非契约首响最多一次有预算/总时限的格式纠正，锚定本轮请求，失败usage只计一次；散文/嵌套operations整批拒绝，不从正文猜测执行。冗余timespan更新由EventService合并旧时间再校验。出站历史保留纯操作真实ACK，防丢失历史助手回合；有正文仅保留正文。中文思考只提示词约定，权限申请仍仅设置页。
+
+对话气泡只展示模型正文，无助手/模型回复可见前缀；已知旧包装兼容剥离，实际执行反馈仅绑定当前请求在输入区状态显示。底栏左侧持久显示最近主请求输入Token估算/当时配置窗口及百分比、独立累计Provider Token，右侧发送；未知值不伪0。Room v3仅新增Conversation两nullable预算列，显式1→2→3迁移；预算-only观察可刷新，清空原子归零，Event/WebDAV v1不变。v3不可直接降级v2，禁止清空真实库回滚。
+
+维护记录（T68）：网络/domain/AI协调与UI、Conversation/Room迁移、合成live harness、测试/策略及任务记录更新。完整verify-all 208suites/2089tests（UI79/875），零失败/错误/跳过/四类泄漏；111发布夹具与foundation/boundary各94项，96tasks/6m44s全部通过。453源码/schema摘要零漂移。最终真实glm-5.3-flash七轮/8HTTP200，创建7/修改7/删除7、ID/日期/三策略/预算与9615tokens持久回读通过；此前模型合法日期误算失败保留，结构校验不能保证模型语义。签名APK/AAB审计通过，APK SHA256 c24bbb3aa0d5f57ccb7720b5f7ee9aae3a71d55a8e46b8b91a6992a48311c068。API26模拟器ADB shell环境超时，未安装/未改数据并已关闭，不宣称设备验收通过；API36同包设置授权、合成保存/删除、自然通知/重要闹钟/计时及真实Stop释放通过，明暗normal/2x普通底栏审查通过；Stop先于timer顺序未覆盖，2x横屏真实IME输入裁切/底栏可达未验为保留限制。权限含UID appops、字号/主题/旋转/IME均已恢复，两设备按身份关闭。无PC代码/测试/构建或真实数据读取，无厂商真机/人工听音声明；临时Key不落盘、调用已结束。本地提交回执以Git日志为准，不推送。
+
 # T67 Android AI 与权限修复（2026-09-08，完成）
 
 Android AI 真实 Provider 修复、回复格式与权限入口迁移。中文思考仅由系统提示词要求，模型仍输出英文时直接展示，不追加翻译请求。基线 main/0d762dc；计划与测试矩阵见 T67-android-ai-provider-repair.md。三个独立子 agent，主 agent 串行验证；仅 Android，临时凭据不落盘，合成数据在线验收，不推送。

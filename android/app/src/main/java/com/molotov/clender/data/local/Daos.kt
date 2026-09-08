@@ -86,6 +86,12 @@ interface ConversationDao {
     @Query("UPDATE conversations SET token_count = :tokenCount WHERE id = :id")
     suspend fun updateTokenCount(id: String, tokenCount: Int): Int
 
+    @Query(
+        "UPDATE conversations SET last_input_token_estimate = :inputTokens, " +
+            "last_context_window = :contextWindow WHERE id = :id"
+    )
+    suspend fun updateContextUsage(id: String, inputTokens: Int?, contextWindow: Int?): Int
+
     @Query("UPDATE conversations SET title = :title WHERE id = :id")
     suspend fun updateTitle(id: String, title: String): Int
 }
@@ -97,9 +103,10 @@ interface MessageDao {
 
     @Query(
         """
-        SELECT * FROM messages
-        WHERE conversation_id = :conversationId
-        ORDER BY timestamp, id
+        SELECT messages.* FROM messages
+        INNER JOIN conversations ON conversations.id = messages.conversation_id
+        WHERE messages.conversation_id = :conversationId
+        ORDER BY messages.timestamp, messages.id
         """
     )
     fun observeForConversation(conversationId: String): Flow<List<MessageEntity>>

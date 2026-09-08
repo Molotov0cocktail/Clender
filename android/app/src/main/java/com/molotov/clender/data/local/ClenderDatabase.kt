@@ -6,9 +6,11 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+private const val CONTEXT_USAGE_SCHEMA_VERSION = 3
+
 @Database(
     entities = [EventEntity::class, ConversationEntity::class, MessageEntity::class],
-    version = 2,
+    version = CONTEXT_USAGE_SCHEMA_VERSION,
     exportSchema = true
 )
 @TypeConverters(RoomConverters::class)
@@ -20,6 +22,13 @@ abstract class ClenderDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
 
     companion object {
+        val MIGRATION_2_3: Migration = object : Migration(2, CONTEXT_USAGE_SCHEMA_VERSION) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE conversations ADD COLUMN last_input_token_estimate INTEGER")
+                db.execSQL("ALTER TABLE conversations ADD COLUMN last_context_window INTEGER")
+            }
+        }
+
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(

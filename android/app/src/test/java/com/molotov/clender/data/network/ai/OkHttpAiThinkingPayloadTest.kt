@@ -73,6 +73,17 @@ class OkHttpAiThinkingPayloadTest {
     }
 
     @Test
+    fun everyModelRequestsJsonObjectResponsesForTheApplicationContract() = runBlocking {
+        listOf("model-test", "glm-5.3", "glm-5.3-flash").forEach { model ->
+            val payload = recordedPayload(settings(basePathEndpoint()).copy(model = model))
+            assertEquals(
+                "json_object",
+                payload["response_format"]?.jsonObject?.get("type")?.jsonPrimitive?.content
+            )
+        }
+    }
+
+    @Test
     fun selectedThinkingEffortIsUsedInActualRequestPayload() = runBlocking {
         ThinkingEffort.entries.forEach { effort ->
             server.enqueue(
@@ -165,7 +176,13 @@ class OkHttpAiThinkingPayloadTest {
             requireNotNull(server.takeRequest().body).utf8()
         ).jsonObject
         assertEquals("disabled", first["thinking"]?.jsonObject?.get("type")?.jsonPrimitive?.content)
-        listOf("thinking", "reasoning_effort", "extra_body").forEach { assertFalse(it in retry) }
+        assertEquals(
+            "json_object",
+            first["response_format"]?.jsonObject?.get("type")?.jsonPrimitive?.content
+        )
+        listOf("thinking", "reasoning_effort", "extra_body", "response_format").forEach {
+            assertFalse(it in retry)
+        }
         assertEquals(2, server.requestCount)
     }
 

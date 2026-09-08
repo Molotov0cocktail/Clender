@@ -58,7 +58,11 @@ data class ConversationEntity(
     @ColumnInfo(name = "created_at")
     val createdAt: Instant,
     @ColumnInfo(name = "token_count")
-    val tokenCount: Int
+    val tokenCount: Int,
+    @ColumnInfo(name = "last_input_token_estimate")
+    val lastInputTokenEstimate: Int? = null,
+    @ColumnInfo(name = "last_context_window")
+    val lastContextWindow: Int? = null
 )
 
 @Entity(
@@ -123,10 +127,10 @@ internal fun Event.toEntity(): EventEntity = EventEntity(
 )
 
 internal fun ConversationEntity.toDomain(): Conversation =
-    Conversation(id, title, createdAt, tokenCount)
+    Conversation(id, title, createdAt, tokenCount, lastInputTokenEstimate, lastContextWindow)
 
 internal fun Conversation.toEntity(): ConversationEntity =
-    ConversationEntity(id, title, createdAt, tokenCount)
+    ConversationEntity(id, title, createdAt, tokenCount, lastInputTokenEstimate, lastContextWindow)
 
 internal fun MessageEntity.toDomain(): Message =
     Message(id, conversationId, role, content, timestamp)

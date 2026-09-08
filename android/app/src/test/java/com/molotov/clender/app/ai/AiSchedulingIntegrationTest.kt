@@ -36,6 +36,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -98,6 +99,46 @@ class AiSchedulingIntegrationTest {
         assertTrue(updated.notificationEnabled)
         assertFalse(updated.alarmEnabled)
         assertEquals(0, updated.timerMinutes)
+    }
+
+    @Test
+    fun proseWithOperationEnvelopeFailsWithoutEchoOrWrites() = runBlocking {
+        val body = "已为你创建所有提醒。\n" + """{"operations":[${add(1)},$REPLY]}"""
+        assertRejectedMixedResponse(body)
+    }
+
+    @Test
+    fun replyContainingOperationsRejectsWholeBatchBeforeValidAdd() = runBlocking {
+        val nested = JsonPrimitive("已为你创建所有提醒。\n" + """{"operations":[${add(2)}]}""")
+        val body = """{"operations":[${add(1)},{"action":"reply","message":$nested}]}"""
+        assertRejectedMixedResponse(body)
+    }
+
+    @Test
+    fun standaloneReplyContainingOperationEnvelopeIsNotRecursivelyExecuted() = runBlocking {
+        val nested = JsonPrimitive("""{"operations":[${add(1)}]}""")
+        assertRejectedMixedResponse("""{"action":"reply","message":$nested}""")
+    }
+
+    private suspend fun assertRejectedMixedResponse(content: String) {
+        val replies = complete(
+            content,
+            AiCoordinatorState.Failed(AiCoordinatorError.INVALID_RESPONSE)
+        )
+        assertEquals(0, events.observeDate(day).first().size)
+        assertTrue(mutations.isEmpty())
+        assertEquals(1, replies.size)
+        assertFalse(replies.single().contains("operations"))
+        assertFalse(replies.single().contains("Synthetic"))
+        assertFalse(replies.single().contains("已为你创建"))
+        assertFalse(replies.single().contains("All scheduled"))
+        assertTrue(replies.single().contains("未修改日程"))
+        assertEquals(15, conversations.findConversation("schedule-test")?.tokenCount)
+        assertTrue(
+            conversations.observeMessages("schedule-test").first().none {
+                it.role == MessageRole.THINK
+            }
+        )
     }
 
     @Test

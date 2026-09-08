@@ -33,9 +33,10 @@ class RoomAlertMigrationTest {
         try {
             repeat(2) {
                 val database = Room.databaseBuilder(context, ClenderDatabase::class.java, name)
-                    .addMigrations(ClenderDatabase.MIGRATION_1_2).build()
+                    .addMigrations(ClenderDatabase.MIGRATION_1_2, ClenderDatabase.MIGRATION_2_3)
+                    .build()
                 try {
-                    assertEquals(2, database.openHelper.writableDatabase.version)
+                    assertEquals(3, database.openHelper.writableDatabase.version)
                     assertEquals(original, RoomEventRepository(database).findById(original.id))
                 } finally {
                     database.close()

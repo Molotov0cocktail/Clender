@@ -1,6 +1,8 @@
 package com.molotov.clender.app.ai
 
+import com.molotov.clender.core.model.Message
 import com.molotov.clender.core.model.MessageRole
+import com.molotov.clender.data.network.ai.AiAccountedException
 import com.molotov.clender.data.network.ai.AiClient
 import com.molotov.clender.data.network.ai.AiCompletion
 import com.molotov.clender.data.network.ai.AiConfigurationException
@@ -51,7 +53,8 @@ enum class AiCoordinatorError {
 sealed interface AiCoordinatorState {
     data object Idle : AiCoordinatorState
 
-    data class Working(val conversationId: String) : AiCoordinatorState
+    data class Working(val conversationId: String, val requestUserMessageId: Long? = null) :
+        AiCoordinatorState
 
     data class Failed(val error: AiCoordinatorError) : AiCoordinatorState
 
@@ -80,6 +83,7 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
     private val submissionMutex = Mutex()
     private val visibilityLock = Any()
     private val mutableState = MutableStateFlow<AiCoordinatorState>(AiCoordinatorState.Idle)
+    private val mutableContextUsage = MutableStateFlow<AiContextUsage?>(null)
 
     @Volatile
     private var activeJob: Job? = null
@@ -90,6 +94,7 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
     private var pendingSubmission: Job? = null
 
     val state: StateFlow<AiCoordinatorState> = mutableState.asStateFlow()
+    val contextUsage: StateFlow<AiContextUsage?> = mutableContextUsage.asStateFlow()
 
     suspend fun submit(
         conversationId: String,
@@ -117,11 +122,12 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
         var requestKey: CharArray? = null
         val pending = Job()
         try {
-            val capturedConversationId = prepareSubmission(
+            val capturedUserMessage = prepareSubmission(
                 conversationId,
                 userMessage,
                 pending
             ) ?: return@withLock false
+            val capturedConversationId = capturedUserMessage.conversationId
             val ownedKey = apiKey.copyOf()
             requestKey = ownedKey
             val launched = scope.launch(start = CoroutineStart.LAZY) {
@@ -145,7 +151,10 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
                 } else {
                     pendingSubmission = null
                     activeJob = launched
-                    mutableState.value = AiCoordinatorState.Working(capturedConversationId)
+                    mutableState.value = AiCoordinatorState.Working(
+                        capturedConversationId,
+                        capturedUserMessage.id
+                    )
                     launched.start()
                 }
             }
@@ -200,7 +209,7 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
         conversationId: String,
         userMessage: String,
         pending: Job
-    ): String? {
+    ): Message? {
         val requestValid = conversationId.isNotBlank() &&
             userMessage.isNotBlank() &&
             activeJob?.isActive != true &&
@@ -221,14 +230,14 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
             if (reserved && conversations.findConversation(conversationId) != null &&
                 pending.isActive
             ) {
-                conversations.appendMessageAndIncrementTokens(
+                val message = conversations.appendMessageAndIncrementTokens(
                     conversationId = conversationId,
                     role = MessageRole.USER,
                     content = userMessage,
                     timestamp = clock.nowMicros(),
                     tokenDelta = 0
                 )
-                conversationId.takeIf { pending.isActive }
+                message.takeIf { pending.isActive }
             } else {
                 null
             }
@@ -277,7 +286,7 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
                 scheduleContext = scheduleContext,
                 history = history.mapNotNull { message ->
                     if (message.role == MessageRole.ASSISTANT) {
-                        stripApplicationReceipts(message.content).takeIf(String::isNotBlank)
+                        assistantHistoryContent(message.content).takeIf(String::isNotBlank)
                             ?.let { message.copy(content = it) }
                     } else {
                         message
@@ -287,7 +296,38 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
                 maxOutputTokens = settings.maxOutputTokens
             )
         )
-        val completion = client.complete(settings, apiKey, request.messages)
+        currentCoroutineContext().ensureActive()
+        val recorded = conversations.recordContextUsage(
+            conversationId,
+            request.inputTokenEstimate,
+            settings.contextWindow
+        )
+        currentCoroutineContext().ensureActive()
+        val requestJob = currentCoroutineContext()[Job]
+        synchronized(visibilityLock) {
+            val isCurrentRequest = foreground && activeJob === requestJob &&
+                requestJob?.isActive == true
+            if (recorded && isCurrentRequest) {
+                mutableContextUsage.value = AiContextUsage(
+                    conversationId,
+                    request.inputTokenEstimate,
+                    settings.contextWindow
+                )
+            }
+        }
+        currentCoroutineContext().ensureActive()
+        val completion = try {
+            client.complete(settings, apiKey, request.messages)
+        } catch (failure: AiAccountedException) {
+            currentCoroutineContext().ensureActive()
+            append(
+                conversationId,
+                MessageRole.ASSISTANT,
+                "AI 请求未完成，本轮未修改日程。",
+                failure.usage.totalTokens.coerceAtLeast(0)
+            )
+            throw failure.failure
+        }
         currentCoroutineContext().ensureActive()
         persistCompletion(conversationId, completion)
     }

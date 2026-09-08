@@ -148,7 +148,7 @@ private fun ReadyMessagePane(
             )
         } else {
             AiComposer(
-                state = submission.state,
+                state = conversationSubmissionState(submission.state, conversationId),
                 actions = AiComposerActions(
                     onDraftChange = submission.actions.onDraftChange,
                     onSend = {
@@ -158,7 +158,15 @@ private fun ReadyMessagePane(
                     onOpenSettings = submission.actions.onOpenSettings
                 ),
                 presentation = AiComposerPresentation(
-                    approximateTokenCount = state.activeConversation?.tokenCount ?: 0
+                    approximateTokenCount = state.activeConversation?.tokenCount ?: 0,
+                    executionFeedback = currentExecutionFeedback(
+                        state.messages,
+                        submission.state,
+                        conversationId
+                    ),
+                    contextUsage = state.activeConversation?.let {
+                        conversationContextUsage(it)
+                    }
                 )
             )
         }

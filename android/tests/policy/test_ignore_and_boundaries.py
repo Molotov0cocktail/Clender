@@ -79,6 +79,7 @@ class IgnoreAndBoundaryTests(PolicyTestCase):
             paths.append(path.replace("\\", "/"))
 
         allowed_exact = {
+            "doc/tasks/T68-android-mixed-alert-ai.md",
             "doc/tasks/T67-android-ai-provider-repair.md",
             "doc/tasks/T66-android-usability-ai-alerts.md",
             "doc/tasks/T52-android-scheduling-calendar.md",

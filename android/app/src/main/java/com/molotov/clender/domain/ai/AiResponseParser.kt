@@ -116,7 +116,9 @@ class AiResponseParser(
             "reply" -> {
                 value.requireOnly(REPLY_FIELDS)
                 val message = value.requiredString("message")
-                if (message.isBlank()) throw RejectedOperationException()
+                if (message.isBlank() || message.containsOperationContainer()) {
+                    throw RejectedOperationException()
+                }
                 AiOperation.Reply(message)
             }
 
@@ -187,7 +189,10 @@ class AiResponseParser(
         if (requestedType == EventType.REMINDER && requestedEnd != null) {
             throw RejectedOperationException()
         }
-        if (requestedType == EventType.TIMESPAN && requestedEnd == null) {
+        if (requestedType == EventType.TIMESPAN &&
+            patch.endTime is FieldUpdate.Set &&
+            requestedEnd == null
+        ) {
             throw RejectedOperationException()
         }
     }
@@ -326,7 +331,12 @@ private const val MARKDOWN_FENCE_LENGTH = 3
 private fun String.looksLikeOperationResponse(): Boolean {
     val trimmed = trimStart()
     val structured = trimmed.startsWith("{") || trimmed.startsWith("[") || trimmed.startsWith("```")
-    return structured && OPERATION_FIELD_MARKER.containsMatchIn(trimmed)
+    return containsOperationContainer() ||
+        (structured && OPERATION_FIELD_MARKER.containsMatchIn(trimmed))
 }
 
 private val OPERATION_FIELD_MARKER = Regex("\"(?:operations|action)\"\\s*:")
+private val OPERATION_CONTAINER_MARKER = Regex("\"operations\"\\s*:")
+
+private fun String.containsOperationContainer(): Boolean =
+    OPERATION_CONTAINER_MARKER.containsMatchIn(this)

@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.molotov.clender.R
+import com.molotov.clender.app.ai.presentAssistantMessage
 import com.molotov.clender.core.model.Message
 import com.molotov.clender.core.model.MessageRole
 
@@ -53,7 +54,14 @@ fun ConversationMessagePane(
 ) {
     var expandedThinkingIds by remember(conversationId) { mutableStateOf(emptySet<Long>()) }
     val orderedMessages = remember(messages) {
-        messages.sortedWith(compareBy<Message> { it.timestamp }.thenBy { it.id })
+        messages.mapNotNull { message ->
+            if (message.role == MessageRole.ASSISTANT) {
+                presentAssistantMessage(message.content).modelBody.takeIf(String::isNotBlank)
+                    ?.let { message.copy(content = it) }
+            } else {
+                message
+            }
+        }.sortedWith(compareBy<Message> { it.timestamp }.thenBy { it.id })
     }
 
     if (orderedMessages.isEmpty()) {
@@ -156,7 +164,9 @@ private fun MessageBubble(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(text = roleLabel, style = MaterialTheme.typography.labelMedium)
+                if (message.role != MessageRole.ASSISTANT) {
+                    Text(text = roleLabel, style = MaterialTheme.typography.labelMedium)
+                }
                 Text(
                     text = remember(message.role, message.content) {
                         if (message.role == MessageRole.ASSISTANT) {
@@ -218,7 +228,7 @@ internal fun ThinkingMessage(
                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                 )
             ) {
-                Text(text = roleLabel)
+                Text(text = actionLabel)
             }
             if (expanded) {
                 Text(

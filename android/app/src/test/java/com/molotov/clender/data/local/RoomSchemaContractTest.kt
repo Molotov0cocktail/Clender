@@ -40,7 +40,7 @@ class RoomSchemaContractTest {
         ).build()
         try {
             val sqlite = database.openHelper.writableDatabase
-            assertEquals(2, sqlite.version)
+            assertEquals(3, sqlite.version)
             val tables = sqlite.query(
                 "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
             ).use { cursor ->

@@ -26,6 +26,16 @@ class RoomConversationRepository(private val database: ClenderDatabase) : Conver
         return conversationDao.findById(id)?.toDomain()
     }
 
+    override suspend fun recordContextUsage(
+        id: String,
+        inputTokens: Int,
+        contextWindow: Int
+    ): Boolean {
+        require(id.isNotBlank()) { "Conversation ID cannot be blank" }
+        validateContextUsage(inputTokens, contextWindow)
+        return conversationDao.updateContextUsage(id, inputTokens, contextWindow) == 1
+    }
+
     override suspend fun listConversations(): List<Conversation> =
         conversationDao.listOrdered().map(ConversationEntity::toDomain)
 
@@ -89,6 +99,7 @@ class RoomConversationRepository(private val database: ClenderDatabase) : Conver
             if (conversationDao.findById(id) == null) return@withTransaction false
             messageDao.deleteForConversation(id)
             check(conversationDao.updateTokenCount(id, 0) == 1)
+            check(conversationDao.updateContextUsage(id, null, null) == 1)
             true
         }
     }
@@ -102,7 +113,17 @@ class RoomConversationRepository(private val database: ClenderDatabase) : Conver
         require(conversation.id.isNotBlank()) { "Conversation ID cannot be blank" }
         require(conversation.title.trim().isNotEmpty()) { "Conversation title cannot be blank" }
         require(conversation.tokenCount >= 0) { "Token count cannot be negative" }
+        val input = conversation.lastInputTokenEstimate
+        val window = conversation.lastContextWindow
+        if (input != null || window != null) {
+            validateContextUsage(requireNotNull(input), requireNotNull(window))
+        }
     }
+}
+
+private fun validateContextUsage(inputTokens: Int, contextWindow: Int) {
+    require(contextWindow > 0) { "Context window must be positive" }
+    require(inputTokens in 0..contextWindow) { "Input estimate must fit the context window" }
 }
 
 private fun normalizeInstant(value: Instant): Instant =

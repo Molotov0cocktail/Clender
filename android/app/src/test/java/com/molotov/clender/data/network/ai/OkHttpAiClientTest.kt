@@ -193,6 +193,7 @@ class OkHttpAiClientTest {
             assertTrue(firstBody.contains("reasoning_effort"))
             assertTrue(firstBody.contains("thinking"))
             assertFalse(retryBody.contains("reasoning_effort"))
+            assertFalse(retryBody.contains("response_format"))
             assertFalse(retryBody.contains("extra_body"))
             assertFalse(retryBody.contains("\"thinking\""))
         }

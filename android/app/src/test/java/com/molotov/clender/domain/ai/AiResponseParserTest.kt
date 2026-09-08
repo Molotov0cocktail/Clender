@@ -118,7 +118,7 @@ class AiResponseParserTest {
                 """"start_time":"2026-08-09 09:00:00"}""",
             """{"action":"add","event_type":"reminder","title":"x",""" +
                 """"start_time":"026-08-09 09:00"}""",
-            """{"action":"update","event_id":1,"event_type":"timespan"}""",
+            """{"action":"update","event_id":1,"event_type":"timespan","end_time":null}""",
             """{"action":"update","event_id":1,"event_type":"reminder",""" +
                 """"end_time":"2026-08-09 10:00"}""",
             """{"action":"update","event_id":1,""" +

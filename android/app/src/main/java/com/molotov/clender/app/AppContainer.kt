@@ -148,7 +148,7 @@ class AppContainer internal constructor(
             applicationContext,
             ClenderDatabase::class.java,
             DATABASE_NAME
-        ).addMigrations(ClenderDatabase.MIGRATION_1_2).build()
+        ).addMigrations(ClenderDatabase.MIGRATION_1_2, ClenderDatabase.MIGRATION_2_3).build()
     }
     private val database: ClenderDatabase by databaseHolder
 
@@ -808,6 +808,7 @@ private class AppScopedAiSubmissionGateway(
     private val lifecycleBinding: AiProcessLifecycleBinding
 ) : AiSubmissionGateway {
     override val state = delegate.state
+    override val contextUsage = delegate.contextUsage
 
     override suspend fun submit(conversationId: String, message: String): AiSubmissionDecision =
         delegate.submit(conversationId, message)

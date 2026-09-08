@@ -27,6 +27,96 @@ import org.junit.Test
 
 class AiOperationExecutorTest {
     @Test
+    fun fixedUpdateExampleExplicitlySwitchesAlarmOnlyToNotificationOnly() = runBlocking {
+        val repository = AiEventRepository()
+        val mutations = RecordingAiMutationSink()
+        val service = eventService(repository, mutations)
+        val created = service.add(
+            reminder("修改后的标题").command.copy(
+                notificationEnabled = false,
+                alarmEnabled = true,
+                timerMinutes = 17,
+                description = "synthetic preserved description",
+                estimatedDurationMinutes = 42
+            )
+        )
+        val example = DEFAULT_AI_SYSTEM_CONTRACT.substringAfter("Update example: ")
+            .substringBefore('\n')
+        val parsed = AiResponseParser().parse(example)
+        assertTrue(parsed is AiParseResult.Operations)
+        val update = (parsed as AiParseResult.Operations).operations.single() as AiOperation.Update
+        val operation = update.copy(eventId = created.id)
+        val executor = AiOperationExecutor(service)
+        val first = executor.execute(listOf(operation))
+        val stored = requireNotNull(repository.values[created.id])
+        assertTrue(stored.notificationEnabled)
+        assertFalse(stored.alarmEnabled)
+        assertEquals(
+            created.copy(
+                notificationEnabled = true,
+                alarmEnabled = false,
+                updatedAt = stored.updatedAt
+            ),
+            stored
+        )
+        assertEquals(1, first.outcomes.count { it.changed })
+        val repeated = executor.execute(listOf(operation))
+        assertFalse(repeated.scheduleChanged)
+        assertEquals(0, repeated.outcomes.count { it.changed })
+    }
+
+    @Test
+    fun existingTimespanMayRepeatItsTypeAndUpdateAlertPolicyWithoutRepeatingEndTime() =
+        runBlocking {
+            val repository = AiEventRepository()
+            val mutations = RecordingAiMutationSink()
+            val service = eventService(repository, mutations)
+            val created = service.add(
+                reminder("course").command.copy(
+                    eventType = EventType.TIMESPAN,
+                    endTime = LocalDateTime.of(2026, 8, 9, 10, 0)
+                )
+            )
+            val parsed = AiResponseParser().parse(
+                """{"action":"update","event_id":${created.id},"event_type":"timespan",
+                    |"notification_enabled":false,"alarm_enabled":true,"timer_minutes":15}
+                """.trimMargin()
+            )
+            assertTrue(parsed is AiParseResult.Operations)
+            val report = AiOperationExecutor(service).execute(
+                (parsed as AiParseResult.Operations).operations
+            )
+            assertTrue(report.scheduleChanged)
+            val stored = requireNotNull(repository.values[created.id])
+            assertEquals(created.endTime, stored.endTime)
+            assertFalse(stored.notificationEnabled)
+            assertTrue(stored.alarmEnabled)
+            assertEquals(15, stored.timerMinutes)
+        }
+
+    @Test
+    fun actualReminderConversionWithoutAnEndIsRejectedAfterMergingPersistedFields() = runBlocking {
+        val repository = AiEventRepository()
+        val mutations = RecordingAiMutationSink()
+        val service = eventService(repository, mutations)
+        val created = service.add(reminder("remains reminder").command)
+        mutations.values.clear()
+        val writes = repository.writeCalls
+        val parsed = AiResponseParser().parse(
+            """{"action":"update","event_id":${created.id},"event_type":"timespan"}"""
+        )
+        assertTrue(parsed is AiParseResult.Operations)
+        val report = AiOperationExecutor(service).execute(
+            (parsed as AiParseResult.Operations).operations
+        )
+        assertFalse(report.scheduleChanged)
+        assertFalse(report.outcomes.single().success)
+        assertEquals(created, repository.values[created.id])
+        assertEquals(writes, repository.writeCalls)
+        assertTrue(mutations.values.isEmpty())
+    }
+
+    @Test
     fun concurrentTargetUpdateCannotCreateAReceiptWithoutThisRequestsMutation() = runBlocking {
         val repository = AiEventRepository()
         val mutations = RecordingAiMutationSink()

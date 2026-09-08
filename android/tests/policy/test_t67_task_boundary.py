@@ -37,6 +37,16 @@ class T67TaskBoundaryTests(unittest.TestCase):
         self.check_paths("doc/tasks/T67-android-ai-provider-repair.md",
                          "android/app/src/main/java/Example.kt")
 
+    def test_t68_exact_task_is_allowed(self):
+        self.check_paths("doc/tasks/T68-android-mixed-alert-ai.md")
+
+    def test_t68_similar_task_paths_are_denied(self):
+        for path in ("doc/tasks/T68-other.md",
+                     "doc/tasks/T68-android-mixed-alert-ai.md.bak",
+                     "doc/tasks/T68-android-mixed-alert-ai.md/child.md"):
+            with self.subTest(path=path), self.assertRaises(AssertionError):
+                self.check_paths(path)
+
     def test_other_task_names_and_suffixes_are_denied(self):
         for path in ("doc/tasks/T67-other.md",
                      "doc/tasks/T67-android-ai-provider-repair.md.bak",
