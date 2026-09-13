@@ -1,8 +1,8 @@
-# T69 双端 v1.2.0 正式发布（2026-09-14，进行中）
+# T69 双端 v1.2.0 正式发布（2026-09-14，完成）
 
 用户确认以 `v1.2.0` 发布当前正式双端应用，并更新公开 README 与内部说明，不修改项目契约。范围仅含文档、Windows 既有门禁要求的重新构建与 GitHub/Gitee Release；不改生产源码、接口、数据库、同步、AI、权限、Manifest 或依赖。Android 沿用 T68 已签名 APK/AAB（APK SHA256 `c24bbb3aa0d5f57ccb7720b5f7ee9aae3a71d55a8e46b8b91a6992a48311c068`，AAB SHA256 `573e04c0372aa235973fafb36fb8ad630905018be6b3f4d80082df5a5e51939f`），包内历史版本仍为 `1.0.0 (1)`；Release 标签为 `v1.2.0`。不得上传 debug 包、用户数据、配置、密钥、日志、映射或缓存。
 
-发布任务、测试矩阵与回滚见 `doc/tasks/T69-dual-platform-release.md`。GitHub 当前 `main` 可安全快进；Gitee `main` 自 `v1.1.0` 后有独立 LICENSE 提交，不得强推覆盖，当前发布源码通过 `v1.2.0` 标签交付。Windows 首轮 252 项中仅运行中真实 Clender 触发隔离清理保护而 1 error；用户退出后同命令 252/252 通过。完整 PyInstaller 构建及普通→静默、静默→普通两场景隔离冒烟通过，清理后 Clender 进程为零；`dist/data` 前后均为5文件/145237bytes，清单SHA256 `06cf276e229733843d17458d7218bea083a84b0bfdeb238d1ff7ab0d5e8e2017`。新 EXE 45573514bytes，SHA256 `567df4eeb9d2978245e6bcc881222135265f96149a6a3d496fd3c2ea8cd19ced`。最终双站链接、远端附件回读与提交回执在完成后补录；在远端回读全部通过前不得宣称发布完成。
+发布任务、测试矩阵与回滚见 `doc/tasks/T69-dual-platform-release.md`。GitHub `main` 已安全快进；Gitee `main` 自 `v1.1.0` 后有独立 LICENSE 提交且保持未改，当前发布源码通过 `v1.2.0` 标签交付。Windows 首轮 252 项中仅运行中真实 Clender 触发隔离清理保护而 1 error；用户退出后同命令 252/252 通过。完整 PyInstaller 构建及普通→静默、静默→普通两场景隔离冒烟通过，清理后 Clender 进程为零；`dist/data` 前后均为5文件/145237bytes，清单SHA256 `06cf276e229733843d17458d7218bea083a84b0bfdeb238d1ff7ab0d5e8e2017`。新 EXE 45573514bytes，SHA256 `567df4eeb9d2978245e6bcc881222135265f96149a6a3d496fd3c2ea8cd19ced`。GitHub/Gitee 注释标签对象均为 `131d7a1a` 并解引用到发布提交 `7ae8c3cc`；双站正式 Release 和三个附件均已公开，GitHub 服务端digest及Gitee重新下载字节摘要与本地三件套一致。GitHub：`https://github.com/Molotov0cocktail/Clender/releases/tag/v1.2.0`；Gitee：`https://gitee.com/Molotov0coaktail/clender/releases`。
 
 # T68 Android 混合提醒 AI 与会话指标（2026-09-09，完成，保留验收限制）
 

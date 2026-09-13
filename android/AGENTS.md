@@ -1,6 +1,6 @@
-# T69 Android v1.2.0 发布说明（2026-09-14，进行中）
+# T69 Android v1.2.0 发布说明（2026-09-14，完成）
 
-本轮只发布 T68 已签名并验收的现有正式 APK/AAB，不修改 Android 生产源码、构建配置、版本字段或任何项目契约，不重新签名。Release 标签为 `v1.2.0`；包内历史版本仍为 `1.0.0 (1)`。正式 APK SHA256 `c24bbb3aa0d5f57ccb7720b5f7ee9aae3a71d55a8e46b8b91a6992a48311c068`，AAB SHA256 `573e04c0372aa235973fafb36fb8ad630905018be6b3f4d80082df5a5e51939f`。只允许上传 release APK/AAB，不上传 debug APK、mapping、测试报告、签名材料、配置、日志或用户数据。完整发布任务与双站回读结果见 `doc/tasks/T69-dual-platform-release.md`。
+本轮只发布 T68 已签名并验收的现有正式 APK/AAB，不修改 Android 生产源码、构建配置、版本字段或任何项目契约，不重新签名。Release 标签为 `v1.2.0`；包内历史版本仍为 `1.0.0 (1)`。正式 APK SHA256 `c24bbb3aa0d5f57ccb7720b5f7ee9aae3a71d55a8e46b8b91a6992a48311c068`，AAB SHA256 `573e04c0372aa235973fafb36fb8ad630905018be6b3f4d80082df5a5e51939f`。只上传 release APK/AAB，未上传 debug APK、mapping、测试报告、签名材料、配置、日志或用户数据。GitHub 服务端digest及Gitee重新下载字节摘要均与本地一致，双站正式 Release 已公开；完整发布与回读结果见 `doc/tasks/T69-dual-platform-release.md`。
 
 # T68 Android 混合提醒 AI 与会话指标（2026-09-09，完成，保留验收限制）
 

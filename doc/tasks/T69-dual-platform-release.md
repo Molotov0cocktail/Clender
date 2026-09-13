@@ -33,7 +33,7 @@
 
 - 双站认证或上传中断可能形成只有标签、草稿或部分附件的中间状态。
 - Android Release 标签为 `v1.2.0`，包内仍显示 `1.0.0 (1)`；这是用户确认的现有产物发布范围，后续商店升级前应统一版本代码。
-- Gitee `main` 与本地 `main` 自 `v1.1.0` 后分叉；本任务不得用 force push 覆盖远端 `LICENSE` 提交。
+- Gitee `main` 与本地 `main` 自 `v1.1.0` 后分叉；本任务未用 force push 覆盖远端 `LICENSE` 提交。
 
 ## 测试矩阵（修改与发布前确定）
 
@@ -70,12 +70,16 @@
 - GitHub 与 Gitee 的 `v1.2.0` Release 均公开、非预发布，三个附件齐全且摘要与本地一致。
 - 最终记录包含提交/标签、双站链接、附件大小/SHA-256、验证结果和保留限制。
 
-## 当前状态
+## 完成结果
 
-- 进行中：公开 README、根/Android 协作说明与进度已更新，生产源码/契约 diff 为零。
+- 完成：公开 README、根/Android 协作说明与进度已更新，生产源码/契约 diff 为零。
 - Windows 首轮 252 项测试因两个真实 Clender 进程触发隔离清理保护而 1 error；用户保存退出后原命令重跑 252/252 通过，未修改测试或生产代码。
 - 完整 PyInstaller 构建通过；普通→静默、静默→普通两场景隔离 EXE 冒烟均 readiness/secondary/cleanup/quiescence 通过，结束后 Clender 进程为零。
 - `dist/data` 构建前后均为 5 文件、145237 bytes，包含路径/大小/mtime/hash 的清单 SHA256 均为 `06cf276e229733843d17458d7218bea083a84b0bfdeb238d1ff7ab0d5e8e2017`。
 - Windows EXE：45573514 bytes，SHA256 `567df4eeb9d2978245e6bcc881222135265f96149a6a3d496fd3c2ea8cd19ced`。
 - Android APK：1865613 bytes，SHA256 `c24bbb3aa0d5f57ccb7720b5f7ee9aae3a71d55a8e46b8b91a6992a48311c068`；AAB：4957321 bytes，SHA256 `573e04c0372aa235973fafb36fb8ad630905018be6b3f4d80082df5a5e51939f`。
-- 等待 Android 现有包复审、文档提交、标签与双站 Release 上传/回读。
+- Android 当前附件与 2026-09-08 既有完整审计元数据逐字节一致；该元数据已记录独立证书、minSdk26、apksigner、zipalign、aapt2、网络策略、bundletool、jarsigner、证书一致性及归档审计通过。本轮重复深度 DEX 扫描连续约40分钟保持单核推进且无错误，因输入哈希完全相同而主动中止，不重复声称产生新的完整审计证据。
+- 发布准备提交 `7ae8c3cc8ec6a1b78210644b2b6bc53fe26c2fe8` 已推送 GitHub `main`；Gitee `main` 保留独立 LICENSE 提交、未强推。双站注释标签对象均为 `131d7a1a4cb6de4f330698619c4446f8f98eca45`，均解引用到 `7ae8c3cc8ec6a1b78210644b2b6bc53fe26c2fe8`。
+- GitHub 正式 Release：`https://github.com/Molotov0cocktail/Clender/releases/tag/v1.2.0`，非 draft/prerelease；三个服务端附件大小与 SHA-256 digest 全部匹配。
+- Gitee 正式 Release：`https://gitee.com/Molotov0coaktail/clender/releases`，ID `1142051`、非 prerelease；三个附件重新下载后的大小与 SHA-256 全部匹配本地。
+- 首次 GitHub 草稿创建使用短 SHA 被 API 以 422 拒绝，未产生 Release；改用完整 SHA 后成功。临时 Gitee 令牌由用户明确授权，仅用于本次发布；本地登录在收口后删除，用户需在 Gitee 页面撤销令牌。

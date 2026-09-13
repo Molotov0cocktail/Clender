@@ -1,6 +1,6 @@
-# T69 双端 v1.2.0 正式发布（2026-09-14，进行中）
+# T69 双端 v1.2.0 正式发布（2026-09-14，完成）
 
-用户确认直接发布现有正式产物为 `v1.2.0`，并更新 README 与内部说明，不修改项目契约。范围仅为文档、Windows 门禁要求的重建与 GitHub/Gitee Release；Android 沿用 T68 已签名 APK/AAB，包内历史版本仍为 `1.0.0 (1)`。任务、风险、测试矩阵与回滚见 `T69-dual-platform-release.md`。Gitee `main` 有独立 LICENSE 提交，禁止强推覆盖。Windows 首轮测试受运行实例保护门禁影响 1 error，用户退出后 252/252 通过；完整构建与两场景隔离冒烟通过，`dist/data` 摘要零变化，新 EXE SHA256 `567df4eeb9d2978245e6bcc881222135265f96149a6a3d496fd3c2ea8cd19ced`。双站发布与远端回读尚待完成。
+用户确认直接发布现有正式产物为 `v1.2.0`，并更新 README 与内部说明，不修改项目契约。范围仅为文档、Windows 门禁要求的重建与 GitHub/Gitee Release；Android 沿用 T68 已签名 APK/AAB，包内历史版本仍为 `1.0.0 (1)`。任务、风险、测试矩阵与回滚见 `T69-dual-platform-release.md`。Gitee `main` 的独立 LICENSE 提交保持未改，未强推覆盖。Windows 首轮测试受运行实例保护门禁影响 1 error，用户退出后 252/252 通过；完整构建与两场景隔离冒烟通过，`dist/data` 摘要零变化，新 EXE SHA256 `567df4eeb9d2978245e6bcc881222135265f96149a6a3d496fd3c2ea8cd19ced`。`v1.2.0` 双站标签均解引用到 `7ae8c3cc`；GitHub/Gitee 正式 Release 与三个附件已公开，服务端/重新下载摘要全部匹配。
 
 # T68 Android 混合提醒 AI 与会话指标（2026-09-09，完成，保留验收限制）
 
