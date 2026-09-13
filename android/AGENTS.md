@@ -1,3 +1,7 @@
+# T69 Android v1.2.0 发布说明（2026-09-14，进行中）
+
+本轮只发布 T68 已签名并验收的现有正式 APK/AAB，不修改 Android 生产源码、构建配置、版本字段或任何项目契约，不重新签名。Release 标签为 `v1.2.0`；包内历史版本仍为 `1.0.0 (1)`。正式 APK SHA256 `c24bbb3aa0d5f57ccb7720b5f7ee9aae3a71d55a8e46b8b91a6992a48311c068`，AAB SHA256 `573e04c0372aa235973fafb36fb8ad630905018be6b3f4d80082df5a5e51939f`。只允许上传 release APK/AAB，不上传 debug APK、mapping、测试报告、签名材料、配置、日志或用户数据。完整发布任务与双站回读结果见 `doc/tasks/T69-dual-platform-release.md`。
+
 # T68 Android 混合提醒 AI 与会话指标（2026-09-09，完成，保留验收限制）
 
 基线main/de59500，仅Android，三个独立子agent先RED后实现，主agent串行验证。AI请求JSON对象模式；非契约首响最多一次有预算/总时限的格式纠正，锚定本轮请求，失败usage只计一次；散文/嵌套operations整批拒绝，不从正文猜测执行。冗余timespan更新由EventService合并旧时间再校验。出站历史保留纯操作真实ACK，防丢失历史助手回合；有正文仅保留正文。中文思考只提示词约定，权限申请仍仅设置页。

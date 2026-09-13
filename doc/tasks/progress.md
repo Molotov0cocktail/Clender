@@ -1,3 +1,7 @@
+# T69 双端 v1.2.0 正式发布（2026-09-14，进行中）
+
+用户确认直接发布现有正式产物为 `v1.2.0`，并更新 README 与内部说明，不修改项目契约。范围仅为文档、Windows 门禁要求的重建与 GitHub/Gitee Release；Android 沿用 T68 已签名 APK/AAB，包内历史版本仍为 `1.0.0 (1)`。任务、风险、测试矩阵与回滚见 `T69-dual-platform-release.md`。Gitee `main` 有独立 LICENSE 提交，禁止强推覆盖。Windows 首轮测试受运行实例保护门禁影响 1 error，用户退出后 252/252 通过；完整构建与两场景隔离冒烟通过，`dist/data` 摘要零变化，新 EXE SHA256 `567df4eeb9d2978245e6bcc881222135265f96149a6a3d496fd3c2ea8cd19ced`。双站发布与远端回读尚待完成。
+
 # T68 Android 混合提醒 AI 与会话指标（2026-09-09，完成，保留验收限制）
 
 基线main/de59500，仅Android，三个独立子agent先RED后实现，主agent串行验证。AI请求JSON对象模式；非契约首响最多一次有预算/总时限的格式纠正，锚定本轮请求，失败usage只计一次；散文/嵌套operations整批拒绝，不从正文猜测执行。冗余timespan更新由EventService合并旧时间再校验。出站历史保留纯操作真实ACK，防丢失历史助手回合；有正文仅保留正文。中文思考只提示词约定，权限申请仍仅设置页。
