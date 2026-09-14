@@ -1,3 +1,7 @@
+# T73 Android v1.3.0 正式发布（2026-09-14，发布准备完成）
+
+Android包内版本提升为`versionName=1.3.0`、`versionCode=2`，applicationId、原正式签名、minSdk26/targetSdk36、Room v3、WebDAV v1、权限、Manifest和依赖不变。版本断言先2RED后GREEN，签名APK/AAB审计及APK/AAB清单回读均为`1.3.0 (2)`，证书SHA256与T72相同。最终APK1876645bytes/SHA256`3d80a52bcf055df7e710e2f568bfa30641edde0032a7781baca4972c7fe86f32`；AAB4984304bytes/SHA256`df93d42d02bdde3a615ef586799492f8001356477ec250541019ba6da6141711`。112发布夹具、213suites/2169tests（UI82/901）、96 Gradle tasks、foundation/boundary最终各109项全绿，四类泄漏为零。一次性API26模拟器从T72旧包`1.0.0 (1)`真实`adb install -r`升级，新旧同UID且合成事项/深色设置保留，随后按身份关闭并删除。旧新APK的classes.dex SHA256均为`0e68ef5bf8519a5826997b3b4ef257f5e436228905cbd88b473466a502f5f72b`；组合门禁首轮长扫约47分钟无错误时中止，分段原参数完整通过，不将中止会话记为exit0。公开Release回读见根T73任务。
+
 # T72 日期选择与 AI 时间上下文（2026-09-14，本地验证完成，待用户验收）
 
 用户授权子agent自主修复Android周日裁切及AI跨日时间混淆，基线main/f03eda9。日期采用独立360dp日历弹窗，窄屏横滚；宿主实际可见frame限制根高度，global layout更新并释放监听，正文纵滚且确认/取消固定。API36旧Compose整屏测量超过浮动窗口可见框的问题已以真实frame修复，不重复扣系统栏。双端AI仅出站消息增加时间/本轮边界并计入预算，Android附当前zone/offset；提示词区分当前时钟、历史相对时间与误改快照，原正文不改。无Room/WebDAV/权限/依赖变更，不读取真实数据测试，不自动恢复真实历史误操作。本轮临时Provider合成验收已结束，凭据不落盘；不推送或Release。

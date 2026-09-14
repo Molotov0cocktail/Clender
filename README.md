@@ -15,26 +15,36 @@ Clender 是一个面向 Windows 与 Android 的本地智能日程管理应用。
 
 ## 下载正式版
 
-当前正式版本为 **v1.2.0**：
+当前正式版本为 **v1.3.0**：
 
 | 平台 | 文件 | 用途 |
 |---|---|---|
-| Windows | `Clender-Windows.exe` | Windows 10/11 单文件桌面应用 |
-| Android | `Clender-Android.apk` | Android 8.0（API 26）及以上直接安装包 |
-| Android | `Clender-Android.aab` | Android 应用商店发布包，不用于直接安装 |
+| Windows | `Clender-Windows-v1.3.0.exe` | Windows 10/11 单文件桌面应用 |
+| Android | `Clender-Android-v1.3.0.apk` | Android 8.0（API 26）及以上直接安装包 |
+| Android | `Clender-Android-v1.3.0.aab` | Android 应用商店发布包，不用于直接安装 |
 
-- [GitHub Releases](https://github.com/Molotov0cocktail/Clender/releases/tag/v1.2.0)
+- [GitHub Releases](https://github.com/Molotov0cocktail/Clender/releases/tag/v1.3.0)
 - [Gitee Releases](https://gitee.com/Molotov0coaktail/clender/releases)
 
 下载后可用 SHA-256 校验文件：
 
 ```text
-Clender-Windows.exe  567df4eeb9d2978245e6bcc881222135265f96149a6a3d496fd3c2ea8cd19ced
-Clender-Android.apk  c24bbb3aa0d5f57ccb7720b5f7ee9aae3a71d55a8e46b8b91a6992a48311c068
-Clender-Android.aab  573e04c0372aa235973fafb36fb8ad630905018be6b3f4d80082df5a5e51939f
+Clender-Windows-v1.3.0.exe  196c0eea521d58be7ba085d82ebf737abd36140f549b34e4215b3c7e48b921bd
+Clender-Android-v1.3.0.apk  3d80a52bcf055df7e710e2f568bfa30641edde0032a7781baca4972c7fe86f32
+Clender-Android-v1.3.0.aab  df93d42d02bdde3a615ef586799492f8001356477ec250541019ba6da6141711
 ```
 
-Android 本次沿用已经签名和验收的正式包，包内历史版本信息仍显示 `1.0.0 (1)`；Release 版本以 `v1.2.0` 为准。后续应用商店升级前会统一递增包内版本代码。
+Android 包内版本为 `1.3.0 (2)`，沿用原正式签名，可从上一正式包直接覆盖升级并保留本机数据。
+
+### v1.3.0 更新
+
+- 双端 AI 请求带入明确的当前时钟、本轮边界和历史消息时间，降低跨日对话把旧“今天/明天”当成当前日期的风险；
+- Android 日期选择器在窄屏、低高度和大字号下保持完整日历与可达操作按钮；
+- Windows AI 人格设置合并为单一入口，并兼容保留旧自定义内容；
+- Android 可导入应用私有的自选闹钟音源，原文件删除后仍可播放，并继续遵守频道静音、停止和音频焦点；
+- 双端提醒与 AI 正文执行链路继续使用严格校验、真实回执和有界回退。
+
+已知限制：Android 首次使用自选闹钟音源时需在“设置 → 应用 → 闹钟铃声”重新选择一次；320dp 窄屏日期表头需要横向拖动；模型输出仍可能因格式或语义错误被严格校验拒绝；Windows 通知依赖应用保持运行。
 
 ## 环境要求
 

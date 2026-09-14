@@ -17,6 +17,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import struct
 import tempfile
@@ -615,6 +616,17 @@ class ReleaseToolsTests(unittest.TestCase):
 
 
 class ReleaseEntrypointTests(unittest.TestCase):
+    def test_release_version_metadata_is_v130_with_monotonic_code(self):
+        source = (ANDROID_ROOT / "app/build.gradle.kts").read_text(encoding="utf-8")
+        expected_fields = (
+            ("versionCode", r'^\s*versionCode\s*=\s*(\d+)\s*$', "2"),
+            ("versionName", r'^\s*versionName\s*=\s*"([^"]+)"\s*$', "1.3.0"),
+            ("applicationId", r'^\s*applicationId\s*=\s*"([^"]+)"\s*$', "com.molotov.clender"),
+        )
+        for field, pattern, expected in expected_fields:
+            with self.subTest(field=field):
+                self.assertEqual([expected], re.findall(pattern, source, re.MULTILINE))
+
     def test_entrypoints_reuse_isolation_and_offline_single_worker(self):
         for name in ("verify-all.ps1", "build-release.ps1"):
             with self.subTest(script=name):

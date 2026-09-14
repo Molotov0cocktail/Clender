@@ -1,3 +1,7 @@
+# T73 双端 v1.3.0 正式发布（2026-09-14，发布中）
+
+用户授权将 T70–T72 提交为新的应用版本并更新双端 Release。版本为 `v1.3.0`，Android 包内版本已提升为 `1.3.0 (2)`；双端构建、测试、签名审计、Windows数据完整性和API26旧包覆盖升级均通过。GitHub `main` 可安全快进，Gitee `main` 的独立历史保持不变；当前待创建发布提交/双站标签并上传、回读三个正式附件。任务、矩阵和回滚见 `T73-dual-platform-v1.3.0-release.md`。
+
 # T72 Android 日期选择与 AI 时间上下文（2026-09-14，本地验证完成，待用户验收）
 
 基线main/f03eda9，三独立agent完成日期布局、AI历史时间与独立审查。Android正常七列/窄屏横滚、实际可见frame高度约束修复低高按钮；双端AI出站时间戳和当前/历史标记及快照纠错提示。Windows284tests/完整EXE构建冒烟、Android2169tests/完整verify-all/签名审计通过；最终427a75同包API26/36明暗、窄屏、低高2x与确认/取消/Back/外点通过。临时GLM仅合成验收，Android四轮5HTTP200/7556tokens，Windows四场景有PASS但格式失败保留。源码及Windows数据摘要不变；不自动改真实历史，不推送/Release。原模拟器主题UNKNOWN最终System，其余恢复与全部失败记录见T72-android-date-picker-and-ai-time.md。

@@ -1,3 +1,9 @@
+# T73 双端 v1.3.0 正式发布（2026-09-14，发布准备完成）
+
+用户授权将T70–T72提交为新的双端应用版本并更新GitHub/Gitee Release。版本定为`v1.3.0`；Android包内版本从历史`1.0.0 (1)`提升到`1.3.0 (2)`，applicationId、原正式签名、Room v3、WebDAV v1、权限、Manifest和依赖不变。发布附件为带版本名的EXE/APK/AAB，不上传debug、mapping、用户数据、配置、密钥、日志或缓存。GitHub main可安全快进；Gitee main保留独立LICENSE历史，只推新标签，禁止强推。任务、测试矩阵、回滚和发布回读见`doc/tasks/T73-dual-platform-v1.3.0-release.md`。
+
+维护记录（T73，2026-09-14）：版本与精确任务边界均先取得有效RED后GREEN。Windows284tests、完整PyInstaller及普通/静默两场景隔离EXE通过，dist/data构建前后5文件/167951bytes逐路径/大小/mtime/hash完全一致；最终EXE45584112bytes，SHA256`196c0eea521d58be7ba085d82ebf737abd36140f549b34e4215b3c7e48b921bd`。Android签名构建与包审计通过，APK1876645bytes/SHA256`3d80a52bcf055df7e710e2f568bfa30641edde0032a7781baca4972c7fe86f32`，AAB4984304bytes/SHA256`df93d42d02bdde3a615ef586799492f8001356477ec250541019ba6da6141711`，证书SHA256保持`628248932cfd0587a04126290ac2af870591fc7ebe80259c5f29d266c944615f`。112发布夹具、Android213suites/2169tests（UI82/901）、96 Gradle tasks、foundation/boundary最终各109项全部通过，零失败/错误/跳过及四类泄漏；旧新APK classes.dex摘要相同。一次性API26真实`adb install -r`从1.0.0(1)升级1.3.0(2)，同UID且合成事项/深色设置保留，设备已关闭并删除，adb为空。组合verify-all首轮在约47分钟持续单核且无错误时按T69先例停止重复深扫，之后原参数分段全部通过；不称该被中止会话exit0。T72临时Provider凭据未再次使用。公开发布与远端摘要待回读后补记。
+
 # T72 日期选择与 AI 时间上下文（2026-09-14，本地验证完成，待用户验收）
 
 用户授权子agent自主修复Android周日裁切及AI跨日时间混淆，基线main/f03eda9。日期采用独立360dp日历弹窗，窄屏横滚；宿主实际可见frame限制根高度，global layout更新并释放监听，正文纵滚且确认/取消固定。API36旧Compose整屏测量超过浮动窗口可见框的问题已以真实frame修复，不重复扣系统栏。双端AI仅出站消息增加时间/本轮边界并计入预算，Android附当前zone/offset；提示词区分当前时钟、历史相对时间与误改快照，原正文不改。无Room/WebDAV/权限/依赖变更，不读取真实数据测试，不自动恢复真实历史误操作。本轮临时Provider合成验收已结束，凭据不落盘；不推送或Release。

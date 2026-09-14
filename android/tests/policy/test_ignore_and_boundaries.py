@@ -79,6 +79,10 @@ class IgnoreAndBoundaryTests(PolicyTestCase):
             paths.append(path.replace("\\", "/"))
 
         allowed_exact = {
+            # T73: public release download links, checksums, and notes.
+            "README.md",
+            # T73: exact dual-platform v1.3.0 release task record.
+            "doc/tasks/T73-dual-platform-v1.3.0-release.md",
             # T72: exact date-picker and AI-time repair task record.
             "doc/tasks/T72-android-date-picker-and-ai-time.md",
             # T71: one reviewed task record and the existing Windows personality tests.
