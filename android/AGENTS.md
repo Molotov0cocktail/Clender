@@ -1,3 +1,9 @@
+# T72 日期选择与 AI 时间上下文（2026-09-14，本地验证完成，待用户验收）
+
+用户授权子agent自主修复Android周日裁切及AI跨日时间混淆，基线main/f03eda9。日期采用独立360dp日历弹窗，窄屏横滚；宿主实际可见frame限制根高度，global layout更新并释放监听，正文纵滚且确认/取消固定。API36旧Compose整屏测量超过浮动窗口可见框的问题已以真实frame修复，不重复扣系统栏。双端AI仅出站消息增加时间/本轮边界并计入预算，Android附当前zone/offset；提示词区分当前时钟、历史相对时间与误改快照，原正文不改。无Room/WebDAV/权限/依赖变更，不读取真实数据测试，不自动恢复真实历史误操作。本轮临时Provider合成验收已结束，凭据不落盘；不推送或Release。
+
+维护记录（T72，2026-09-14）：Windows284tests、完整PyInstaller/导入与普通/静默两场景隔离EXE通过，dist/data5文件167887bytes路径/大小/mtime/hash不变。Android213suites/2169tests（UI82/901）零失败/错误/跳过/四类泄漏，111发布夹具、两组105策略、96tasks完整verify-all及签名APK/AAB审计通过，453源码/schema摘要无漂移。最终427a75同包API26/36明暗360、320横滚、低高2x及真实确认/取消/Back/窗口外关闭通过；原模拟器app主题UNKNOWN，最终设System，不冒称精确恢复。Android真实GLM四业务轮/5HTTP200/7556tokens通过；Windows四场景有PASS但中途格式失败保留，不称一次全绿。APK SHA256427a75bfda21392c97690d3e4c693433729609e68cf7cafd067de7de8beabe4b；EXE0479c2e73f1c794237ae50d7d19b31157354780940a92e6673616995557a2cec。失败候选、夹具修正、产物与设备恢复记录见doc/tasks/T72-android-date-picker-and-ai-time.md。模型语义/格式仍可能失败，320需横拖表头，全部Dialog键盘/厂商真机不在已验范围；既有AI Idle/Job短窗本轮仅修测试等待。提交以本地Git日志为准。
+
 # T71 人格设置合并与自选闹铃（2026-09-14，本地验证完成，待用户验收）
 
 用户确认T70闹钟已正常，追加Windows删除自定义风格补充框、统一人格设定，以及Android自选铃声总退回系统默认的问题。基线main/b6a2d7f干净；三独立agent负责Windows兼容合并、Android音源调查/修复、精确边界与独立审查，先矩阵/RED后实现。批准的固定内置契约不改，旧自定义内容不丢，取消不写配置。音源以实际可读取/播放证据为准，保持有界回退与Stop/静音/焦点约束，不增加广泛存储权限。无WebDAV/日程DB格式修改，不读取真实数据测试；仍仅本地交付，用户确认后才Release。设计/矩阵/验证见doc/tasks/T71-personality-and-selected-alarm-sound.md，T70通过数字不能代替本轮验证。

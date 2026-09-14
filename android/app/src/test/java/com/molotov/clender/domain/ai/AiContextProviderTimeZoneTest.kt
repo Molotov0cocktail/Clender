@@ -109,7 +109,8 @@ class AiContextProviderTimeZoneTest {
             zone = ZoneId.of("America/Los_Angeles")
             release.complete(Unit)
             assertEquals(
-                "Current local date/time: 2027-01-01 00:01; weekday: Friday.\nVisible schedules:\n(none)",
+                "Current local date/time: 2027-01-01 00:01; weekday: Friday. " +
+                    "zone: Asia/Shanghai; UTC offset: +08:00.\nVisible schedules:\n(none)",
                 first.await()
             )
             assertEquals(1, clock.reads)
@@ -159,7 +160,8 @@ class AiContextProviderTimeZoneTest {
             VisibleScheduleSource { listOf(later, deleted, early) }
         ) { ZoneId.of("Asia/Shanghai") }
         assertEquals(
-            "Current local date/time: 2026-09-06 08:00; weekday: Sunday.\nVisible schedules:\n" +
+            "Current local date/time: 2026-09-06 08:00; weekday: Sunday. " +
+                "zone: Asia/Shanghai; UTC offset: +08:00.\nVisible schedules:\n" +
                 "- id=1 type=reminder title=early start=2026-09-06 09:00 duration=0" +
                 " notification_enabled=false alarm_enabled=false timer_minutes=0\n" +
                 "- id=2 type=timespan title=later start=2026-09-06 10:00 " +
@@ -183,7 +185,7 @@ class AiContextProviderTimeZoneTest {
     ) {
         assertEquals(
             "Current local date/time: $dateTime; weekday: $weekday.\nVisible schedules:\n(none)",
-            context.build()
+            context.build().replace(Regex(" zone: [^\\n]+"), "")
         )
     }
 }

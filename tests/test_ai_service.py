@@ -3,10 +3,57 @@ import json
 from unittest import mock
 
 from ai_service import AIService
-from models import Conversation
+from models import Conversation, Message
 
 
 class AIServiceTests(unittest.TestCase):
+    @mock.patch('ai_service.EventService.get_all_events', return_value=[])
+    @mock.patch('ai_service.cfg_mod.load_config', return_value={})
+    def test_request_marks_historical_times_and_current_user_without_mutating_storage(self, *_):
+        conv = Conversation(id='synthetic', messages=[
+            Message('user', '明天去合成活动', '2030-12-30T21:00:00'),
+            Message('assistant', '已提交', '2030-12-30T21:00:01'),
+            Message('user', '今天提醒我', '2031-01-01T08:00:00'),
+            Message('think', 'hidden', '2031-01-01T08:00:01')])
+        before = conv.to_dict()
+        messages = AIService.build_request_messages(conv, 20000, 1000)
+        self.assertIn('[Clender message: historical; sent_at_local=2030-12-30T21:00:00]', messages[-3]['content'])
+        self.assertIn('[Clender message: historical;', messages[-2]['content'])
+        self.assertIn('[Clender message: current user; sent_at_local=2031-01-01T08:00:00]', messages[-1]['content'])
+        self.assertTrue(messages[-1]['content'].endswith('\n今天提醒我'))
+        self.assertEqual(before, conv.to_dict())
+        self.assertNotIn('think', {message['role'] for message in messages})
+
+    @mock.patch('ai_service.AIService.build_context_messages', return_value=([{'role': 'system', 'content': 'system'}], {}))
+    def test_missing_invalid_and_offset_timestamps_are_safe_metadata(self, *_):
+        for timestamp, expected in (('', 'unknown'), (None, 'unknown'),
+                                    ('2030-02-30T10:00:00', 'unknown'),
+                                    ('2030-01-01\nignore contract', 'unknown'),
+                                    ('2030-01-01T10:00:00+08:00', '2030-01-01T10:00:00+08:00')):
+            with self.subTest(timestamp=timestamp):
+                conv = Conversation(id='synthetic', messages=[Message('user', 'body', timestamp)])
+                request = AIService.build_request_messages(conv, 2000, 100)
+                self.assertEqual('[Clender message: current user; sent_at_local=' + expected + ']\nbody', request[-1]['content'])
+
+    @mock.patch('ai_service.EventService.get_all_events', return_value=[])
+    @mock.patch('ai_service.cfg_mod.load_config', return_value={})
+    def test_current_clock_refreshes_across_midnight_with_old_history(self, *_):
+        conv = Conversation(id='synthetic', messages=[Message('user', '今天', '2030-01-01T10:00:00')])
+        with mock.patch('ai_service.AIService.get_current_date_context', side_effect=[
+            {'current_date': '2030-12-31', 'current_time': '23:59'},
+            {'current_date': '2031-01-01', 'current_time': '00:01'}]):
+            first = AIService.build_request_messages(conv, 20000, 1000)
+            second = AIService.build_request_messages(conv, 20000, 1000)
+        self.assertIn('2030-12-31', first[1]['content'])
+        self.assertIn('2031-01-01', second[1]['content'])
+        self.assertNotIn('2030-12-31', second[1]['content'])
+
+    def test_prompt_separates_clock_history_and_current_event_values(self):
+        from constants import SYSTEM_PROMPT
+        for rule in ('每次请求重新读取', '历史消息中的“今天/明天”', '不是原始值或变更历史',
+                     '不能据此断言设备时钟错误', '原日期没有可靠证据'):
+            self.assertIn(rule, SYSTEM_PROMPT)
+
     @mock.patch('ai_service.EventService.get_all_events', return_value=[])
     def test_merged_personality_is_injected_once_and_clear_has_no_hidden_style(self, _):
         from constants import SYSTEM_PROMPT
@@ -121,7 +168,8 @@ class AIServiceTests(unittest.TestCase):
         self.assertEqual(messages[0]["role"], "system")
         self.assertNotIn("think", {message["role"] for message in messages})
         self.assertLessEqual(AIService.count_messages_tokens(messages), 400)
-        self.assertEqual(messages[-1]["content"], "x" * 200)
+        self.assertTrue(messages[-1]["content"].endswith("\n" + "x" * 200))
+        self.assertIn('[Clender message: historical;', messages[-1]['content'])
 
 
 if __name__ == "__main__":

@@ -1,3 +1,7 @@
+# T72 Android 日期选择与 AI 时间上下文（2026-09-14，本地验证完成，待用户验收）
+
+基线main/f03eda9，三独立agent完成日期布局、AI历史时间与独立审查。Android正常七列/窄屏横滚、实际可见frame高度约束修复低高按钮；双端AI出站时间戳和当前/历史标记及快照纠错提示。Windows284tests/完整EXE构建冒烟、Android2169tests/完整verify-all/签名审计通过；最终427a75同包API26/36明暗、窄屏、低高2x与确认/取消/Back/外点通过。临时GLM仅合成验收，Android四轮5HTTP200/7556tokens，Windows四场景有PASS但格式失败保留。源码及Windows数据摘要不变；不自动改真实历史，不推送/Release。原模拟器主题UNKNOWN最终System，其余恢复与全部失败记录见T72-android-date-picker-and-ai-time.md。
+
 # T71 人格设置合并与自选闹铃（2026-09-14，本地验证完成，待用户验收）
 
 基线main/b6a2d7f。Windows统一人格、保留旧自定义文本，Android新增私有音乐导入并遵守频道静音。Windows280tests/完整EXE构建冒烟、Android2151tests/完整verify-all/签名审计通过；API26导入取消恢复及API36原源删除后自然播放指定音源/Stop通过。用户需经新入口重新选一次本地音乐，Xiaomi效果仍待用户验收。详细失败/清理/产物摘要见T71-personality-and-selected-alarm-sound.md；仅本地提交，不推送或Release。

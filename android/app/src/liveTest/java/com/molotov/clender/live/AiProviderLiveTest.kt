@@ -73,6 +73,135 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class AiProviderLiveTest {
     @Test
+    fun realProviderDistinguishesHistoricalTimeAndRestoresOnlyKnownOriginalDates() = runBlocking {
+        val settings = AiSettings(
+            endpoint = requiredEnvironment("CLENDER_LIVE_AI_URL"),
+            model = requiredEnvironment("CLENDER_LIVE_AI_MODEL"),
+            temperature = 0.2, maxOutputTokens = 8_192, contextWindow = 32_768,
+            thinkingEnabled = true, thinkingEffort = ThinkingEffort.HIGH,
+            systemPrompt = "", personality = ""
+        )
+        val key = requiredEnvironment("CLENDER_LIVE_AI_KEY").toCharArray()
+        val owner = SupervisorJob()
+        val scope = CoroutineScope(owner + Dispatchers.Default)
+        val audit = LiveHttpAudit()
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            val response = chain.proceed(chain.request())
+            audit.record(response.code, response.peekBody(1_048_576).string(), response.header("Retry-After"))
+            response
+        }.build()
+        val client = WipeCheckingClient(OkHttpAiClient(http), audit)
+        var openedDatabase: ClenderDatabase? = null
+        try {
+            val database = Room.inMemoryDatabaseBuilder(
+                ApplicationProvider.getApplicationContext<Context>(), ClenderDatabase::class.java
+            ).allowMainThreadQueries().build().also { openedDatabase = it }
+            val clock = Clock.system(ZoneId.of("Asia/Shanghai"))
+            val today = LocalDate.now(clock)
+            val past = today.minusDays(2)
+            val conversations = RoomConversationRepository(database)
+            val events = EventService(
+                RoomEventRepository(database), clock,
+                SyncUidGenerator { UUID.randomUUID().toString().replace("-", "") }, ScheduleMutationSink { }
+            )
+            suspend fun snapshot() = events.observeRange(
+                today.minusDays(10).atStartOfDay(), today.plusDays(10).atStartOfDay()
+            ).first()
+            val coordinator = AiCoordinator(
+                scope, AiCoordinatorDependencies(
+                    client, conversations, AiMessageBudgeter(), AiResponseParser(),
+                    AiOperationExecutor(events), clock,
+                    AiContextProvider(clock, VisibleScheduleSource { snapshot() }) { clock.zone }
+                )
+            )
+            coordinator.onAppForegrounded()
+            suspend fun history(id: String, role: MessageRole, text: String, date: LocalDate) {
+                conversations.appendMessageAndIncrementTokens(
+                    id, role, text,
+                    if (date == today) clock.instant().minusSeconds(1) else date.atTime(12, 0).atZone(clock.zone).toInstant(),
+                    0
+                )
+            }
+            suspend fun turn(id: String, prompt: String, changes: Int, round: Int): String {
+                val transferred = key.copyOf()
+                assertTrue(coordinator.submit(id, prompt, settings, transferred))
+                assertTrue(transferred.all { it == '\u0000' })
+                withTimeout(240_000) { coordinator.state.first { it !is AiCoordinatorState.Working } }
+                audit.printSafeDiagnostics(round)
+                assertEquals(AiCoordinatorState.Idle, coordinator.state.value)
+                client.verifyLastCompletion()
+                val reply = conversations.observeMessages(id).first().last { it.role == MessageRole.ASSISTANT }.content
+                val presentation = presentAssistantMessage(reply)
+                assertTrue(presentation.modelBody.isNotBlank())
+                if (changes > 0) assertTrue(reply.startsWith("已实际完成 $changes 项日程操作。"))
+                assertEquals(client.lastRequestEstimate, conversations.findConversation(id)!!.lastInputTokenEstimate)
+                assertEquals(round, client.completedCalls)
+                assertEquals(today, LocalDate.now(clock))
+                println("LIVE temporalRound=$round expectedChanges=$changes tokens=${client.totalTokens} PASS")
+                return presentation.modelBody
+            }
+            suspend fun conversation(id: String) {
+                conversations.create(Conversation(id, "合成时间验证", clock.instant(), 0))
+            }
+            val old = events.add(com.molotov.clender.domain.event.AddEventCommand(
+                EventType.TIMESPAN, "合成旧阅读", past.atTime(15, 0), past.atTime(16, 0)
+            ))
+            conversation("temporal-new")
+            history("temporal-new", MessageRole.USER, "今天下午三点阅读一小时。", past)
+            history("temporal-new", MessageRole.ASSISTANT, "今天阅读时间为15:00至16:00。", past)
+            turn("temporal-new", "明天上午九点提醒我整理合成卡片，标题为合成新提醒。", 1, 1)
+            val afterNew = snapshot()
+            assertEquals(old, afterNew.single { it.id == old.id })
+            assertEquals(2, afterNew.size)
+            val added = afterNew.single { it.id != old.id }
+            assertEquals(today.plusDays(1).atTime(9, 0), added.startTime)
+            assertEquals(EventType.REMINDER, added.eventType)
+
+            conversation("temporal-clock")
+            history("temporal-clock", MessageRole.ASSISTANT, "现在日期是$past。", past)
+            val beforeClock = snapshot()
+            val clockReply = turn("temporal-clock", "现在当地日期是哪天？请用YYYY-MM-DD回答，不改任何事项。", 0, 2)
+            assertTrue("Current reply must use actual local date", clockReply.contains(today.toString()))
+            assertEquals(beforeClock, snapshot())
+
+            conversation("temporal-restore")
+            history("temporal-restore", MessageRole.USER, "合成旧阅读的日期是$past，15:00到16:00。", past)
+            events.update(old.id, com.molotov.clender.domain.event.EventPatch(
+                startTime = com.molotov.clender.domain.event.FieldUpdate.Set(today.atTime(15, 0)),
+                endTime = com.molotov.clender.domain.event.FieldUpdate.Set(today.atTime(16, 0))
+            ))
+            history("temporal-restore", MessageRole.ASSISTANT, "我把合成旧阅读误移到了今天$today。", today)
+            turn("temporal-restore", "合成旧阅读是之前完成的事，把日期挪回原来的位置，时间和其它事项不改。", 1, 3)
+            val restored = snapshot().single { it.id == old.id }
+            assertEquals(old.copy(updatedAt = restored.updatedAt), restored)
+            assertEquals(added, snapshot().single { it.id == added.id })
+
+            conversation("temporal-unknown")
+            val unknown = events.add(com.molotov.clender.domain.event.AddEventCommand(
+                EventType.TIMESPAN, "合成待核对", today.atTime(17, 0), today.atTime(18, 0)
+            ))
+            val beforeUnknown = snapshot()
+            val clarification = turn("temporal-unknown", "合成待核对其实几天前就完成了，你把它日期挪回原来的位置吧。", 0, 4)
+            assertEquals(beforeUnknown, snapshot())
+            assertEquals(unknown, snapshot().single { it.id == unknown.id })
+            assertTrue("Missing original date should be clarified", clarification.contains("日期") || clarification.contains("哪天"))
+            println("LIVE temporalScenarios=4 currentClock=true historyPreserved=true unknownDateNoWrite=true PASS")
+        } finally {
+            key.fill('\u0000')
+            try {
+                client.cancelInFlight()
+                owner.cancelAndJoin()
+            } finally {
+                try { openedDatabase?.close() } finally {
+                    http.connectionPool.evictAll()
+                    http.dispatcher.executorService.shutdownNow()
+                    assertTrue(http.dispatcher.executorService.awaitTermination(5, TimeUnit.SECONDS))
+                }
+            }
+        }
+    }
+
+    @Test
     fun realProviderCreatesUpdatesAndDeletesThroughProductionCoordinatorAndRoom() = runBlocking {
         val settings = AiSettings(
             endpoint = requiredEnvironment("CLENDER_LIVE_AI_URL"),

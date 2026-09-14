@@ -38,6 +38,10 @@ class AiContextProvider(
             append(WallClockCodec.format(now.withSecond(0).withNano(0)))
             append("; weekday: ")
             append(weekday)
+            append(". zone: ")
+            append(zone.id)
+            append("; UTC offset: ")
+            append(zone.rules.getOffset(instant))
             append(".\nVisible schedules:\n")
             if (visible.isEmpty()) {
                 append("(none)")

@@ -194,7 +194,7 @@ class AiCoordinatorTest {
             )
             assertEquals(
                 receipts.map { "应用已处理该历史请求，实际结果：$it" },
-                history.filter { it.role == "assistant" }.map { it.content }
+                history.filter { it.role == "assistant" }.map { it.content.substringAfter('\n') }
             )
             assertFalse(client.lastMessages.any { "PRIVATE_THINK_SENTINEL" in it.content })
             assertEquals(
@@ -219,7 +219,8 @@ class AiCoordinatorTest {
         )
         assertTrue(coordinator.submit("a", "再次核对", settings(), testKey()))
         waitUntil { client.completeCalls.get() == 1 }
-        assertEquals("请核对日期", client.lastMessages.single { it.role == "assistant" }.content)
+        val assistant = client.lastMessages.single { it.role == "assistant" }
+        assertEquals("请核对日期", assistant.content.substringAfter('\n'))
         client.nextCompletion.complete(replyCompletion("核对完成"))
         waitUntil { coordinator.state.value == AiCoordinatorState.Idle }
     }

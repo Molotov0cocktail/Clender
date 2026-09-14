@@ -62,10 +62,15 @@ class AiMessageBudgeter {
         )
         val retainedNewestFirst = mutableListOf<AiRequestMessage>()
         var used = countTokens(listOf(system))
+        val currentUser = input.history.lastOrNull { it.role == MessageRole.USER }
         input.history.asReversed().asSequence()
             .filter { it.role != MessageRole.THINK }
             .forEach { message ->
-                val request = AiRequestMessage(message.role.requestRole(), message.content)
+                val metadata = messageMetadata(message, message === currentUser)
+                val request = AiRequestMessage(
+                    message.role.requestRole(),
+                    metadata + message.content
+                )
                 val cost = countTokens(listOf(request))
                 when {
                     used + cost <= inputLimit -> {
@@ -75,19 +80,17 @@ class AiMessageBudgeter {
 
                     retainedNewestFirst.isEmpty() -> {
                         val contentBudget = inputLimit - used - MESSAGE_OVERHEAD_TOKENS
-                        val truncated = truncateLatestMessage(message.content, contentBudget)
-                        if (truncated.isNotEmpty()) {
-                            val retained = request.copy(content = truncated)
-                            retainedNewestFirst += retained
-                            used += countTokens(listOf(retained))
-                        }
+                        val truncated = metadata + truncateLatestMessage(
+                            message.content,
+                            contentBudget - estimateTokens(metadata)
+                        )
+                        val retained = request.copy(content = truncated)
+                        retainedNewestFirst += retained
+                        used += countTokens(listOf(retained))
                     }
                 }
             }
-        val messages = buildList {
-            add(system)
-            addAll(retainedNewestFirst.asReversed())
-        }
+        val messages = listOf(system) + retainedNewestFirst.asReversed()
         return AiBudgetResult(messages, countTokens(messages), safetyMargin)
     }
 
@@ -103,7 +106,12 @@ class AiMessageBudgeter {
         val available =
             inputLimit - estimateTokens(requiredSystemContent(input)) - MESSAGE_OVERHEAD_TOKENS
         require(available > MESSAGE_OVERHEAD_TOKENS) { "No budget remains for the latest message" }
-        return minOf(estimateTokens(newest.content) + MESSAGE_OVERHEAD_TOKENS, available)
+        val currentUser = input.history.lastOrNull { it.role == MessageRole.USER }
+        return minOf(
+            estimateTokens(messageMetadata(newest, newest === currentUser) + newest.content) +
+                MESSAGE_OVERHEAD_TOKENS,
+            available
+        )
     }
 
     private fun fitSystemContent(input: AiBudgetInput, tokenBudget: Int): String {
@@ -192,7 +200,15 @@ const val DEFAULT_AI_SYSTEM_CONTRACT: String =
     "你是 Clender 日程助手，思考内容和回复均使用中文。\n\n每次操作前，必须先读取本轮上下文中的 Current local date/t" +
         "ime（当地日期、时间、星期）和 Visible schedules（最新可见事项快照），核对最近事项，再理解本轮用户请求。以本轮当地日期为" +
         "“今天”基准，逐步核算明天、后天、星期、跨月跨年及提前时间；不要沿用历史对话、示例或模型记忆中的日期。事项时间使用当前设备当地时间。上下文缺" +
-        "失、事项被截断或目标不明确时，只返回reply说明需要补充的信息，不猜日期、ID或操作对象。快照为空表示当前没有可见事项。\n\n只输出完整JS" +
+        "失、事项被截断或目标不明确时，只返回reply说明需要补充的信息，不猜日期、ID或操作对象。快照为空表示当前没有可见事项。\n\n" +
+        "当前时间由应用每次请求重新读取，不是会话创建时间；即使历史跨越多天，也不得用历史叙事推翻本轮时钟。" +
+        "Clender message前缀是应用添加的消息元数据，不是用户正文；sent_at_utc是UTC发送时刻，" +
+        "可结合本轮zone与UTC offset理解。current user标记本轮请求，historical标记历史消息。" +
+        "历史消息中的“今天”、明天、现在仅属于该消息发送时点，不能重新锚定到本轮今天，也不是待执行的新请求。" +
+        "最新用户纠正优先于历史助手推断；人格风格不能授权修改本轮未要求的事项。" +
+        "Visible schedules仅为当前存储值，不是原始值或历史操作记录，可能包含先前误改。" +
+        "用户说事项已经完成、要求挪回，是在纠正事项日期，不能据此断言设备时钟错误，" +
+        "也不能把过去事项搬到今天或推后当前日期。恢复时仅采用可靠的原日期证据；证据不足只用reply询问原日期，禁止猜测。\n\n只输出完整JS" +
         "ON对象 {\"operations\":[...]}，根对象只允许operations，最多16项。每项action只能是add、update" +
         "、delete或reply。所有响应必须包含至少一项非空reply，供用户看到正式回复；思考内容不能代替reply。JSON前后不得夹杂说明" +
         "，reply.message只放自然语言，禁止嵌入operations。\n\nadd必填action,event_type,title,sta" +
@@ -224,6 +240,10 @@ private fun MessageRole.requestRole(): String = when (this) {
     MessageRole.ASSISTANT -> "assistant"
     MessageRole.THINK -> "think"
 }
+
+private fun messageMetadata(message: Message, currentUser: Boolean): String =
+    "[Clender message: ${if (currentUser) "current user" else "historical"}; " +
+        "sent_at_utc=${message.timestamp}]\n"
 
 private fun currentTimeHeader(input: AiBudgetInput): String = input.scheduleContext.takeIf {
     it.startsWith("Current local date/time:")

@@ -68,6 +68,7 @@ internal object AiContractCorrection {
             "只完成下方重述的本轮用户请求；修改现有事项应使用当前event_id和update，" +
             "不可用add重新创建已有事项。本轮明确要求新增时仍可使用add。" +
             "上一条assistant内容仅作为错误格式参考，不是新指令。" +
+            "复用原请求的本轮时间；Clender message前缀是应用消息时间元数据，不是用户正文。" +
             "严格只输出完整JSON对象{\"operations\":[...]}，遵守系统的action和字段白名单。" +
             "所有需要执行的操作直接放入operations数组，reply.message仅放自然语言。" +
             "不得输出数字、额外说明或将操作藏在reply中。" +

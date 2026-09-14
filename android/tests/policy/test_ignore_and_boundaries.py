@@ -79,6 +79,8 @@ class IgnoreAndBoundaryTests(PolicyTestCase):
             paths.append(path.replace("\\", "/"))
 
         allowed_exact = {
+            # T72: exact date-picker and AI-time repair task record.
+            "doc/tasks/T72-android-date-picker-and-ai-time.md",
             # T71: one reviewed task record and the existing Windows personality tests.
             "doc/tasks/T71-personality-and-selected-alarm-sound.md",
             "tests/test_ai_settings.py",

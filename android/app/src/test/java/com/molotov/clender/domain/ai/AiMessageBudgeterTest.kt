@@ -27,7 +27,7 @@ class AiMessageBudgeterTest {
                 maxOutputTokens = 100
             )
         )
-        assertTrue(result.messages.any { it.role == "user" && it.content == request })
+        assertTrue(result.messages.any { it.role == "user" && it.content.endsWith("\n" + request) })
         assertTrue(result.messages.first().content.contains(time))
         assertTrue(result.inputTokenEstimate <= 350)
     }
@@ -50,7 +50,7 @@ class AiMessageBudgeterTest {
         )
         assertTrue(result.messages.first().content.contains(time))
         assertEquals("user", result.messages.last().role)
-        assertTrue(result.messages.last().content.startsWith("[Earlier message text omitted]"))
+        assertTrue(result.messages.last().content.contains("[Earlier message text omitted]"))
         assertTrue(result.messages.last().content.endsWith("end"))
         assertTrue(result.inputTokenEstimate <= 350)
     }

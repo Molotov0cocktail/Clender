@@ -124,10 +124,23 @@ class AIService:
         safety_margin = max(32, int(context_window * 0.1))
         budget = max(context_window - max_output_tokens - safety_margin, 1)
 
-        history = [
-            {"role": message.role, "content": message.content}
-            for message in conversation.messages if message.role != "think"
-        ]
+        visible = [message for message in conversation.messages if message.role != "think"]
+        history = []
+        for index, message in enumerate(visible):
+            timestamp = "unknown"
+            if isinstance(message.timestamp, str) and re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?",
+                message.timestamp,
+            ):
+                try:
+                    timestamp = datetime.fromisoformat(message.timestamp).isoformat()
+                except ValueError:
+                    pass
+            kind = "current user" if index == len(visible) - 1 and message.role == "user" else "historical"
+            history.append({
+                "role": message.role,
+                "content": f"[Clender message: {kind}; sent_at_local={timestamp}]\n{message.content}",
+            })
         latest = history[-1:]
         used = AIService.count_messages_tokens(base_messages + latest)
         if used > budget:

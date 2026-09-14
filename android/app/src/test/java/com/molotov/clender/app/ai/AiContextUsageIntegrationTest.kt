@@ -179,6 +179,9 @@ class AiContextUsageIntegrationTest {
             )
         )
         withTimeout(5_000) { coordinator.state.first { it is AiCoordinatorState.Idle } }
+        // Idle is published before the request coroutine returns; this fixture starts
+        // a separate request only after its predecessor has released its active job.
+        withTimeout(5_000) { owner.children.toList().forEach { it.join() } }
     }
 
     private fun settings() = AiSettings(
