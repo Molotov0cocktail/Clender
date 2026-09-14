@@ -79,6 +79,9 @@ class IgnoreAndBoundaryTests(PolicyTestCase):
             paths.append(path.replace("\\", "/"))
 
         allowed_exact = {
+            # T71: one reviewed task record and the existing Windows personality tests.
+            "doc/tasks/T71-personality-and-selected-alarm-sound.md",
+            "tests/test_ai_settings.py",
             # T70: explicit user-authorized AI and system reminder alignment.
             "doc/tasks/T70-dual-platform-ai-alert-repair.md",
             "doc/tasks/T70-system-prompt-review.md",

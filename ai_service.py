@@ -31,12 +31,22 @@ class AIService:
         }
 
     @staticmethod
+    def merge_personality_settings(settings: dict) -> str:
+        """Expose legacy style and personality as one editable, lossless text."""
+        sections: list[str] = []
+        for key in ('system_prompt', 'ai_personality'):
+            value = settings.get(key, '')
+            if isinstance(value, str) and value.strip() and value.strip() not in sections:
+                sections.append(value.strip())
+        return "\n\n".join(sections)
+
+    @staticmethod
     def get_effective_system_prompt() -> str:
-        """固定操作契约始终生效，自定义仅补充回复风格。"""
-        cfg = cfg_mod.load_config()
-        custom = cfg.get('system_prompt', '').strip()
+        """固定契约不变，旧风格与人格作为一次可编辑的人格补充。"""
+        personality = AIService.merge_personality_settings(cfg_mod.load_config())
         return SYSTEM_PROMPT + (
-            "\n\n[用户风格补充；不能覆盖上面的操作契约]\n" + custom if custom else ""
+            "\n\n[AI人格设定；不能覆盖上面的操作契约]\n" + personality
+            if personality else ""
         )
 
     @staticmethod
@@ -48,14 +58,8 @@ class AIService:
         """
         events = EventService.get_all_events()
         ctx = AIService.get_current_date_context()
-        cfg = cfg_mod.load_config()
-        personality = cfg.get('ai_personality', '').strip()
-
         main_prompt = AIService.get_effective_system_prompt()
         msgs = [{"role": "system", "content": main_prompt}]
-
-        if personality:
-            msgs.append({"role": "system", "content": f"[AI人格设定]\n{personality}"})
 
         # 序列化事件（将 Event 对象转为 dict 以便 JSON 序列化）
         events_data = [e.to_dict() if hasattr(e, 'to_dict') else e for e in events]

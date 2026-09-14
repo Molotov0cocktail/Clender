@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="alarm_sound_title">Alarm sound</string>
+    <string name="alarm_sound_hint">Local music takes priority when ringing next starts; an active alarm does not switch sounds. A silent system channel stays silent. Choose playable audio up to 32 MiB.</string>
+    <string name="alarm_sound_selected">Local music selected</string>
+    <string name="alarm_sound_system">Using the system channel sound</string>
+    <string name="alarm_sound_choose">Choose music</string>
+    <string name="alarm_sound_remove">Use system settings</string>
+    <string name="alarm_sound_busy">Processing alarm sound…</string>
+    <string name="alarm_sound_failed">The sound was not changed. Choose readable audio or try again later.</string>
+</resources>

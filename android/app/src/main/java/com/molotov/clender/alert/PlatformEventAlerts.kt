@@ -18,6 +18,8 @@ import com.molotov.clender.app.alert.AlertToken
 import com.molotov.clender.app.alert.EventAlertPlatform
 import com.molotov.clender.app.alert.blockedStatus
 import com.molotov.clender.core.model.Event
+import com.molotov.clender.data.settings.AlarmSoundStore
+import java.io.File
 import kotlinx.coroutines.flow.Flow
 
 class PlatformEventAlerts(
@@ -26,8 +28,13 @@ class PlatformEventAlerts(
 ) : EventAlertPlatform {
     override val playbackFailures: Flow<AlertToken> get() = alarmDelivery.failures
 
-    fun alarmSound(): Uri? = notifications.getNotificationChannel(channelId(AlertKind.ALARM))
-        ?.takeIf { it.importance >= NotificationManager.IMPORTANCE_DEFAULT }?.sound
+    fun alarmSound(): Uri? {
+        val channelSound = notifications.getNotificationChannel(channelId(AlertKind.ALARM))
+            ?.takeIf { it.importance >= NotificationManager.IMPORTANCE_DEFAULT }?.sound
+            ?: return null
+        val selected = AlarmSoundStore(File(context.filesDir, "alarm-sound")).selectedFile()
+        return selected?.let(Uri::fromFile) ?: channelSound
+    }
 
     private val alarms = context.getSystemService(AlarmManager::class.java)
     private val notifications = context.getSystemService(NotificationManager::class.java)

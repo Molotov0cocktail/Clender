@@ -1,3 +1,13 @@
+# T71 人格设置合并与自选闹铃（2026-09-14，本地验证完成，待用户验收）
+
+用户确认T70闹钟已正常，追加Windows删除自定义风格补充框、统一人格设定，以及Android自选铃声总退回系统默认的问题。基线main/b6a2d7f干净；三独立agent负责Windows兼容合并、Android音源调查/修复、精确边界与独立审查，先矩阵/RED后实现。批准的固定内置契约不改，旧自定义内容不丢，取消不写配置。音源以实际可读取/播放证据为准，保持有界回退与Stop/静音/焦点约束，不增加广泛存储权限。无WebDAV/日程DB格式修改，不读取真实数据测试；仍仅本地交付，用户确认后才Release。设计/矩阵/验证见doc/tasks/T71-personality-and-selected-alarm-sound.md，T70通过数字不能代替本轮验证。
+
+T71当前接口：Windows仅一个人格文本域；AIService.merge_personality_settings兼容合并旧system_prompt与ai_personality，固定内置契约不变；保存成功才清旧字段，取消/失败不写。Android新增AlarmSoundStore（filesDir/alarm-sound/selected.audio），32MiB有界流式导入、音轨/prepare/正时长校验、唯一pending与原子替换，短锁generation保证新选择/恢复胜过旧慢任务；私有音源不进Room或WebDAV。SettingsScreen应用页新增AlarmSoundSettingsSection，OpenDocument只选单个audio文件，Controller/ViewModel以IO+取消/ticket隔离迟到回调，启动选择器失败可见。PlatformEventAlerts先遵守频道静音/禁用，再选私有音源，否则沿用频道；现有MediaPlayer、Stop/焦点/有界默认回退不变，正在响铃不切曲。未新增权限、Manifest或依赖。完整Android验证与签名同包音源验收已通过。
+
+
+维护记录（T71，2026-09-14）：Windows删除风格框、兼容合并人格；Android新增32MiB私有音源导入/恢复与取消并发保护，频道静音优先。Windows280tests、完整PyInstaller及普通/静默两场景隔离EXE通过，dist/data五文件167599bytes摘要不变。Android211suites/2151tests（UI81/889）零失败/错误/跳过/四类泄漏，111发布夹具与两组102策略、96tasks完整verify-all、签名APK/AAB审计通过；499源码/schema摘要无漂移。API26最终同包真实选择器取消/导入/恢复通过；API36原公共源删除后后台自然播放raw/22050Hz单声道私有音源、真实Stop释放通过。APK SHA256 f08f790932ffe061c85e4e1a23e41f0b5f345ba353f63188ed5b4ec15582e77f；EXE SHA256 6cfaeebfafc61e2fdf0a1cb7224169f3bf08db0bb4392a41a1e60811b491bd7f。无新Provider调用/人工听音/Xiaomi音源真机声明；用户需在设置→应用→闹钟铃声→选择音乐重新选取一次。本地提交与设备恢复回执见T71记录，未推送或Release。
+
+
 # T70 双端 AI 与提醒修复（2026-09-14，本地验证完成，待用户验收）
 
 用户授权双端修复、独立子agent和本地测试构建；完成后先交用户检验，确认后才Release，本轮不推送或发布。基线main/e65bbad。完整提示词已在doc/tasks/T70-system-prompt-review.md经用户确认后才实施；每轮读取日期与最新事项，必须有正式reply，不用思考代替正文。Android移除多余GLM说明但保留兼容逻辑；闹钟先以隔离设备查证。Windows界面仅一种“提醒”，旧alarm字段仅兼容输入且与notification取OR映射系统通知，允许必要本机字段/收据与旧库兼容迁移，不增加独立响铃或退出后调度，WebDAV v1不变。真实验收仅本轮临时凭据与合成数据、凭据不落盘，真实库不用于测试。任务/矩阵/分工/回滚见doc/tasks/T70-dual-platform-ai-alert-repair.md。双端完整验证与签名/EXE构建已完成，设备验收和本地提交回执见T70记录，不沿用T69数字作为本轮通过。

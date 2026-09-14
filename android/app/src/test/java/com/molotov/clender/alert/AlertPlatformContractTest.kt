@@ -3,6 +3,7 @@ package com.molotov.clender.alert
 import android.app.AlarmManager
 import android.app.Application
 import android.app.Notification
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
@@ -17,6 +18,8 @@ import com.molotov.clender.app.alert.AlertSchedule
 import com.molotov.clender.app.alert.AlertToken
 import com.molotov.clender.core.model.Event
 import com.molotov.clender.core.model.EventType
+import java.io.File
+import java.io.RandomAccessFile
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -37,6 +40,105 @@ import org.robolectric.annotation.Config
 @Config(sdk = [26, 36], application = Application::class)
 class AlertPlatformContractTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
+
+    @Test
+    fun privateAlarmSoundTakesPriorityWithoutChangingTheUsersChannel() {
+        val channelSound = Uri.parse("content://synthetic/channel-music")
+        alarmChannel(channelSound)
+        val selected = privateSound()
+        try {
+            val platform = PlatformEventAlerts(context, FakeAlarmDelivery())
+            assertEquals(Uri.fromFile(selected), platform.alarmSound())
+            assertEquals(
+                channelSound,
+                context.getSystemService(NotificationManager::class.java)
+                    .getNotificationChannel("clender_alarm_v1").sound
+            )
+            assertEquals(
+                Uri.fromFile(selected),
+                PlatformEventAlerts(context, FakeAlarmDelivery()).alarmSound()
+            )
+        } finally {
+            selected.delete()
+        }
+    }
+
+    @Test
+    fun explicitChannelSilenceOverridesAPrivateAlarmSound() {
+        alarmChannel(null)
+        val selected = privateSound()
+        try {
+            assertNull(PlatformEventAlerts(context, FakeAlarmDelivery()).alarmSound())
+        } finally {
+            selected.delete()
+        }
+    }
+
+    @Test
+    fun lowImportanceChannelDoesNotBecomeAudibleFromAPrivateSelection() {
+        alarmChannel(Uri.parse("content://synthetic/channel"), NotificationManager.IMPORTANCE_LOW)
+        val selected = privateSound()
+        try {
+            assertNull(PlatformEventAlerts(context, FakeAlarmDelivery()).alarmSound())
+        } finally {
+            selected.delete()
+        }
+    }
+
+    @Test
+    fun missingEmptyOrOversizedPrivateFileUsesTheExistingChannel() {
+        val channelSound = Uri.parse("content://synthetic/channel-music")
+        alarmChannel(channelSound)
+        val platform = PlatformEventAlerts(context, FakeAlarmDelivery())
+        val selected = privateSound()
+        try {
+            selected.delete()
+            assertEquals(channelSound, platform.alarmSound())
+            selected.writeBytes(byteArrayOf())
+            assertEquals(channelSound, platform.alarmSound())
+            RandomAccessFile(selected, "rw").use { it.setLength(32L * 1024 * 1024 + 1) }
+            assertEquals(channelSound, platform.alarmSound())
+        } finally {
+            selected.delete()
+        }
+    }
+
+    @Test
+    @Config(sdk = [26])
+    fun alarmDeliveryReceivesPrivateSoundAndRemovalRestoresChannel() {
+        val channelSound = Uri.parse("content://synthetic/channel-music")
+        alarmChannel(channelSound)
+        val selected = privateSound()
+        try {
+            val delivery = FakeAlarmDelivery()
+            val platform = PlatformEventAlerts(context, delivery)
+            val event = event().copy(alarmEnabled = true)
+            val token = AlertPlanFactory.tokens(event, ZoneOffset.UTC).single()
+            assertTrue(platform.show(event, token))
+            assertEquals(listOf(Uri.fromFile(selected)), delivery.sounds)
+            platform.dismiss(event.id)
+            selected.delete()
+            assertEquals(channelSound, platform.alarmSound())
+        } finally {
+            selected.delete()
+        }
+    }
+
+    private fun privateSound(): File = File(context.filesDir, "alarm-sound/selected.audio").apply {
+        check(parentFile!!.isDirectory || parentFile!!.mkdirs())
+        writeBytes(byteArrayOf(1))
+    }
+
+    private fun alarmChannel(sound: Uri?, importance: Int = NotificationManager.IMPORTANCE_HIGH) {
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel("clender_alarm_v1", "Synthetic alarm", importance).apply {
+                setSound(
+                    sound,
+                    AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build()
+                )
+            }
+        )
+    }
 
     @Test
     @Config(sdk = [26])
@@ -220,6 +322,7 @@ private class FakeAlarmDelivery : ImportantAlarmDelivery {
     var succeeds = true
     val started = mutableListOf<AlertToken>()
     val stopped = mutableListOf<Long>()
+    val sounds = mutableListOf<Uri?>()
     override val failures = emptyFlow<AlertToken>()
     override fun start(
         event: Event,
@@ -228,6 +331,7 @@ private class FakeAlarmDelivery : ImportantAlarmDelivery {
         sound: Uri?
     ): Boolean {
         started += token
+        sounds += sound
         return succeeds
     }
     override fun stop(eventId: Long) {

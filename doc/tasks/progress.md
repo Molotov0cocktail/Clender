@@ -1,3 +1,7 @@
+# T71 人格设置合并与自选闹铃（2026-09-14，本地验证完成，待用户验收）
+
+基线main/b6a2d7f。Windows统一人格、保留旧自定义文本，Android新增私有音乐导入并遵守频道静音。Windows280tests/完整EXE构建冒烟、Android2151tests/完整verify-all/签名审计通过；API26导入取消恢复及API36原源删除后自然播放指定音源/Stop通过。用户需经新入口重新选一次本地音乐，Xiaomi效果仍待用户验收。详细失败/清理/产物摘要见T71-personality-and-selected-alarm-sound.md；仅本地提交，不推送或Release。
+
 # T70 双端 AI 与提醒修复（2026-09-14，本地验证完成，待用户验收）
 
 基线main/e65bbad，三个独立子agent已实现并交叉审查。已批准提示词应用、GLM冗余说明删除、Android缺正文与音源失败反馈修复、Windows统一提醒及WebDAV v1兼容测试完成。Android2108tests、Windows274tests及双端完整构建通过；授权真实Provider两端合成CRUD/正文回读通过。API26最终同包界面、API36后台自然响铃播放器/Stop通过，设备恢复回执见任务记录；Xiaomi13真机仍待用户新包验收。用户明确确认后才Release，本轮仅本地提交与包交付。详细矩阵、失败与SHA256见T70-dual-platform-ai-alert-repair.md。

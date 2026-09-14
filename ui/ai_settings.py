@@ -1,5 +1,5 @@
 """
-AI 设置对话框 - API配置、模型选择、系统提示词编辑
+AI 设置对话框 - API配置、模型选择、人格设定
 从 ai_chat.py 提取为独立 UI 组件
 """
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -7,13 +7,12 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QSpinBox, QDoubleSpinBox, QFormLayout,
                              QDialogButtonBox, QDialog, QMessageBox, QCheckBox)
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtGui import QFontMetrics
 
 import config as cfg_mod
 import theme_manager
 from ai_client import fetch_models_list
 from ai_service import AIService
-from typography import app_scale_from_config, qfont_for
+from typography import app_scale_from_config
 
 
 class SettingsDialog(QDialog):
@@ -80,24 +79,6 @@ class SettingsDialog(QDialog):
         self._lbl_info = QLabel('')
         layout.addRow(self._lbl_info)
 
-        # ── 系统提示词编辑 ──
-        layout.addRow(QLabel(''))
-        prompt_header = QHBoxLayout()
-        self._lbl_prompt = QLabel('📝 自定义风格补充')
-        self._lbl_prompt.setObjectName('aiSettingsPromptTitle')
-        prompt_header.addWidget(self._lbl_prompt)
-        prompt_header.addStretch()
-        self._btn_reset_prompt = QPushButton('恢复默认')
-        self._btn_reset_prompt.setToolTip('重置为默认系统提示词')
-        self._btn_reset_prompt.clicked.connect(self._reset_prompt)
-        prompt_header.addWidget(self._btn_reset_prompt)
-        layout.addRow(prompt_header)
-
-        self._edit_prompt = QTextEdit()
-        self._edit_prompt.setPlaceholderText('固定日程操作契约始终生效。这里仅补充语气与风格，不能覆盖日期、操作和安全规则。')
-        self._edit_prompt.setMaximumHeight(180)
-        layout.addRow(self._edit_prompt)
-
         # ── AI人格描述 ──
         layout.addRow(QLabel(''))
         persona_header = QHBoxLayout()
@@ -107,9 +88,16 @@ class SettingsDialog(QDialog):
         persona_header.addStretch()
         layout.addRow(persona_header)
 
+        self._personality_hint = QLabel(
+            '内置日程指令自动生效；\n'
+            '此处可设置语气与人格，留空清除自定义内容。'
+        )
+        self._personality_hint.setWordWrap(True)
+        layout.addRow(self._personality_hint)
         self._edit_personality = QTextEdit()
         self._edit_personality.setPlaceholderText('如："你是一个严谨的时间管理专家，说话简洁专业"\n或 "你是一个亲切的私人助理，用轻松幽默的语气回复"\n\n留空则不添加额外人格设定')
         self._edit_personality.setMaximumHeight(100)
+        self._edit_personality.setMinimumHeight(100)
         layout.addRow(self._edit_personality)
 
         btn = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
@@ -133,20 +121,13 @@ class SettingsDialog(QDialog):
             f'font-weight:bold;color:{t["title_color"]};'
             f'font-size:{scale.section_title_px}px;'
         )
-        self._lbl_prompt.setStyleSheet(title_style)
         self._lbl_personality.setStyleSheet(title_style)
-        reset_height = max(
-            24,
-            QFontMetrics(qfont_for(scale, 'control')).height() + 8,
-        )
-        self._btn_reset_prompt.setMinimumHeight(reset_height)
 
     def _load(self):
         cfg = cfg_mod.load_config()
         self._edit_ep.setText(cfg.get('api_endpoint', ''))
         self._edit_key.setText(cfg.get('api_key', ''))
-        self._edit_prompt.setPlainText(cfg.get('system_prompt', ''))
-        self._edit_personality.setPlainText(cfg.get('ai_personality', ''))
+        self._edit_personality.setPlainText(AIService.merge_personality_settings(cfg))
         cur_model = cfg.get('model', 'deepseek-v4-pro')
         models = cfg.get('available_models', [])
         self._cmb_model.clear()
@@ -197,11 +178,8 @@ class SettingsDialog(QDialog):
             self._spin_max_tok.setValue(max_out)
             self._lbl_info.setText(f'✅ 获取到 {len(models)} 个模型 | 上下文窗口: {ctx_win//1024}K | 最大输出: {max_out}')
 
-    def _reset_prompt(self):
-        self._edit_prompt.clear()
-
     def _save(self):
-        current = cfg_mod.load_config()
+        current = dict(cfg_mod.load_config())
         current.update({
             'api_endpoint': self._edit_ep.text().strip(),
             'api_key': self._edit_key.text().strip(),
@@ -211,7 +189,7 @@ class SettingsDialog(QDialog):
             'context_window': self._spin_ctx.value(),
             'thinking_enabled': self._chk_think.isChecked(),
             'think_effort': self._cmb_think.currentText(),
-            'system_prompt': self._edit_prompt.toPlainText().strip(),
+            'system_prompt': '',
             'ai_personality': self._edit_personality.toPlainText().strip(),
         })
         try:

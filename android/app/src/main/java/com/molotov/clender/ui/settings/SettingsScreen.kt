@@ -35,7 +35,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.molotov.clender.R
-import com.molotov.clender.ui.event.AlertPermissionSection
 import com.molotov.clender.ui.foundation.ThemeMode
 
 @Composable
@@ -205,7 +204,7 @@ private fun ApplicationSettingsSection(
         Text(stringResource(R.string.settings_save_application))
     }
     BackgroundSettingsSection()
-    AlertPermissionSection()
+    AlertSettingsSection()
 }
 
 @Composable

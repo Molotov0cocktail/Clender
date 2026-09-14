@@ -7,6 +7,36 @@ from models import Conversation
 
 
 class AIServiceTests(unittest.TestCase):
+    @mock.patch('ai_service.EventService.get_all_events', return_value=[])
+    def test_merged_personality_is_injected_once_and_clear_has_no_hidden_style(self, _):
+        from constants import SYSTEM_PROMPT
+        for config, expected in (
+            ({'system_prompt': 'unique-old', 'ai_personality': 'unique-new'}, 'unique-old\n\nunique-new'),
+            ({'system_prompt': '', 'ai_personality': 'unique-old\n\nunique-new'}, 'unique-old\n\nunique-new'),
+            ({'system_prompt': '', 'ai_personality': ''}, ''),
+        ):
+            with mock.patch('config.load_config', return_value=config):
+                messages, _ = AIService.build_context_messages()
+            self.assertTrue(messages[0]['content'].startswith(SYSTEM_PROMPT))
+            joined = '\n'.join(message['content'] for message in messages)
+            self.assertEqual(1 if expected else 0, joined.count('unique-old'))
+            self.assertEqual(1 if expected else 0, joined.count('unique-new'))
+            if expected:
+                self.assertIn(expected, messages[0]['content'])
+            else:
+                self.assertEqual(SYSTEM_PROMPT, messages[0]['content'])
+
+    def test_personality_compatibility_merge_has_no_hidden_duplicate(self):
+        for legacy, persona, expected in (
+            ('', '', ''), ('old', '', 'old'), ('', 'new', 'new'),
+            ('same', 'same', 'same'), ('old', 'new', 'old\n\nnew'),
+            (None, [], ''),
+        ):
+            with self.subTest(legacy=legacy, persona=persona):
+                self.assertEqual(expected, AIService.merge_personality_settings(
+                    {'system_prompt': legacy, 'ai_personality': persona}
+                ))
+
     def test_windows_prompt_has_single_reminder_policy(self):
         from constants import SYSTEM_PROMPT
         platform = SYSTEM_PROMPT.split('当前平台为Windows，')[-1]
