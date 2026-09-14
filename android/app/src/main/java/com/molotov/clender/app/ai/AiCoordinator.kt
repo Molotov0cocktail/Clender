@@ -399,7 +399,9 @@ private fun AiExecutionReport.operationReplies(): List<String> {
 private fun noChangeReply(replies: List<String>): String = "本轮未修改日程。" + modelReply(replies)
 
 private fun modelReply(replies: List<String>): String {
-    val body = replies.map(::stripApplicationReceipts).filter(String::isNotBlank).joinToString("\n")
+    val body = replies.map { reply ->
+        stripApplicationReceipts(reply).ifBlank { reply.trim() }
+    }.filter(String::isNotBlank).joinToString("\n")
     return if (body.isEmpty()) "" else "\n\n模型回复：\n$body"
 }
 

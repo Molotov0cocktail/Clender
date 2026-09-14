@@ -148,16 +148,17 @@ class PlatformEventAlerts(
         }
         val notification = builder.build()
         val started = !important || alarmDelivery.start(event, token, notification, alarmSound())
-        return if (started) {
-            runCatching {
-                notifications.notify(tag(event.id), token.kind.ordinal + 1, notification)
-            }.onFailure {
-                if (important) alarmDelivery.stop(event.id)
-            }.getOrThrow()
-            true
+        val visible = if (started) {
+            notification
         } else {
-            false
+            builder.setContentText(context.getString(R.string.event_alert_sound_failed)).build()
         }
+        runCatching {
+            notifications.notify(tag(event.id), token.kind.ordinal + 1, visible)
+        }.onFailure {
+            if (important) alarmDelivery.stop(event.id)
+        }.getOrThrow()
+        return started
     }
 
     override fun dismiss(eventId: Long) {

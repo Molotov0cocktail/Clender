@@ -1,3 +1,7 @@
+# T70 双端 AI 与提醒修复（2026-09-14，本地验证完成，待用户验收）
+
+基线main/e65bbad，三个独立子agent已实现并交叉审查。已批准提示词应用、GLM冗余说明删除、Android缺正文与音源失败反馈修复、Windows统一提醒及WebDAV v1兼容测试完成。Android2108tests、Windows274tests及双端完整构建通过；授权真实Provider两端合成CRUD/正文回读通过。API26最终同包界面、API36后台自然响铃播放器/Stop通过，设备恢复回执见任务记录；Xiaomi13真机仍待用户新包验收。用户明确确认后才Release，本轮仅本地提交与包交付。详细矩阵、失败与SHA256见T70-dual-platform-ai-alert-repair.md。
+
 # T69 双端 v1.2.0 正式发布（2026-09-14，完成）
 
 用户确认直接发布现有正式产物为 `v1.2.0`，并更新 README 与内部说明，不修改项目契约。范围仅为文档、Windows 门禁要求的重建与 GitHub/Gitee Release；Android 沿用 T68 已签名 APK/AAB，包内历史版本仍为 `1.0.0 (1)`。任务、风险、测试矩阵与回滚见 `T69-dual-platform-release.md`。Gitee `main` 的独立 LICENSE 提交保持未改，未强推覆盖。Windows 首轮测试受运行实例保护门禁影响 1 error，用户退出后 252/252 通过；完整构建与两场景隔离冒烟通过，`dist/data` 摘要零变化，新 EXE SHA256 `567df4eeb9d2978245e6bcc881222135265f96149a6a3d496fd3c2ea8cd19ced`。`v1.2.0` 双站标签均解引用到 `7ae8c3cc`；GitHub/Gitee 正式 Release 与三个附件已公开，服务端/重新下载摘要全部匹配。

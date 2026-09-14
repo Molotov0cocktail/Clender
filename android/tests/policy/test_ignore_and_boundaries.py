@@ -79,6 +79,21 @@ class IgnoreAndBoundaryTests(PolicyTestCase):
             paths.append(path.replace("\\", "/"))
 
         allowed_exact = {
+            # T70: explicit user-authorized AI and system reminder alignment.
+            "doc/tasks/T70-dual-platform-ai-alert-repair.md",
+            "doc/tasks/T70-system-prompt-review.md",
+            "models.py",
+            "database.py",
+            "event_service.py",
+            "ai_service.py",
+            "event_alerts.py",
+            "ui/event_dialog.py",
+            "ui/event_detail_dialog.py",
+            "tests/test_event_alerts.py",
+            "ai_client.py",
+            "tests/test_ai_client.py",
+            "tests/test_ai_service.py",
+            "ui/ai_settings.py",
             "doc/tasks/T68-android-mixed-alert-ai.md",
             "doc/tasks/T67-android-ai-provider-repair.md",
             "doc/tasks/T66-android-usability-ai-alerts.md",

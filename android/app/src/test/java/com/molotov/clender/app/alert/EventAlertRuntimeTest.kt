@@ -19,6 +19,33 @@ import org.junit.Test
 
 class EventAlertRuntimeTest {
     @Test
+    fun stoppingAlarmBeforeTimerKeepsTimerAndDoesNotReplayAlarm() = runBlocking {
+        Fixture(event().copy(alarmEnabled = true, timerMinutes = 1)).use {
+            it.runtime.refresh().join()
+            val alarm = it.platform.scheduled.single { plan ->
+                plan.token.kind == AlertKind.ALARM
+            }.token
+            val timer = it.platform.scheduled.single { plan ->
+                plan.token.kind == AlertKind.TIMER
+            }.token
+            it.clock.now = Instant.ofEpochMilli(alarm.triggerAtMillis)
+            it.runtime.handle(alarm).join()
+            it.runtime.handle(alarm, stop = true).join()
+            assertTrue(alarm.eventId in it.platform.dismissed)
+            it.runtime.refresh().join()
+            assertFalse(timer in it.platform.cancelled)
+            assertEquals(setOf(AlertSchedule(timer, true)), it.ledger.pending())
+            it.runtime.handle(alarm).join()
+            it.clock.now = Instant.ofEpochMilli(timer.triggerAtMillis)
+            it.runtime.handle(timer).join()
+            it.runtime.handle(timer).join()
+            assertEquals(listOf(alarm, timer), it.platform.shown)
+            assertEquals(AlertReceipt.DELIVERED, it.ledger.receipt(alarm))
+            assertEquals(AlertReceipt.DELIVERED, it.ledger.receipt(timer))
+        }
+    }
+
+    @Test
     fun failedAlarmRemainsFailedAcrossRefreshRestartAndDuplicateDelivery() = runBlocking {
         val event = event().copy(alarmEnabled = true)
         val fixture = Fixture(event)

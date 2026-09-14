@@ -3,7 +3,7 @@ from datetime import datetime, date
 
 from PyQt5.QtWidgets import (QDialog, QFormLayout, QLineEdit, QComboBox,
                              QDateTimeEdit, QDialogButtonBox, QMessageBox,
-                             QTextEdit, QSpinBox)
+                             QTextEdit, QSpinBox, QCheckBox, QLabel)
 from PyQt5.QtCore import QDate, QTime
 
 import theme_manager
@@ -69,6 +69,18 @@ class EventDialog(QDialog):
         layout.addRow('预估时长：', self._spin_duration)
         self._lbl_duration = layout.labelForField(self._spin_duration)
 
+        self._notification = QCheckBox('提醒')
+        self._notification.setChecked(not edit_event)
+        self._timer_minutes = QSpinBox()
+        self._timer_minutes.setRange(0, 1440)
+        self._timer_minutes.setSuffix(' 分钟')
+        self._timer_minutes.setSpecialValueText('关闭')
+        layout.addRow('到时通知：', self._notification)
+        layout.addRow('开始后计时：', self._timer_minutes)
+        self._alert_note = QLabel('提醒使用系统通知；计时在开始后到期通知。需要保持应用运行。')
+        self._alert_note.setWordWrap(True)
+        layout.addRow(self._alert_note)
+
         # 备注
         self._edit_desc = QTextEdit()
         self._edit_desc.setPlaceholderText('可选的备注说明...')
@@ -106,6 +118,8 @@ class EventDialog(QDialog):
         """类型切换时显示/隐藏结束时间和预估时长"""
         is_timespan = self._cmb_type.currentData() == 'timespan'
         is_reminder = not is_timespan
+        if not self._edit_event and hasattr(self, "_notification"):
+            self._notification.setChecked(is_reminder)
         self._edit_end.setVisible(is_timespan)
         self._edit_end_date.setVisible(is_timespan)
         self._lbl_end_date.setVisible(is_timespan)
@@ -147,6 +161,10 @@ class EventDialog(QDialog):
 
         est_dur = ev.get('estimated_duration', 0) or 0
         self._spin_duration.setValue(est_dur)
+        self._notification.setChecked(
+            ev.get('notification_enabled', False) or ev.get('alarm_enabled', False)
+        )
+        self._timer_minutes.setValue(ev.get('timer_minutes', 0))
 
     def _validate_and_accept(self):
         """验证输入后接受"""
@@ -180,4 +198,7 @@ class EventDialog(QDialog):
             'end_time': end_str,
             'description': self._edit_desc.toPlainText().strip(),
             'estimated_duration': est_dur,
+            'notification_enabled': self._notification.isChecked(),
+            'alarm_enabled': False,
+            'timer_minutes': self._timer_minutes.value(),
         }

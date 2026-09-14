@@ -45,7 +45,7 @@ class OkHttpAiContractCorrectionTest {
         )
         val updated = """{"operations":[{"action":"update","event_id":5,"alarm_enabled":true},
             |{"action":"update","event_id":6,"notification_enabled":true,"alarm_enabled":false},
-            |{"action":"update","event_id":7,"timer_minutes":3}]}
+            |{"action":"update","event_id":7,"timer_minutes":3},{"action":"reply","message":"已提交修改"}]}
         """.trimMargin()
         server.enqueue(MockResponse(body = response("123", 1)))
         server.enqueue(MockResponse(body = response(updated, 2)))
@@ -75,7 +75,8 @@ class OkHttpAiContractCorrectionTest {
             AiRequestMessage("user", latest)
         )
         val created = """{"operations":[{"action":"add","event_type":"reminder",
-            |"title":"合成喝水","start_time":"2026-09-09 09:00","notification_enabled":true}]}
+            |"title":"合成喝水","start_time":"2026-09-09 09:00","notification_enabled":true},
+            |{"action":"reply","message":"已提交创建"}]}
         """.trimMargin()
         server.enqueue(MockResponse(body = response("123", 1)))
         server.enqueue(MockResponse(body = response(created, 2)))
@@ -91,13 +92,13 @@ class OkHttpAiContractCorrectionTest {
 
     @Test
     fun repeatedLatestUserMustFitBudgetBeforeSendingCorrection() {
-        val limited = settings().copy(contextWindow = 4_096, maxOutputTokens = 512)
-        val original = listOf(
-            AiRequestMessage("system", DEFAULT_AI_SYSTEM_CONTRACT),
-            AiRequestMessage("user", "修改现有事项。" + "x".repeat(5_000))
-        )
+        val limited = settings().copy(contextWindow = 8_192, maxOutputTokens = 512)
         val inputLimit = limited.contextWindow - limited.maxOutputTokens -
             limited.contextWindow / 10
+        val prefix = listOf(AiRequestMessage("system", DEFAULT_AI_SYSTEM_CONTRACT))
+        val available = inputLimit - AiMessageBudgeter().countTokens(prefix) -
+            AiMessageBudgeter.MESSAGE_OVERHEAD_TOKENS - 16
+        val original = prefix + AiRequestMessage("user", "修改现有事项。" + "x".repeat(available * 3))
         assertTrue(AiMessageBudgeter().countTokens(original) < inputLimit)
         server.enqueue(MockResponse(body = response("123", 1)))
         server.enqueue(MockResponse(body = response(VALID, 2)))
@@ -107,6 +108,37 @@ class OkHttpAiContractCorrectionTest {
         assertTrue(error.failure is AiProtocolException)
         assertEquals(AiCompletionUsage(1, 1, 2), error.usage)
         assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun operationOnlyAndEmptyBatchesRequireVisibleReplyBeforeDelivery() = runBlocking {
+        listOf(
+            """{"operations":[{"action":"delete","event_id":7}]}""",
+            """{"operations":[]}"""
+        ).forEach { missingReply ->
+            server.enqueue(MockResponse(body = response(missingReply, 1)))
+            server.enqueue(MockResponse(body = response(VALID, 2)))
+            val result = client.complete(settings(), CharArray(8) { 'x' }, messages())
+            assertEquals(VALID, result.content)
+            assertEquals(6, result.usage.totalTokens)
+            takeJsonRequest()
+            val correction = takeJsonRequest().getValue("messages").jsonArray
+            val instruction = correction.last().jsonObject.getValue("content").jsonPrimitive.content
+            assertTrue(instruction.contains("至少一个非空reply"))
+        }
+        assertEquals(4, server.requestCount)
+    }
+
+    @Test
+    fun repeatedMissingReplyFailsBeforeAnyCompletionCanBeExecuted() {
+        val missingReply = """{"operations":[{"action":"delete","event_id":7}]}"""
+        repeat(2) { server.enqueue(MockResponse(body = response(missingReply, 1))) }
+        val error = assertThrows(AiAccountedException::class.java) {
+            runBlocking { client.complete(settings(), CharArray(8) { 'x' }, messages()) }
+        }
+        assertTrue(error.failure is AiProtocolException)
+        assertEquals(4, error.usage.totalTokens)
+        assertEquals(2, server.requestCount)
     }
 
     private lateinit var server: MockWebServer
@@ -268,7 +300,8 @@ class OkHttpAiContractCorrectionTest {
     @Test
     fun correctionCannotOverflowInputBudgetOrChangeOriginalMessages() {
         val budgeter = AiMessageBudgeter()
-        val small = settings().copy(contextWindow = 1_024, maxOutputTokens = 128)
+        val contractCost = budgeter.countTokens(messages())
+        val small = settings().copy(contextWindow = (contractCost + 512) * 2, maxOutputTokens = 128)
         val limit = small.contextWindow - small.maxOutputTokens - small.contextWindow / 10
         val request = messages().toMutableList()
         val available = limit - budgeter.countTokens(request) -

@@ -11,7 +11,6 @@ from PyQt5.QtGui import QFontMetrics
 
 import config as cfg_mod
 import theme_manager
-from constants import SYSTEM_PROMPT
 from ai_client import fetch_models_list
 from ai_service import AIService
 from typography import app_scale_from_config, qfont_for
@@ -84,7 +83,7 @@ class SettingsDialog(QDialog):
         # ── 系统提示词编辑 ──
         layout.addRow(QLabel(''))
         prompt_header = QHBoxLayout()
-        self._lbl_prompt = QLabel('📝 系统提示词')
+        self._lbl_prompt = QLabel('📝 自定义风格补充')
         self._lbl_prompt.setObjectName('aiSettingsPromptTitle')
         prompt_header.addWidget(self._lbl_prompt)
         prompt_header.addStretch()
@@ -95,7 +94,7 @@ class SettingsDialog(QDialog):
         layout.addRow(prompt_header)
 
         self._edit_prompt = QTextEdit()
-        self._edit_prompt.setPlaceholderText('留空则使用默认提示词\n\n提示：在此编写自定义的系统级指令...')
+        self._edit_prompt.setPlaceholderText('固定日程操作契约始终生效。这里仅补充语气与风格，不能覆盖日期、操作和安全规则。')
         self._edit_prompt.setMaximumHeight(180)
         layout.addRow(self._edit_prompt)
 
@@ -199,7 +198,7 @@ class SettingsDialog(QDialog):
             self._lbl_info.setText(f'✅ 获取到 {len(models)} 个模型 | 上下文窗口: {ctx_win//1024}K | 最大输出: {max_out}')
 
     def _reset_prompt(self):
-        self._edit_prompt.setPlainText(SYSTEM_PROMPT)
+        self._edit_prompt.clear()
 
     def _save(self):
         current = cfg_mod.load_config()

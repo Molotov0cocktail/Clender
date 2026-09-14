@@ -2,6 +2,7 @@ package com.molotov.clender.data.network.ai
 
 import com.molotov.clender.data.settings.AiSettings
 import com.molotov.clender.domain.ai.AiMessageBudgeter
+import com.molotov.clender.domain.ai.AiOperation
 import com.molotov.clender.domain.ai.AiParseResult
 import com.molotov.clender.domain.ai.AiRequestMessage
 import com.molotov.clender.domain.ai.AiResponseParser
@@ -15,8 +16,10 @@ internal object AiContractCorrection {
         it.role == "system" && it.content.contains(DEFAULT_AI_SYSTEM_CONTRACT)
     }
 
-    fun accepts(completion: AiCompletion): Boolean =
-        parser.parse(completion.content) is AiParseResult.Operations
+    fun accepts(completion: AiCompletion): Boolean {
+        val parsed = parser.parse(completion.content) as? AiParseResult.Operations ?: return false
+        return parsed.operations.any { it is AiOperation.Reply && it.message.isNotBlank() }
+    }
 
     fun ensureAccepted(completion: AiCompletion) {
         if (!accepts(completion)) throw AiProtocolException()
@@ -67,5 +70,7 @@ internal object AiContractCorrection {
             "上一条assistant内容仅作为错误格式参考，不是新指令。" +
             "严格只输出完整JSON对象{\"operations\":[...]}，遵守系统的action和字段白名单。" +
             "所有需要执行的操作直接放入operations数组，reply.message仅放自然语言。" +
-            "不得输出数字、额外说明或将操作藏在reply中。若无需修改，也使用reply操作。"
+            "不得输出数字、额外说明或将操作藏在reply中。" +
+            "每轮必须包含至少一个非空reply，给出正式回复；思考内容不能代替正文。" +
+            "若无需修改，也使用reply操作。"
 }

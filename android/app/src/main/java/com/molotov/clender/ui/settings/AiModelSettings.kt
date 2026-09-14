@@ -79,12 +79,6 @@ internal fun ThinkingEffortSelector(
 
 @Composable
 internal fun ModelCapabilityHint(state: SettingsUiState) {
-    if (state.ai.model.lowercase() in setOf("glm-5.3", "glm-5.3-flash")) {
-        Text(
-            stringResource(R.string.ai_glm_thinking_hint),
-            modifier = Modifier.testTag("settings_ai_glm_thinking_hint")
-        )
-    }
     if (state.ai.model in state.models) {
         val capabilities = state.modelCapabilities[state.ai.model]
         val known = capabilities?.contextWindow != null || capabilities?.maxOutputTokens != null

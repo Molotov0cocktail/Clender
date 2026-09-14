@@ -4,6 +4,9 @@ import unittest
 from unittest.mock import patch
 import test_ignore_and_boundaries as boundaries
 
+# T70 now explicitly authorizes database.py and event_service.py; use still-unapproved
+# PC files below so these historical fixtures continue testing the current boundary.
+
 
 class AppearanceBoundaryTests(unittest.TestCase):
     def check_paths(self, *paths):
@@ -23,7 +26,7 @@ class AppearanceBoundaryTests(unittest.TestCase):
                          'tests/test_app_icon.py')
 
     def test_unknown_business_files_and_suffixes_denied(self):
-        for path in ('database.py', 'config.py', 'ui/unapproved.py', 'background.py.bak',
+        for path in ('webdav_sync.py', 'config.py', 'ui/unapproved.py', 'background.py.bak',
                      'doc/tasks/T60-unapproved.md', 'data/config.json', 'dist/Clender.exe',
                      'dist/data/clender.db', 'assets/private.jpg'):
             with self.subTest(path=path), self.assertRaises(AssertionError):

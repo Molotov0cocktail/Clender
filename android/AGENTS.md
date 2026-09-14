@@ -1,3 +1,15 @@
+# T70 双端 AI 与提醒修复（2026-09-14，本地验证完成，待用户验收）
+
+本轮Android实现：固定提示词按用户已批准全文更新，每轮读取当地日期/最新事项，正式响应要求非空reply；一次有预算纠正在任何写入之前执行，第二次仍非法则零写失败。协调与呈现兼容层不得剥掉唯一正式正文，旧独立回执隐藏与部分操作失败防虚假成功保持。GLM设置冗余说明移除，Provider兼容不变。
+
+重要闹钟新增`FallbackAlarmAudioPlayer`，由`ImportantAlarmSessions`包裹既有播放器工厂；仅自定义音源读取/准备失败可尝试系统默认闹钟一次，generation隔离旧回调，停止/过期禁止迟到播放，开始或音频焦点失败不重播。显式静音/频道/DND逻辑不变。`PlatformEventAlerts.show`声音失败也提交明确失败文字通知，仍返回false并持久FAILED，不伪报DELIVERED。无Room/Manifest/权限/依赖/WebDAV变更。用户Xiaomi13/Android14后台到时无表现尚未在真机复现，截图自定义音源仅为相关线索；不能用模拟器通过代替其手机验收。
+
+用户授权双端修复、独立子agent和本地测试构建；完成后先交用户检验，确认后才Release，本轮不推送或发布。基线main/e65bbad。完整提示词已在doc/tasks/T70-system-prompt-review.md经用户确认后才实施；每轮读取日期与最新事项，必须有正式reply，不用思考代替正文。Android移除多余GLM说明但保留兼容逻辑；闹钟先以隔离设备查证。Windows界面仅一种“提醒”，旧alarm字段仅兼容输入且与notification取OR映射系统通知，允许必要本机字段/收据与旧库兼容迁移，不增加独立响铃或退出后调度，WebDAV v1不变。真实验收仅本轮临时凭据与合成数据、凭据不落盘，真实库不用于测试。任务/矩阵/分工/回滚见doc/tasks/T70-dual-platform-ai-alert-repair.md。双端完整验证与签名/EXE构建已完成，设备验收和本地提交回执见T70记录，不沿用T69数字作为本轮通过。
+
+维护记录（T70，2026-09-14）：三独立子agent完成双端AI/提醒修复；批准提示词已应用，Android新增音源一次回退与声音失败可见通知，缺reply执行前纠正与唯一正文保留，Windows单一提醒及本机事务字段/收据，WebDAV v1保持。Android208suites/2108tests零失败/错误/跳过/四类泄漏、111发布夹具与两组98策略、完整verify-all及签名APK/AAB审计通过；Windows最终274tests、完整PyInstaller及普通/静默两场景隔离EXE全部通过。真实Provider Android7轮/11HTTP200/19752tokens、Windows3轮/3HTTP200/3841tokens，均合成CRUD及正文回读通过，临时Key不落盘且调用结束。APK SHA256 c07f2d151ed365512bd4a1817b30235de500b56df85ffb5c83c90bfa5f90e493；EXE SHA256 0c6fb462b5aa3127041c93bee27b0e6b2bb839dfe6b25aea6a3f2658dee52c41；dist/data5文件/159343bytes摘要不变。API26同包冷启/设置/AI/表单通过；API36同包后台自然播放器启动及Stop释放通过，无厂商真机/人工听音结论。Windows通知依赖应用运行，到期一分钟窗口内提交，系统展示不作保证。失败历史、各产物完整摘要与设备恢复记录见T70任务；本地交付后待用户验收，不推送、不Release，提交以Git日志为准。
+
+T70设备清理回执：两模拟器合成事项与临时状态已清理/恢复，按AVD身份关闭，最终adb devices为空。API36视觉helper恢复导航曾失败，重开应用纠正后回读原值通过，失败保留；不影响已完成自然到时/Stop和四帧视觉证据。
+
 # T69 Android v1.2.0 发布说明（2026-09-14，完成）
 
 本轮只发布 T68 已签名并验收的现有正式 APK/AAB，不修改 Android 生产源码、构建配置、版本字段或任何项目契约，不重新签名。Release 标签为 `v1.2.0`；包内历史版本仍为 `1.0.0 (1)`。正式 APK SHA256 `c24bbb3aa0d5f57ccb7720b5f7ee9aae3a71d55a8e46b8b91a6992a48311c068`，AAB SHA256 `573e04c0372aa235973fafb36fb8ad630905018be6b3f4d80082df5a5e51939f`。只上传 release APK/AAB，未上传 debug APK、mapping、测试报告、签名材料、配置、日志或用户数据。GitHub 服务端digest及Gitee重新下载字节摘要均与本地一致，双站正式 Release 已公开；完整发布与回读结果见 `doc/tasks/T69-dual-platform-release.md`。

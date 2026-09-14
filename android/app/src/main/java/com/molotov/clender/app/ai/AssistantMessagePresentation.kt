@@ -24,8 +24,10 @@ private fun presentWrappedMessage(content: String): AssistantMessagePresentation
     val feedback = normalizeReceipt(first.groupValues[1])
     var body = content.trim().substring(first.range.last + 1).trimStart()
     while (true) {
-        val nested = receiptPrefix.find(body) ?: break
-        body = body.substring(nested.range.last + 1).trimStart()
+        val remainder = receiptPrefix.find(body)?.let { nested ->
+            body.substring(nested.range.last + 1).trimStart()
+        }?.takeIf(String::isNotEmpty) ?: break
+        body = remainder
     }
     return AssistantMessagePresentation(body, feedback)
 }

@@ -27,12 +27,18 @@ class Event:
     estimated_duration: int = 0   # 分钟
     created_at: str = ""
 
+    notification_enabled: bool = False
+    alarm_enabled: bool = False
+    timer_minutes: int = 0
+
     # ── dict 兼容层（向后兼容现有 dict 访问代码）──
     _DICT_MAP = {
         "id": "id", "event_type": "event_type", "title": "title",
         "start_time": "start_time", "end_time": "end_time",
         "description": "description", "estimated_duration": "estimated_duration",
         "created_at": "created_at",
+        "notification_enabled": "notification_enabled", "alarm_enabled": "alarm_enabled",
+        "timer_minutes": "timer_minutes",
     }
 
     def __getitem__(self, key: str):
@@ -67,6 +73,9 @@ class Event:
             description=row.get("description", ""),
             estimated_duration=row.get("estimated_duration", 0) or 0,
             created_at=row.get("created_at", ""),
+            notification_enabled=bool(row.get("notification_enabled", False)),
+            alarm_enabled=bool(row.get("alarm_enabled", False)),
+            timer_minutes=row.get("timer_minutes", 0),
         )
 
     def to_dict(self) -> dict:
@@ -79,6 +88,9 @@ class Event:
             "end_time": self.end_time,
             "description": self.description,
             "estimated_duration": self.estimated_duration,
+            "notification_enabled": self.notification_enabled,
+            "alarm_enabled": self.alarm_enabled,
+            "timer_minutes": self.timer_minutes,
         }
 
     @property

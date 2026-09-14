@@ -40,15 +40,35 @@ class AlertPlatformContractTest {
 
     @Test
     @Config(sdk = [26])
-    fun alarmStartFailurePostsNothingAndDismissStopsPlayback() {
+    fun failedAlarmAudioStillPostsExplicitFailureNotificationWithoutReportingDelivery() {
         val delivery = FakeAlarmDelivery().apply { succeeds = false }
         val platform = PlatformEventAlerts(context, delivery)
         val event = event().copy(alarmEnabled = true)
         val token = AlertPlanFactory.tokens(event, ZoneOffset.UTC).single()
         assertFalse(platform.show(event, token))
-        assertTrue(
+        val notification = shadowOf(
+            context.getSystemService(NotificationManager::class.java)
+        ).allNotifications.single()
+        assertEquals(event.title, notification.extras.getString(Notification.EXTRA_TITLE))
+        val text = notification.extras.getString(Notification.EXTRA_TEXT).orEmpty()
+        assertTrue(text.contains("声音未能播放") || text.contains("Alarm sound could not play"))
+        assertEquals(Notification.GROUP_ALERT_SUMMARY, notification.groupAlertBehavior)
+        assertNotNull(notification.actions.single().actionIntent)
+        platform.dismiss(event.id)
+    }
+
+    @Test
+    @Config(sdk = [26])
+    fun alarmStartFailureKeepsVisibleFeedbackAndDismissStopsPlayback() {
+        val delivery = FakeAlarmDelivery().apply { succeeds = false }
+        val platform = PlatformEventAlerts(context, delivery)
+        val event = event().copy(alarmEnabled = true)
+        val token = AlertPlanFactory.tokens(event, ZoneOffset.UTC).single()
+        assertFalse(platform.show(event, token))
+        assertEquals(
+            1,
             shadowOf(context.getSystemService(NotificationManager::class.java))
-                .allNotifications.isEmpty()
+                .allNotifications.size
         )
         assertEquals(listOf(token), delivery.started)
         platform.dismiss(event.id)

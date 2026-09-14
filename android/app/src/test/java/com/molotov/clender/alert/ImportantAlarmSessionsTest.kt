@@ -18,6 +18,92 @@ import org.robolectric.annotation.Config
 @Config(sdk = [26, 36], application = Application::class)
 class ImportantAlarmSessionsTest {
     @Test
+    fun readableCustomSoundPlaysWithoutFallbackAndFocusFailureNeverRetries() {
+        listOf(false, true).forEach { focusFails ->
+            val harness = Harness()
+            val custom = Uri.parse("content://synthetic/readable")
+            harness.player.startFails = focusFails
+            val request = request(1, custom)
+            harness.sessions.add(request)
+            harness.player.ready()
+            assertEquals(listOf(custom), harness.player.preparedSounds)
+            assertEquals(!focusFails, request.result.get())
+            if (!focusFails) harness.sessions.stop(1)
+            assertEquals(1, harness.player.releases)
+        }
+    }
+
+    @Test
+    fun inaccessibleCustomSoundFallsBackOnceAndOnlyAcknowledgesStartedDefaultSound() {
+        listOf(IOException("Synthetic missing sound"), SecurityException("Synthetic denied sound"))
+            .forEach { error ->
+                val harness = Harness()
+                val custom = Uri.parse("content://synthetic/sound")
+                harness.player.unreadable = custom
+                harness.player.prepareError = error
+                val request = request(1, custom)
+                harness.sessions.add(request)
+                assertEquals(listOf(custom, defaultSound()), harness.player.preparedSounds)
+                assertFalse(request.result.isDone)
+                assertEquals(1, harness.player.releases)
+                harness.player.ready()
+                assertTrue(request.result.get())
+                assertEquals(1, harness.player.starts)
+                harness.sessions.close()
+                assertEquals(2, harness.player.releases)
+            }
+    }
+
+    @Test
+    fun asynchronousCustomPreparationFailureUsesDefaultAndIgnoresObsoleteCallbacks() {
+        val harness = Harness()
+        val custom = Uri.parse("content://synthetic/sound")
+        val request = request(1, custom)
+        harness.sessions.add(request)
+        val obsoleteReady = harness.player.ready
+        val obsoleteFailure = harness.player.fail
+        obsoleteFailure()
+        assertEquals(listOf(custom, defaultSound()), harness.player.preparedSounds)
+        obsoleteReady()
+        obsoleteFailure()
+        assertFalse(request.result.isDone)
+        assertEquals(0, harness.player.starts)
+        harness.player.ready()
+        assertTrue(request.result.get())
+        assertEquals(1, harness.player.starts)
+        harness.sessions.stop(1)
+    }
+
+    @Test
+    fun defaultFailureAfterCustomFailureStopsWithoutFurtherRetriesOrSuccess() {
+        val harness = Harness()
+        harness.player.prepareFails = true
+        val custom = Uri.parse("content://synthetic/sound")
+        val request = request(1, custom)
+        harness.sessions.add(request)
+        assertEquals(listOf(custom, defaultSound()), harness.player.preparedSounds)
+        assertFalse(request.result.get())
+        assertEquals(0, harness.player.starts)
+        assertEquals(2, harness.player.releases)
+        assertEquals(1, harness.idleCount)
+    }
+
+    @Test
+    fun stoppingDuringFallbackPreparationPreventsLateDefaultPlayback() {
+        val harness = Harness()
+        val custom = Uri.parse("content://synthetic/sound")
+        harness.player.unreadable = custom
+        val request = request(1, custom)
+        harness.sessions.add(request)
+        assertEquals(listOf(custom, defaultSound()), harness.player.preparedSounds)
+        harness.sessions.stop(1)
+        harness.player.ready()
+        assertFalse(request.result.get())
+        assertEquals(0, harness.player.starts)
+        assertEquals(2, harness.player.releases)
+    }
+
+    @Test
     fun unreadableSelectedSoundRejectsRequestAndReleasesWithoutCrashingService() {
         val harness = Harness()
         harness.player.prepareFails = true
@@ -126,10 +212,12 @@ class ImportantAlarmSessionsTest {
         assertEquals(1, harness.player.releases)
     }
 
-    private fun request(id: Long) = AlarmPlaybackRequest(
+    private fun defaultSound(): Uri = Uri.parse("content://settings/system/alarm_alert")
+
+    private fun request(id: Long, sound: Uri = defaultSound()) = AlarmPlaybackRequest(
         token = AlertToken(id, AlertKind.ALARM, 1, "2026-09-08T00:00:00Z"),
         notification = Notification(),
-        sound = Uri.parse("content://settings/system/alarm_alert")
+        sound = sound
     )
 
     private class Harness {
@@ -153,10 +241,16 @@ class ImportantAlarmSessionsTest {
         var starts = 0
         var releases = 0
         var prepareFails = false
+        var startFails = false
+        var unreadable: Uri? = null
+        var prepareError: Exception = IOException("Synthetic unreadable alarm URI")
+        val preparedSounds = mutableListOf<Uri>()
         lateinit var ready: () -> Unit
         lateinit var fail: () -> Unit
 
         override fun prepare(sound: Uri, prepared: () -> Unit, failed: () -> Unit) {
+            preparedSounds += sound
+            if (sound == unreadable) throw prepareError
             if (prepareFails) throw IOException("Synthetic unreadable alarm URI")
             steps += "prepare"
             ready = prepared
@@ -164,6 +258,7 @@ class ImportantAlarmSessionsTest {
         }
 
         override fun start() {
+            check(!startFails)
             starts++
         }
 

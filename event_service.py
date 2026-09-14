@@ -47,6 +47,10 @@ class EventService:
         return database.get_events_overlapping_range(start, end)
 
     @staticmethod
+    def get_alert_candidates(now: datetime) -> list[Event]:
+        return database.get_alert_candidates(now)
+
+    @staticmethod
     def get_all_events() -> list:
         """获取所有事件"""
         return database.get_all_events()
@@ -94,7 +98,11 @@ class EventService:
         end_time: Optional[str],
         description: str,
         estimated_duration: int,
+        notification_enabled: bool | None = None,
+        alarm_enabled: bool = False,
+        timer_minutes: int = 0,
     ) -> tuple[str, Optional[str], str, int]:
+        EventService.validate_alert_policy(notification_enabled, alarm_enabled, timer_minutes)
         if not isinstance(title, str) or not title.strip():
             raise ValueError("事件标题不能为空")
         if event_type not in (EventType.REMINDER.value, EventType.TIMESPAN.value):
@@ -124,14 +132,32 @@ class EventService:
         return title.strip(), normalized_end, description, estimated_duration
 
     @staticmethod
+    def validate_alert_policy(
+        notification_enabled: bool | None = None,
+        alarm_enabled: bool = False,
+        timer_minutes: int = 0,
+    ) -> None:
+        if notification_enabled is not None and type(notification_enabled) is not bool:
+            raise ValueError("notification_enabled 必须为布尔值")
+        if type(alarm_enabled) is not bool:
+            raise ValueError("alarm_enabled 必须为布尔值")
+        if type(timer_minutes) is not int or not 0 <= timer_minutes <= 1440:
+            raise ValueError("timer_minutes 必须为0–1440整数")
+
+    @staticmethod
     def add_event(title: str, event_type: str, start_time: str,
                   end_time: Optional[str] = None,
                   description: str = "",
-                  estimated_duration: int = 0) -> int:
+                  estimated_duration: int = 0,
+                  notification_enabled: bool | None = None,
+                  alarm_enabled: bool = False, timer_minutes: int = 0) -> int:
         """添加事件，返回新事件 ID"""
         title, end_time, description, estimated_duration = EventService.validate_event(
             title, event_type, start_time, end_time, description, estimated_duration
         )
+        EventService.validate_alert_policy(notification_enabled, alarm_enabled, timer_minutes)
+        if notification_enabled is None:
+            notification_enabled = event_type == EventType.REMINDER.value
         return database.add_event(
             event_type=event_type,
             title=title,
@@ -139,6 +165,9 @@ class EventService:
             end_time=end_time,
             description=description,
             estimated_duration=estimated_duration,
+            notification_enabled=notification_enabled,
+            alarm_enabled=alarm_enabled,
+            timer_minutes=timer_minutes,
         )
 
     @staticmethod
@@ -155,13 +184,18 @@ class EventService:
             'start_time',
             'end_time',
             'description',
-            'estimated_duration',
+            'estimated_duration', 'notification_enabled', 'alarm_enabled', 'timer_minutes',
         }
         unknown = set(fields) - allowed
         if unknown:
             raise ValueError(f"不允许更新字段: {', '.join(sorted(unknown))}")
         merged = existing.to_dict()
         merged.update(fields)
+        EventService.validate_alert_policy(
+            merged.get("notification_enabled"),
+            merged.get("alarm_enabled", False),
+            merged.get("timer_minutes", 0),
+        )
         title, end_time, description, estimated_duration = EventService.validate_event(
             merged['title'], merged['event_type'], merged['start_time'],
             merged.get('end_time'), merged.get('description', ''),
@@ -184,6 +218,8 @@ class EventService:
             normalized['description'] = description
         if 'estimated_duration' in fields:
             normalized['estimated_duration'] = estimated_duration
+        if all(existing.to_dict().get(key) == value for key, value in normalized.items()):
+            return 0
         return database.update_event(event_id, **normalized)
 
     @staticmethod

@@ -352,13 +352,17 @@ class AIChatWidget(QFrame):
         self._update_token_bar()
 
         cfg = cfg_mod.load_config()
-        messages = AIService.build_request_messages(
-            conversation,
-            context_window=cfg.get('context_window', 128000),
-            max_output_tokens=cfg.get('max_tokens', 4096),
-        )
         self._pending_conv_id = conversation.id
         self._pending_source = source
+        try:
+            messages = AIService.build_request_messages(
+                conversation,
+                context_window=cfg.get('context_window', 128000),
+                max_output_tokens=cfg.get('max_tokens', 4096),
+            )
+        except ValueError as exc:
+            self._on_error(str(exc))
+            return False
         self._ai_thread = AICallThread(messages=messages)
         self._ai_thread.result_ready.connect(self._on_result)
         self._ai_thread.error_occurred.connect(self._on_error)

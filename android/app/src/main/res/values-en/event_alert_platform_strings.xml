@@ -4,4 +4,5 @@
     <string name="event_alert_alarm_channel">Important event alarms</string>
     <string name="event_alert_timer_channel">Event timers</string>
     <string name="event_alert_stop">Stop alert</string>
+    <string name="event_alert_sound_failed">Alarm sound could not play. Check reminder settings.</string>
 </resources>

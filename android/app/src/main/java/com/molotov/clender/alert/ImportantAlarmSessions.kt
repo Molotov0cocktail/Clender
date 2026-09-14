@@ -64,7 +64,7 @@ internal class ImportantAlarmSessions(
             if (playing) {
                 request.acknowledge { }
             } else if (player == null) {
-                val owned = playerFactory()
+                val owned = FallbackAlarmAudioPlayer(playerFactory)
                 player = owned
                 owned.prepare(request.sound, ::prepared, ::failed)
             }

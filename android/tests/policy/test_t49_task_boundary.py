@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 import test_ignore_and_boundaries as boundary_module
 
+# T70 authorizes database.py; config.py remains an unrelated, denied PC file.
+
 
 class T49TaskBoundaryTests(unittest.TestCase):
     def check_paths(self, paths):
@@ -30,7 +32,7 @@ class T49TaskBoundaryTests(unittest.TestCase):
         for path in (
             "doc/tasks/T49-unapproved.md",
             "doc/tasks/T49-calendar-layout.md/extra",
-            "database.py",
+            "config.py",
             "scripts/unapproved.py",
             "tests/unapproved.py",
             "data/config.json",

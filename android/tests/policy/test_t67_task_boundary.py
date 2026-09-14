@@ -1,6 +1,7 @@
 """T67 authorizes one exact task record without broadening unrelated paths."""
 import subprocess
 import unittest
+from pathlib import PurePosixPath
 from unittest.mock import patch
 
 import test_ignore_and_boundaries as boundaries
@@ -47,6 +48,46 @@ class T67TaskBoundaryTests(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(AssertionError):
                 self.check_paths(path)
 
+    def test_t70_exact_dual_platform_scope_is_allowed(self):
+        self.check_paths(
+            "doc/tasks/T70-dual-platform-ai-alert-repair.md",
+            "doc/tasks/T70-system-prompt-review.md",
+            "models.py", "database.py", "event_service.py", "ai_service.py",
+            "event_alerts.py", "ui/event_dialog.py", "ui/event_detail_dialog.py",
+            "tests/test_event_alerts.py",
+            "ai_client.py", "tests/test_ai_client.py", "tests/test_ai_service.py",
+            "ui/ai_settings.py",
+        )
+
+    def test_t70_similar_paths_are_denied(self):
+        for path in ("doc/tasks/T70-other.md", "event_alerts.py.bak",
+                     "tests/test_event_alerts_other.py", "database.py/child"):
+            with self.subTest(path=path), self.assertRaises(AssertionError):
+                self.check_paths(path)
+
+    def test_every_t70_exact_exception_rejects_adjacent_names_and_descendants(self):
+        exact = (
+            "doc/tasks/T70-dual-platform-ai-alert-repair.md",
+            "doc/tasks/T70-system-prompt-review.md",
+            "models.py", "database.py", "event_service.py", "ai_service.py",
+            "event_alerts.py", "ui/event_dialog.py", "ui/event_detail_dialog.py",
+            "tests/test_event_alerts.py", "ai_client.py", "tests/test_ai_client.py",
+            "tests/test_ai_service.py", "ui/ai_settings.py",
+        )
+        for authorized in exact:
+            location = PurePosixPath(authorized)
+            near_name = str(location.with_name("other_" + location.name))
+            for path in (authorized + ".bak", authorized + "/child", near_name):
+                with self.subTest(path=path), self.assertRaises(AssertionError):
+                    self.check_paths(authorized, path)
+
+    def test_t70_document_cannot_hide_unrelated_pc_data_or_artifact_changes(self):
+        for path in ("config.py", "webdav_sync.py", "calendar_logic.py",
+                     "tests/test_unrequested_ai.py", "data/config.json",
+                     "dist/data/clender.db", "dist/Clender.exe", "doc/tasks/T70-other.md"):
+            with self.subTest(path=path), self.assertRaises(AssertionError):
+                self.check_paths("doc/tasks/T70-dual-platform-ai-alert-repair.md", path)
+
     def test_other_task_names_and_suffixes_are_denied(self):
         for path in ("doc/tasks/T67-other.md",
                      "doc/tasks/T67-android-ai-provider-repair.md.bak",
@@ -55,7 +96,7 @@ class T67TaskBoundaryTests(unittest.TestCase):
                 self.check_paths(path)
 
     def test_unrelated_pc_paths_data_and_artifacts_are_denied(self):
-        for path in ("event_service.py", "calendar_logic.py", "database.py",
+        for path in ("calendar_logic.py", "webdav_sync.py", "config.py",
                      "data/config.json", "dist/data/clender.db", "dist/Clender.exe"):
             with self.subTest(path=path), self.assertRaises(AssertionError):
                 self.check_paths(path)

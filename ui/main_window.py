@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout, QV
                              QSplitter, QStatusBar, QLabel, QPushButton,
                              QSystemTrayIcon, QMenu, QInputDialog, QDialog,
                              QMessageBox)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QColor
 from background import BackgroundWidget
 from app_icon import create_app_icon
@@ -18,6 +18,7 @@ from app_icon import create_app_icon
 import config as cfg_mod
 import theme_manager
 from event_service import EventService
+from event_alerts import EventAlertDispatcher
 from floating_window_logic import FloatingWindowSettings
 from logger import get_logger
 from sync_controller import SyncController
@@ -53,6 +54,11 @@ class MainWindow(QMainWindow):
         self._floating_window = DailyFloatingWindow()
         self._sync_controller = SyncController(self)
         self._init_tray()
+        self._alert_dispatcher = EventAlertDispatcher(self._deliver_event_alert)
+        self._alert_timer = QTimer(self)
+        self._alert_timer.setInterval(1000)
+        self._alert_timer.timeout.connect(self._poll_event_alerts)
+        self._alert_timer.start()
         self._load_sample_data_if_empty()
         self._connect_signals()
         self._apply_app_settings(cfg_mod.load_config())
@@ -137,6 +143,21 @@ class MainWindow(QMainWindow):
         self._tray_icon.setContextMenu(tray_menu)
         self._tray_icon.activated.connect(self._on_tray_activated)
         self._tray_icon.show()
+
+    def _poll_event_alerts(self) -> None:
+        if self._shutting_down or not self.has_system_tray():
+            return
+        try:
+            self._alert_dispatcher.poll()
+        except sqlite3.Error:
+            self._status_label.setText('系统提醒暂时不可用，请稍后重试')
+
+    def _deliver_event_alert(self, title: str, body: str) -> bool:
+        if not self.has_system_tray() or not QSystemTrayIcon.supportsMessages():
+            self._status_label.setText('系统通知不可用')
+            return False
+        self._tray_icon.showMessage(title, body, QSystemTrayIcon.Information, 10000)
+        return True
 
     def has_system_tray(self) -> bool:
         """Return whether this window owns a usable tray icon."""
@@ -448,6 +469,7 @@ class MainWindow(QMainWindow):
         if self._shutting_down:
             return
         self._shutting_down = True
+        self._alert_timer.stop()
         self._sync_controller.shutdown()
         self._floating_window.shutdown()
         for dialog in tuple(self._detail_dialogs):

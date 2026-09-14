@@ -6,6 +6,9 @@ from unittest.mock import patch
 
 import test_ignore_and_boundaries as boundaries
 
+# T70 now explicitly authorizes database.py and event_service.py; use still-unapproved
+# PC files below so these historical fixtures continue testing the current boundary.
+
 
 class T51TaskBoundaryTests(unittest.TestCase):
     def check_paths(self, *paths):
@@ -31,7 +34,7 @@ class T51TaskBoundaryTests(unittest.TestCase):
                 self.check_paths(path)
 
     def test_authorized_document_does_not_hide_windows_or_data_changes(self):
-        for path in ("database.py", "config.py", "data/config.json", "dist/data/clender.db"):
+        for path in ("config.py", "config.py", "data/config.json", "dist/data/clender.db"):
             with self.subTest(path=path), self.assertRaises(AssertionError):
                 self.check_paths("doc/tasks/T51-android-local-time-bugfix.md", path)
 

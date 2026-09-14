@@ -153,6 +153,18 @@ class AiSchedulingIntegrationTest {
     }
 
     @Test
+    fun formalReplyThatMatchesReceiptTextRemainsPersistedVisibleBodyWithoutWrites() = runBlocking {
+        val body = "本轮未修改日程。"
+        val replies = complete("""{"operations":[{"action":"reply","message":"$body"}]}""")
+        assertEquals(listOf("本轮未修改日程。\n\n模型回复：\n$body"), replies)
+        assertEquals(body, presentAssistantMessage(replies.single()).modelBody)
+        assertEquals(body, assistantHistoryContent(replies.single()))
+        assertTrue(events.observeDate(day).first().isEmpty())
+        assertTrue(mutations.isEmpty())
+        assertEquals(15, conversations.findConversation("schedule-test")?.tokenCount)
+    }
+
+    @Test
     fun t66ReplyOnlyHasExplicitNoWriteReceipt() = runBlocking {
         val replies = complete("""{"operations":[$REPLY]}""")
         assertTrue(replies.first().startsWith("本轮未修改日程。"))

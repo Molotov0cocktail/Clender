@@ -88,7 +88,7 @@ class AiMessageBudgeterTest {
                 personality = "patient",
                 scheduleContext = "date and sanitized event summaries",
                 history = history,
-                contextWindow = 1_024,
+                contextWindow = sufficientContractWindow(),
                 maxOutputTokens = 100
             )
         )
@@ -97,8 +97,9 @@ class AiMessageBudgeterTest {
         assertTrue(result.messages.first().content.contains("system contract"))
         assertFalse(result.messages.any { it.role == "think" })
         assertTrue(result.messages.last().content.endsWith("内容".repeat(30)))
-        assertTrue(result.inputTokenEstimate <= 822)
-        assertEquals(maxOf(32, 1_024 / 10), result.safetyMarginTokens)
+        val inputLimit = sufficientContractWindow() - 100 - sufficientContractWindow() / 10
+        assertTrue(result.inputTokenEstimate <= inputLimit)
+        assertEquals(maxOf(32, sufficientContractWindow() / 10), result.safetyMarginTokens)
     }
 
     @Test
@@ -178,12 +179,13 @@ class AiMessageBudgeterTest {
                 personality = optionalHuge,
                 scheduleContext = optionalHuge,
                 history = emptyList(),
-                contextWindow = 1_024,
+                contextWindow = sufficientContractWindow(),
                 maxOutputTokens = 64
             )
         )
         assertTrue(result.messages.single().content.startsWith(DEFAULT_AI_SYSTEM_CONTRACT))
-        assertTrue(result.inputTokenEstimate <= 858)
+        val inputLimit = sufficientContractWindow() - 64 - sufficientContractWindow() / 10
+        assertTrue(result.inputTokenEstimate <= inputLimit)
 
         val tiny = budgeter.build(
             AiBudgetInput(
@@ -199,4 +201,23 @@ class AiMessageBudgeterTest {
         assertEquals("x", tiny.messages.single().content)
         assertTrue(tiny.inputTokenEstimate <= 5)
     }
+
+    @Test
+    fun approvedContractCannotFitOldOneKilobyteWindowAndIsNeverTruncated() {
+        assertThrows(IllegalArgumentException::class.java) {
+            budgeter.build(
+                AiBudgetInput(
+                    systemPrompt = "",
+                    personality = "",
+                    scheduleContext = "",
+                    history = emptyList(),
+                    contextWindow = 1_024,
+                    maxOutputTokens = 100
+                )
+            )
+        }
+    }
+
+    private fun sufficientContractWindow(): Int =
+        (budgeter.estimateTokens(DEFAULT_AI_SYSTEM_CONTRACT) + 1_024) * 2
 }

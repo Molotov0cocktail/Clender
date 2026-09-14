@@ -1,3 +1,11 @@
+# T70 双端 AI 与提醒修复（2026-09-14，本地验证完成，待用户验收）
+
+用户授权双端修复、独立子agent和本地测试构建；完成后先交用户检验，确认后才Release，本轮不推送或发布。基线main/e65bbad。完整提示词已在doc/tasks/T70-system-prompt-review.md经用户确认后才实施；每轮读取日期与最新事项，必须有正式reply，不用思考代替正文。Android移除多余GLM说明但保留兼容逻辑；闹钟先以隔离设备查证。Windows界面仅一种“提醒”，旧alarm字段仅兼容输入且与notification取OR映射系统通知，允许必要本机字段/收据与旧库兼容迁移，不增加独立响铃或退出后调度，WebDAV v1不变。真实验收仅本轮临时凭据与合成数据、凭据不落盘，真实库不用于测试。任务/矩阵/分工/回滚见doc/tasks/T70-dual-platform-ai-alert-repair.md。双端完整验证与签名/EXE构建已完成，设备验收和本地提交回执见T70记录，不沿用T69数字作为本轮通过。
+
+维护记录（T70，2026-09-14）：三独立子agent完成双端AI/提醒修复；批准提示词已应用，Android新增音源一次回退与声音失败可见通知，缺reply执行前纠正与唯一正文保留，Windows单一提醒及本机事务字段/收据，WebDAV v1保持。Android208suites/2108tests零失败/错误/跳过/四类泄漏、111发布夹具与两组98策略、完整verify-all及签名APK/AAB审计通过；Windows最终274tests、完整PyInstaller及普通/静默两场景隔离EXE全部通过。真实Provider Android7轮/11HTTP200/19752tokens、Windows3轮/3HTTP200/3841tokens，均合成CRUD及正文回读通过，临时Key不落盘且调用结束。APK SHA256 c07f2d151ed365512bd4a1817b30235de500b56df85ffb5c83c90bfa5f90e493；EXE SHA256 0c6fb462b5aa3127041c93bee27b0e6b2bb839dfe6b25aea6a3f2658dee52c41；dist/data5文件/159343bytes摘要不变。API26同包冷启/设置/AI/表单通过；API36同包后台自然播放器启动及Stop释放通过，无厂商真机/人工听音结论。Windows通知依赖应用运行，到期一分钟窗口内提交，系统展示不作保证。失败历史、各产物完整摘要与设备恢复记录见T70任务；本地交付后待用户验收，不推送、不Release，提交以Git日志为准。
+
+T70设备清理回执：两模拟器合成事项与临时状态已清理/恢复，按AVD身份关闭，最终adb devices为空。API36视觉helper恢复导航曾失败，重开应用纠正后回读原值通过，失败保留；不影响已完成自然到时/Stop和四帧视觉证据。
+
 # T69 双端 v1.2.0 正式发布（2026-09-14，完成）
 
 用户确认以 `v1.2.0` 发布当前正式双端应用，并更新公开 README 与内部说明，不修改项目契约。范围仅含文档、Windows 既有门禁要求的重新构建与 GitHub/Gitee Release；不改生产源码、接口、数据库、同步、AI、权限、Manifest 或依赖。Android 沿用 T68 已签名 APK/AAB（APK SHA256 `c24bbb3aa0d5f57ccb7720b5f7ee9aae3a71d55a8e46b8b91a6992a48311c068`，AAB SHA256 `573e04c0372aa235973fafb36fb8ad630905018be6b3f4d80082df5a5e51939f`），包内历史版本仍为 `1.0.0 (1)`；Release 标签为 `v1.2.0`。不得上传 debug 包、用户数据、配置、密钥、日志、映射或缓存。
@@ -122,6 +130,7 @@ Clender/
 ├─ logger.py                  # 显式 configure/shutdown，无导入时文件副作用
 ├─ database.py                # SQLite schema、迁移、索引与 CRUD
 ├─ event_service.py           # 事件业务验证与数据层边界
+├─ event_alerts.py            # 本机到期系统通知、开始后计时与持久收据去重
 ├─ conversation_store.py      # Conversation JSON 持久化
 ├─ ai_service.py              # 上下文、预算、解析、操作验证与执行
 ├─ ai_client.py               # 模型列表请求、Chat Completions QThread
@@ -240,6 +249,8 @@ Clender/
   - reminder 的 `end_time=None`；`estimated_duration` 为非负整数分钟；
   - timespan 必须有晚于开始时间的 `end_time`；
   - 提供 `from_row()`、`to_dict()`、`date`，暂时兼容 `event['title']`/`event.get(...)`。
+
+T70追加三个本机策略字段：`notification_enabled: bool=False`、`alarm_enabled: bool=False`、`timer_minutes: int=0`。服务新增reminder默认普通通知；旧库迁移和新远端事项保持全部关闭，同UUID同步保留本机策略。三列及`alert_receipts(event_id, signature)`均本机持久化，初始化显式事务，WebDAV v1不增字段。Windows通知和闹钟合并为同刻一个系统通知，timer为开始后1–1440分钟，0关闭；只在应用运行且到期一分钟窗口内提交，不补发历史，不在退出后唤醒。Qt提交不等于OS展示确认，缺托盘不记成功。
 - `Message(role, content, timestamp)`：角色为 `user`、`assistant` 或 `think`。
 - `Conversation.new(title)` 创建 ID 和 `created_at`；`add_message()`、`to_dict()`、`from_dict()` 保持旧 JSON 兼容并持久化 `token_count`。
 
@@ -434,6 +445,8 @@ Bug 修复必须包含一个修复前失败、修复后通过的用例。若无�
 - 构建前扫描命令和 spec，确认没有 `data/`、本机秘密、绝对用户数据路径。
 
 ## 9. 当前剩余风险
+
+T70更新：双端内置固定契约先经用户审阅，要求每轮读取当地日期/最新可见事项且包含正式reply；Windows自定义提示仅补充风格，不能替换固定操作规则。Windows上下文不足拒绝发送，不截断日期/操作契约；GLM指定模型/vN地址按Android映射，非正常finish_reason/畸形批次/缺reply不执行。Android缺reply使用既有单次有预算纠正，明确正文边界后的真实正文不因回执兼容被清空；部分执行失败仍以实际回执为准，防模型虚假成功。日期语义和思考语言仍受模型影响。Android自定义铃声不可访问的默认音源回退及失败可见通知验证见T70，不能把AOSP模拟器证据替代Xiaomi13/Android14真机验收。
 
 1. Token 预算是跨 Provider 的保守估算，不是官方 tokenizer；10% 余量降低溢出概率，最终限制仍由服务端决定。
 2. API Key 依用户决策明文保存在 `config.json`，可解决凭据库兼容问题，但增加本机文件、备份、肩窥和恶意软件读取风险；仓库/构建/日志仍不得包含真实值。

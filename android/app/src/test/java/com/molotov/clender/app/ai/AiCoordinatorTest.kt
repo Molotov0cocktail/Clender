@@ -489,7 +489,7 @@ class AiCoordinatorTest {
         waitUntil { client.completeCalls.get() == 1 }
 
         val system = client.lastMessages.first { it.role == "system" }.content
-        assertTrue(system.contains("Clender AI operation contract"))
+        assertTrue(system.contains("你是 Clender 日程助手"))
         assertTrue(system.contains("2026-08-09 03:00"))
         assertTrue(system.contains("Sunday"))
         assertTrue(system.contains("visible"))

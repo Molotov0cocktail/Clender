@@ -136,7 +136,6 @@
     <string name="ai_error_authentication">The AI service denied access. Check that the API Key is valid and the account can use this model.</string>
     <string name="ai_error_rate_limit">The AI service is rate limited or the account quota is restricted. Try again later and check your quota.</string>
     <string name="ai_error_request_parameters">The AI service rejected the request parameters. Check the model name, output token limit, and thinking settings.</string>
-    <string name="ai_glm_thinking_hint">GLM-5.3 / Flash requires thinking. Turning it off requests LOW; MEDIUM requests HIGH; LOW / HIGH / MAX use the selected effort. Thinking content and replies are requested in Chinese.</string>
     <string name="ai_error_invalid_response">The AI reply is incomplete or incorrectly formatted. No schedule operations were executed. Adjust the output token limit and try again.</string>
     <string name="ai_error_internal">Could not complete the AI request</string>
     <string name="quick_ai_open_conversation">View AI conversation</string>

@@ -1,7 +1,6 @@
 package com.molotov.clender.ui.settings
 
 import androidx.activity.compose.setContent
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -32,12 +31,12 @@ class GlmThinkingHintTest {
     fun closeHost() = host.close()
 
     @Test
-    fun exactGlmModelExplainsMandatoryThinkingEvenBeforeFetchingModels() {
+    fun exactGlmModelsDoNotShowUnrequestedProviderExplanation() {
         listOf("glm-5.3-flash", "glm-5.3", "GLM-5.3", "GLM-5.3-Flash").forEach { model ->
             show(model)
-            composeRule.onNodeWithTag("settings_ai_glm_thinking_hint").assertIsDisplayed()
-            composeRule.onNodeWithText("无法关闭思考", substring = true).assertIsDisplayed()
-            composeRule.onNodeWithText("MEDIUM", substring = true).assertIsDisplayed()
+            composeRule.onNodeWithTag("settings_ai_glm_thinking_hint").assertDoesNotExist()
+            composeRule.onNodeWithText("无法关闭思考", substring = true).assertDoesNotExist()
+            composeRule.onNodeWithText("MEDIUM", substring = true).assertDoesNotExist()
         }
     }
 

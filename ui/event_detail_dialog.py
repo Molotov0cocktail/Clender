@@ -54,6 +54,11 @@ class EventDetailDialog(QDialog):
         form.addRow("标题：", self._lbl_title)
         form.addRow("时间：", self._lbl_time)
         form.addRow("预计时长：", self._lbl_duration)
+        enabled = self._event.notification_enabled or self._event.alarm_enabled
+        self._lbl_alert = QLabel('系统提醒' if enabled else '关闭')
+        self._lbl_timer = QLabel(f'{self._event.timer_minutes} 分钟（开始后）' if self._event.timer_minutes else '关闭')
+        form.addRow("到时通知：", self._lbl_alert)
+        form.addRow("计时通知：", self._lbl_timer)
         form.addRow("描述：", self._description)
         layout.addLayout(form)
 

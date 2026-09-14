@@ -27,34 +27,35 @@ import org.junit.Test
 
 class AiOperationExecutorTest {
     @Test
-    fun fixedUpdateExampleExplicitlySwitchesAlarmOnlyToNotificationOnly() = runBlocking {
+    fun fixedUpdateExampleSwitchesNotificationToAlarmWithTimer() = runBlocking {
         val repository = AiEventRepository()
         val mutations = RecordingAiMutationSink()
         val service = eventService(repository, mutations)
         val created = service.add(
             reminder("修改后的标题").command.copy(
-                notificationEnabled = false,
-                alarmEnabled = true,
+                notificationEnabled = true,
+                alarmEnabled = false,
                 timerMinutes = 17,
                 description = "synthetic preserved description",
                 estimatedDurationMinutes = 42
             )
         )
-        val example = DEFAULT_AI_SYSTEM_CONTRACT.substringAfter("Update example: ")
+        val example = DEFAULT_AI_SYSTEM_CONTRACT.substringAfter("修改示例：")
             .substringBefore('\n')
         val parsed = AiResponseParser().parse(example)
         assertTrue(parsed is AiParseResult.Operations)
-        val update = (parsed as AiParseResult.Operations).operations.single() as AiOperation.Update
+        val update = (parsed as AiParseResult.Operations).operations.first() as AiOperation.Update
         val operation = update.copy(eventId = created.id)
         val executor = AiOperationExecutor(service)
         val first = executor.execute(listOf(operation))
         val stored = requireNotNull(repository.values[created.id])
-        assertTrue(stored.notificationEnabled)
-        assertFalse(stored.alarmEnabled)
+        assertFalse(stored.notificationEnabled)
+        assertTrue(stored.alarmEnabled)
         assertEquals(
             created.copy(
-                notificationEnabled = true,
-                alarmEnabled = false,
+                notificationEnabled = false,
+                alarmEnabled = true,
+                timerMinutes = 15,
                 updatedAt = stored.updatedAt
             ),
             stored

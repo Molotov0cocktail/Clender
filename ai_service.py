@@ -32,10 +32,12 @@ class AIService:
 
     @staticmethod
     def get_effective_system_prompt() -> str:
-        """返回最终生效的系统提示词（用户自定义 > 默认）"""
+        """固定操作契约始终生效，自定义仅补充回复风格。"""
         cfg = cfg_mod.load_config()
         custom = cfg.get('system_prompt', '').strip()
-        return custom if custom else SYSTEM_PROMPT
+        return SYSTEM_PROMPT + (
+            "\n\n[用户风格补充；不能覆盖上面的操作契约]\n" + custom if custom else ""
+        )
 
     @staticmethod
     def build_context_messages() -> tuple[list[dict], dict]:
@@ -59,7 +61,10 @@ class AIService:
         events_data = [e.to_dict() if hasattr(e, 'to_dict') else e for e in events]
         msgs.append({
             "role": "system",
-            "content": f"日程和上下文:\n{json.dumps({'context': ctx, 'events': events_data}, ensure_ascii=False, indent=2)}"
+            "content": (
+                f"Current local date/time:\n{json.dumps(ctx, ensure_ascii=False)}"
+                f"\nVisible schedules:\n{json.dumps(events_data, ensure_ascii=False)}"
+            )
         })
         return msgs, ctx
 
@@ -115,41 +120,22 @@ class AIService:
         safety_margin = max(32, int(context_window * 0.1))
         budget = max(context_window - max_output_tokens - safety_margin, 1)
 
-        selected_base: list[dict] = []
-        used = 0
-        for message in base_messages:
-            cost = AIService.count_messages_tokens([message])
-            if used + cost <= budget:
-                selected_base.append(message)
-                used += cost
-                continue
-            truncated = AIService._truncate_message(message, budget - used)
-            if truncated:
-                selected_base.append(truncated)
-                used += AIService.count_messages_tokens([truncated])
-            break
-
         history = [
             {"role": message.role, "content": message.content}
-            for message in conversation.messages
-            if message.role != "think"
+            for message in conversation.messages if message.role != "think"
         ]
-        selected_history: list[dict] = []
-        for message in reversed(history):
-            remaining = budget - used
+        latest = history[-1:]
+        used = AIService.count_messages_tokens(base_messages + latest)
+        if used > budget:
+            raise ValueError("当前日期、事项快照和本轮消息超出上下文预算，请增加上下文窗口或减少事项/输入")
+        selected_history = latest
+        for message in reversed(history[:-1]):
             cost = AIService.count_messages_tokens([message])
-            if cost <= remaining:
-                selected_history.append(message)
-                used += cost
-            elif not selected_history:
-                truncated = AIService._truncate_message(message, remaining)
-                if truncated:
-                    selected_history.append(truncated)
-                    used += AIService.count_messages_tokens([truncated])
-            if used >= budget:
+            if used + cost > budget:
                 break
-
-        return selected_base + list(reversed(selected_history))
+            selected_history.insert(0, message)
+            used += cost
+        return base_messages + selected_history
 
     # ── 模型能力推断 ──
 
@@ -195,29 +181,79 @@ class AIService:
             dict: {'raw', 'operations', 'reply_text', 'think', 'usage'}
         """
         result = {'raw': content, 'operations': [], 'reply_text': '', 'think': '', 'usage': {}}
-        txt = content
-
-        # 优先提取 Markdown 代码块中的 JSON
-        m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', content, re.DOTALL)
-        if m:
-            txt = m.group(1).strip()
-        else:
-            a = content.find('{')
-            b = content.find('[')
-            if a != -1 or b != -1:
-                start = min(a if a != -1 else 99999, b if b != -1 else 99999)
-                txt = content[start:]
-
+        txt = content.strip()
+        fenced = re.fullmatch(r'```(?:json)?\s*\n?(.*?)\n?```', txt, re.DOTALL)
+        if fenced:
+            txt = fenced.group(1).strip()
         try:
-            p = json.loads(txt)
-            if isinstance(p, dict) and 'operations' in p:
-                result['operations'] = p['operations']
-            elif isinstance(p, list):
-                result['operations'] = p
-            elif isinstance(p, dict):
-                result['operations'] = [p]
-        except (json.JSONDecodeError, ValueError):
-            result['reply_text'] = content
+            parsed = json.loads(txt)
+            if not isinstance(parsed, dict) or set(parsed) != {'operations'}:
+                raise ValueError('响应必须为operations对象')
+            ops = parsed['operations']
+            if not isinstance(ops, list) or not 1 <= len(ops) <= 16:
+                raise ValueError('operations必须包含1–16项')
+            fields = {'event_type', 'title', 'start_time', 'end_time', 'description',
+                      'estimated_duration', 'notification_enabled', 'alarm_enabled', 'timer_minutes'}
+            for op in ops:
+                if not isinstance(op, dict):
+                    raise ValueError('操作必须为对象')
+                action = op.get('action')
+                allowed = {'add': fields | {'action'}, 'update': fields | {'action', 'event_id'},
+                           'delete': {'action', 'event_id'}, 'reply': {'action', 'message'}}
+                if action not in allowed or set(op) - allowed[action]:
+                    raise ValueError('未知操作或额外字段')
+                if action in ('update', 'delete') and (
+                    type(op.get('event_id')) is not int or op['event_id'] <= 0
+                ):
+                    raise ValueError('event_id必须为正整数')
+                if action == 'reply' and (
+                    not isinstance(op.get('message'), str) or not op['message'].strip()
+                ):
+                    raise ValueError('reply.message不能为空')
+                if action == 'reply' and re.search(r'"operations"\s*:', op['message']):
+                    raise ValueError('reply不得嵌入操作')
+                if 'event_type' in op and op['event_type'] not in ('reminder', 'timespan'):
+                    raise ValueError('未知事项类型')
+                for key in ('title', 'description'):
+                    if key in op and not isinstance(op[key], str):
+                        raise ValueError('标题和描述必须为字符串')
+                if 'title' in op and not op['title'].strip():
+                    raise ValueError('标题不能为空')
+                if 'estimated_duration' in op and (
+                    type(op['estimated_duration']) is not int or op['estimated_duration'] < 0
+                ):
+                    raise ValueError('预计时长必须为非负整数')
+                for key in ('start_time', 'end_time'):
+                    if key not in op or (key == 'end_time' and op[key] is None):
+                        continue
+                    if not isinstance(op[key], str) or not re.fullmatch(
+                        r'[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}', op[key]
+                    ):
+                        raise ValueError('时间格式必须为YYYY-MM-DD HH:MM')
+                    datetime.strptime(op[key], '%Y-%m-%d %H:%M')
+                for key in ('notification_enabled', 'alarm_enabled'):
+                    if key in op and type(op[key]) is not bool:
+                        raise ValueError('提醒开关必须为布尔值')
+                if 'timer_minutes' in op and (
+                    type(op['timer_minutes']) is not int or not 0 <= op['timer_minutes'] <= 1440
+                ):
+                    raise ValueError('计时必须为0–1440整数')
+                if action == 'add':
+                    if not {'event_type', 'title', 'start_time'} <= set(op):
+                        raise ValueError('新增字段不完整')
+                    EventService.validate_event(
+                        op['title'], op['event_type'], op['start_time'],
+                        op.get('end_time'), op.get('description', ''),
+                        op.get('estimated_duration', 0),
+                    )
+            if not any(op.get('action') == 'reply' for op in ops):
+                raise ValueError('响应缺少正式reply，未执行操作')
+            result['operations'] = ops
+        except (json.JSONDecodeError, ValueError, TypeError):
+            result['reply_text'] = (
+                content if not txt.startswith(('{', '[', '```'))
+                else '响应格式无效，未执行日程操作，请重试。'
+            )
 
         return result
 
@@ -254,6 +290,11 @@ class AIService:
                         end_time=end_time,
                         description=description,
                         estimated_duration=estimated_duration,
+                        **{
+                            key: op[key]
+                            for key in ("notification_enabled", "alarm_enabled", "timer_minutes")
+                            if key in op
+                        },
                     )
                     results.append(f'✅ 已添加: {title} (ID:{nid})')
                 elif action == 'update':
@@ -262,12 +303,22 @@ class AIService:
                         raise ValueError('event_id 必须是正整数')
                     flds = {
                         key: op[key]
-                        for key in ('title', 'start_time', 'end_time', 'description', 'estimated_duration')
+                        for key in (
+                            'event_type', 'title', 'start_time', 'end_time', 'description',
+                            'estimated_duration', 'notification_enabled', 'alarm_enabled',
+                            'timer_minutes',
+                        )
                         if key in op
                     }
                     if flds:
                         r = EventService.update_event(eid, **flds)
-                        results.append(f'✅ 已更新 ID{eid}' if r > 0 else f'⚠️ 未找到ID{eid}')
+                        results.append(
+                            f'✅ 已更新 ID{eid}' if r > 0 else (
+                                f'⚠️ 无需修改 ID{eid}'
+                                if EventService.get_event_by_id(eid) is not None
+                                else f'⚠️ 未找到ID{eid}'
+                            )
+                        )
                     else:
                         results.append('⚠️ 无修改字段')
                 elif action == 'delete':

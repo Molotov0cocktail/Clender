@@ -24,6 +24,22 @@ class AssistantMessagePresentationTest {
     }
 
     @Test
+    fun explicitModelBoundaryPreservesAFormalBodyThatIsAlsoAKnownReceipt() {
+        listOf(
+            "本轮未修改日程。",
+            "已实际完成 2 项日程操作。",
+            "AI 请求未完成，本轮未修改日程。"
+        ).forEach { body ->
+            val wrapped = "本轮未修改日程。\n\n模型回复：\n$body"
+            assertEquals(
+                AssistantMessagePresentation(body, "本轮未修改日程。"),
+                presentAssistantMessage(wrapped)
+            )
+            assertEquals(body, assistantHistoryContent(wrapped))
+        }
+    }
+
+    @Test
     fun currentReceiptSeparatesActualFeedbackFromModelBody() {
         assertEquals(
             AssistantMessagePresentation("课程已安排。", "已实际完成 2 项日程操作。"),

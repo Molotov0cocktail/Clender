@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.molotov.clender.app.ai.AiCoordinator
 import com.molotov.clender.app.ai.AiCoordinatorDependencies
+import com.molotov.clender.app.ai.presentAssistantMessage
 import com.molotov.clender.app.ai.AiCoordinatorState
 import com.molotov.clender.core.model.Conversation
 import com.molotov.clender.core.model.Event
@@ -20,6 +21,7 @@ import com.molotov.clender.data.settings.AiSettings
 import com.molotov.clender.data.settings.ThinkingEffort
 import com.molotov.clender.domain.ai.AiContextProvider
 import com.molotov.clender.domain.ai.AiMessageBudgeter
+import com.molotov.clender.domain.ai.AiOperation
 import com.molotov.clender.domain.ai.AiOperationExecutor
 import com.molotov.clender.domain.ai.AiRequestMessage
 import com.molotov.clender.domain.ai.AiResponseParser
@@ -30,7 +32,7 @@ import com.molotov.clender.domain.event.EventService
 import com.molotov.clender.domain.event.ScheduleMutationSink
 import com.molotov.clender.domain.event.SyncUidGenerator
 import java.time.Clock
-import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.ZoneId
@@ -99,7 +101,7 @@ class AiProviderLiveTest {
                 ApplicationProvider.getApplicationContext<Context>(),
                 ClenderDatabase::class.java
             ).allowMainThreadQueries().build().also { openedDatabase = it }
-            val clock = Clock.fixed(Instant.parse("2026-09-08T04:00:00Z"), ZoneId.of("Asia/Shanghai"))
+            val clock = Clock.system(ZoneId.of("Asia/Shanghai"))
             val conversations = RoomConversationRepository(database)
             val events = EventService(
                 RoomEventRepository(database), clock,
@@ -138,6 +140,9 @@ class AiProviderLiveTest {
                 assertTrue("Actual receipt count round $round", reply.startsWith("已实际完成 $expectedChanges 项日程操作。"))
                 assertEquals(1, Regex("已实际完成").findAll(reply).count())
                 assertFalse(reply.contains("Assistant reply"))
+                val presentation = presentAssistantMessage(reply)
+                assertTrue("Persisted visible model body round $round", presentation.modelBody.isNotBlank())
+                assertTrue("Actual execution feedback round $round", presentation.executionFeedback != null)
                 val thinking = messages.lastOrNull { it.role == MessageRole.THINK }?.content.orEmpty()
                 val chinese = thinking.count { it in '\u4e00'..'\u9fff' }
                 val englishWords = Regex("[A-Za-z]{2,}").findAll(thinking).count()
@@ -201,6 +206,7 @@ class AiProviderLiveTest {
             turn("这是隔离测试，请删除当前日历剩下的全部三个合成事项，使用当前可见编号。", 3, 3)
             assertTrue(visible(events).isEmpty())
             assertTrue(events.observeMonthCounts(YearMonth.of(2026, 9)).first().isEmpty())
+            val expectedTomorrow = LocalDate.now(clock).plusDays(1)
             turn(
                 "明天给我安排三件事：早上9点提醒喝水，只发普通通知；" +
                     "9点05分叫我起床，要响重要闹钟不要普通通知；" +
@@ -213,17 +219,17 @@ class AiProviderLiveTest {
             val water = mixed.getValue("合成喝水")
             val wake = mixed.getValue("合成起床")
             val focus = mixed.getValue("合成专注")
-            assertEquals(LocalDateTime.parse("2026-09-09T09:00"), water.startTime)
+            assertEquals(expectedTomorrow.atTime(9, 0), water.startTime)
             assertTrue(water.notificationEnabled)
             assertFalse(water.alarmEnabled)
             assertEquals(0, water.timerMinutes)
-            assertEquals(LocalDateTime.parse("2026-09-09T09:05"), wake.startTime)
+            assertEquals(expectedTomorrow.atTime(9, 5), wake.startTime)
             assertFalse(wake.notificationEnabled)
             assertTrue(wake.alarmEnabled)
             assertEquals(0, wake.timerMinutes)
             assertEquals(EventType.TIMESPAN, focus.eventType)
-            assertEquals(LocalDateTime.parse("2026-09-09T09:10"), focus.startTime)
-            assertEquals(LocalDateTime.parse("2026-09-09T10:10"), focus.endTime)
+            assertEquals(expectedTomorrow.atTime(9, 10), focus.startTime)
+            assertEquals(expectedTomorrow.atTime(10, 10), focus.endTime)
             assertTrue(focus.notificationEnabled)
             assertTrue(focus.alarmEnabled)
             assertEquals(1, focus.timerMinutes)
@@ -270,7 +276,8 @@ class AiProviderLiveTest {
     }
 
     private suspend fun visible(events: EventService): List<Event> = events.observeRange(
-        LocalDateTime.of(2026, 9, 1, 0, 0), LocalDateTime.of(2026, 10, 1, 0, 0)
+        minOf(LocalDateTime.of(2026, 9, 1, 0, 0), LocalDate.now(ZoneId.of("Asia/Shanghai")).atStartOfDay()),
+        maxOf(LocalDateTime.of(2026, 10, 1, 0, 0), LocalDate.now(ZoneId.of("Asia/Shanghai")).plusDays(3).atStartOfDay())
     ).first()
 
     private fun requiredEnvironment(name: String): String =
@@ -327,9 +334,10 @@ private class WipeCheckingClient(private val delegate: AiClient, private val aud
         val successful = lastObservations.filter { it.status in 200..299 }
         assertTrue("There is at most one format correction", successful.size <= 2)
         if (successful.size == 2) {
-            assertFalse("A valid first operation batch must never be retried",
-                successful.first().operationDiagnostic.startsWith("operations_"))
+            assertFalse("A valid first operation batch with a visible reply must never be retried",
+                successful.first().hasVisibleReply)
         }
+        assertTrue("Final provider batch must include visible reply", successful.last().hasVisibleReply)
         assertEquals("All successful request usage must be aggregated", successful.sumOf { it.totalTokens },
             completion.usage.totalTokens)
         assertEquals(successful.sumOf { it.promptTokens }, completion.usage.promptTokens)
@@ -346,7 +354,8 @@ private data class HttpObservation(
     val safeErrorCode: String?,
     val retryAfterSeconds: Long?,
     val finishReason: String,
-    val operationDiagnostic: String
+    val operationDiagnostic: String,
+    val hasVisibleReply: Boolean
 )
 
 private class LiveHttpAudit {
@@ -382,7 +391,11 @@ private class LiveHttpAudit {
         val retrySeconds = retryAfter?.takeIf { Regex("[0-9]{1,10}").matches(it) }?.toLongOrNull()
         observations += HttpObservation(status, content?.let(::digest), count("prompt_tokens"),
             count("completion_tokens"), count("total_tokens"), errorCode, retrySeconds,
-            finishCategory, content?.let(::operationDiagnostic) ?: "missing_content")
+            finishCategory, content?.let(::operationDiagnostic) ?: "missing_content",
+            content?.let {
+                (AiResponseParser().parse(it) as? AiParseResult.Operations)?.operations
+                    ?.any { operation -> operation is AiOperation.Reply && operation.message.isNotBlank() }
+            } == true)
     }
 
     @Synchronized
@@ -392,7 +405,8 @@ private class LiveHttpAudit {
             println("LIVE httpIndex=${index + 1} status=${observation.status} " +
                 "errorCode=${observation.safeErrorCode ?: "unavailable"} " +
                 "retryAfterSeconds=${observation.retryAfterSeconds ?: "unavailable"} " +
-                "finishReason=${observation.finishReason} schema=${observation.operationDiagnostic}")
+                "finishReason=${observation.finishReason} visibleReply=${observation.hasVisibleReply} " +
+                "schema=${observation.operationDiagnostic}")
         }
     }
 }

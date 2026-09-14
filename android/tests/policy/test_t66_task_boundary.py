@@ -5,6 +5,9 @@ from unittest.mock import patch
 
 import test_ignore_and_boundaries as boundaries
 
+# T70 now explicitly authorizes database.py and event_service.py; use still-unapproved
+# PC files below so these historical fixtures continue testing the current boundary.
+
 
 class T66TaskBoundaryTests(unittest.TestCase):
     def check_paths(self, *paths):
@@ -27,7 +30,7 @@ class T66TaskBoundaryTests(unittest.TestCase):
                 self.check_paths(path)
 
     def test_unrelated_pc_paths_data_and_artifacts_are_denied(self):
-        for path in ("event_service.py", "calendar_logic.py", "database.py",
+        for path in ("webdav_sync.py", "calendar_logic.py", "config.py",
                      "data/config.json", "dist/data/clender.db", "dist/Clender.exe"):
             with self.subTest(path=path), self.assertRaises(AssertionError):
                 self.check_paths(path)

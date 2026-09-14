@@ -6,7 +6,7 @@ init_db() 需显式调用，不在模块导入时自动执行
 import json
 import sqlite3
 from contextlib import closing
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from typing import Optional, List
 import os
 from uuid import uuid4
@@ -20,7 +20,8 @@ _log = get_logger(__name__)
 # update_event 允许的字段白名单
 _ALLOWED_UPDATE_FIELDS = frozenset({'event_type', 'title', 'start_time',
                                      'end_time', 'description',
-                                     'estimated_duration'})
+                                     'estimated_duration', 'notification_enabled',
+                                     'alarm_enabled', 'timer_minutes'})
 
 _SYNC_RECORD_FIELDS = (
     'sync_uid', 'event_type', 'title', 'start_time', 'end_time',
@@ -111,6 +112,7 @@ def init_db() -> None:
     if parent:
         os.makedirs(parent, exist_ok=True)
     with closing(get_connection()) as conn, conn:
+        conn.execute("BEGIN")
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS events (
@@ -139,6 +141,15 @@ def init_db() -> None:
         if 'deleted_at' not in columns:
             cursor.execute('ALTER TABLE events ADD COLUMN deleted_at TEXT')
 
+        for name in ("notification_enabled", "alarm_enabled", "timer_minutes"):
+            if name not in columns:
+                cursor.execute(f"ALTER TABLE events ADD COLUMN {name} INTEGER NOT NULL DEFAULT 0")
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS alert_receipts "
+            "(event_id INTEGER NOT NULL, signature TEXT NOT NULL, "
+            "PRIMARY KEY(event_id, signature))"
+        )
+
         now = _utc_now_text()
         missing_rows = cursor.execute(
             "SELECT id, sync_uid, updated_at FROM events "
@@ -162,7 +173,8 @@ def init_db() -> None:
 
 def add_event(event_type: str, title: str, start_time: str,
               end_time: Optional[str] = None, description: str = '',
-              estimated_duration: int = 0) -> int:
+              estimated_duration: int = 0, notification_enabled: bool = False,
+              alarm_enabled: bool = False, timer_minutes: int = 0) -> int:
     """添加事件，返回新插入的 event_id"""
     sync_uid = uuid4().hex
     now = _utc_now_text()
@@ -171,10 +183,11 @@ def add_event(event_type: str, title: str, start_time: str,
         cursor.execute(
             'INSERT INTO events '
             '(event_type, title, start_time, end_time, description, '
-            'estimated_duration, created_at, sync_uid, updated_at, deleted_at) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
+            'estimated_duration, created_at, sync_uid, updated_at, deleted_at, '
+            'notification_enabled, alarm_enabled, timer_minutes) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)',
             (event_type, title, start_time, end_time, description,
-             estimated_duration, now, sync_uid, now)
+             estimated_duration, now, sync_uid, now, notification_enabled, alarm_enabled, timer_minutes)
         )
         return cursor.lastrowid
 
@@ -377,3 +390,32 @@ def mark_sample_loaded() -> None:
         os.makedirs(parent, exist_ok=True)
     with open(SAMPLE_FLAG_FILE, 'w', encoding='utf-8') as f:
         f.write('1')
+
+
+def has_alert_receipt(event_id: int, signature: str) -> bool:
+    with closing(get_connection()) as conn:
+        return conn.execute(
+            "SELECT 1 FROM alert_receipts WHERE event_id=? AND signature=?",
+            (event_id, signature),
+        ).fetchone() is not None
+
+
+def record_alert_receipt(event_id: int, signature: str) -> None:
+    with closing(get_connection()) as conn, conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO alert_receipts(event_id, signature) VALUES (?, ?)",
+            (event_id, signature),
+        )
+
+
+def get_alert_candidates(now: datetime) -> list[Event]:
+    lower = (now - timedelta(minutes=1441)).strftime('%Y-%m-%d %H:%M')
+    upper = now.strftime('%Y-%m-%d %H:%M')
+    with closing(get_connection()) as conn:
+        rows = conn.execute(
+            "SELECT * FROM events WHERE deleted_at IS NULL "
+            "AND start_time >= ? AND start_time <= ? "
+            "AND (notification_enabled=1 OR alarm_enabled=1 OR timer_minutes>0)",
+            (lower, upper),
+        ).fetchall()
+    return [Event.from_row(dict(row)) for row in rows]

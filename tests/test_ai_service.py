@@ -1,4 +1,5 @@
 import unittest
+import json
 from unittest import mock
 
 from ai_service import AIService
@@ -6,6 +7,47 @@ from models import Conversation
 
 
 class AIServiceTests(unittest.TestCase):
+    def test_windows_prompt_has_single_reminder_policy(self):
+        from constants import SYSTEM_PROMPT
+        platform = SYSTEM_PROMPT.split('当前平台为Windows，')[-1]
+        self.assertIn('只有一种提醒', platform)
+        self.assertIn('alarm_enabled仅用于兼容', platform)
+
+    def test_malformed_update_rejects_entire_batch_before_add(self):
+        for key, value in (('title', []), ('title', ''), ('event_type', 'bad'),
+                           ('start_time', '2030-1-01 09:00'), ('end_time', '2030-02-30 09:00'),
+                           ('estimated_duration', True), ('estimated_duration', -1), ('description', {})):
+            with self.subTest(field=key, value=value):
+                batch = {'operations': [
+                    {'action': 'add', 'event_type': 'reminder', 'title': 'synthetic', 'start_time': '2030-01-01 09:00'},
+                    {'action': 'update', 'event_id': 1, key: value},
+                    {'action': 'reply', 'message': 'synthetic'}]}
+                self.assertEqual([], AIService.parse_ai_response(json.dumps(batch))['operations'])
+
+    @mock.patch('ai_service.cfg_mod.load_config', return_value={'system_prompt': 'custom style'})
+    def test_custom_prompt_cannot_remove_contract(self, _):
+        self.assertIn('Current local date/time', AIService.get_effective_system_prompt())
+        self.assertIn('custom style', AIService.get_effective_system_prompt())
+
+    def test_missing_reply_rejects_operations(self):
+        self.assertEqual([], AIService.parse_ai_response('{"operations":[{"action":"delete","event_id":1}]}')['operations'])
+
+    def test_prose_embedded_and_unknown_fields_never_execute(self):
+        for content in ('说明 {"operations":[{"action":"delete","event_id":1}]}',
+                        '{"operations":[{"action":"delete","event_id":1,"patch":{} }]}'):
+            self.assertEqual([], AIService.parse_ai_response(content)['operations'])
+
+    @mock.patch('ai_service.EventService.get_all_events', return_value=[])
+    @mock.patch('ai_service.cfg_mod.load_config', return_value={})
+    def test_fresh_context_heads_and_budget_rejection(self, *_):
+        messages, _ = AIService.build_context_messages()
+        self.assertIn('Current local date/time', messages[-1]['content'])
+        self.assertIn('Visible schedules', messages[-1]['content'])
+        conv = Conversation.new()
+        conv.add_message('user', 'synthetic')
+        with self.assertRaises(ValueError):
+            AIService.build_request_messages(conv, 100, 50)
+
     def test_parse_json_code_block_and_plain_reply(self):
         parsed = AIService.parse_ai_response(
             '```json\n{"operations":[{"action":"reply","message":"ok"}]}\n```'
