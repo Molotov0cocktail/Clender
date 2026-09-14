@@ -89,4 +89,8 @@
 - 一次性 API26 AVD `clender_api26_t73_upgrade` 先安装 T72 旧包 `1.0.0 (1)` 并写入合成事项/深色设置，再用 `adb install -r` 安装新包；回读为 `1.3.0 (2)`、UID不变、事项与设置均保留。AVD按身份关闭后删除，最终adb设备为空；没有卸载、清库或读取真实数据。
 - Windows 最终284tests/10.275s通过；完整 PyInstaller 构建及普通→静默、静默→普通两场景隔离EXE均通过，收口后正式/测试Clender进程为零。`dist/data` 前后均为5文件/167951 bytes，路径/大小/mtime/SHA-256清单逐字节一致；只做摘要核对，不读取内容。
 - Windows EXE：45584112 bytes，SHA256 `196c0eea521d58be7ba085d82ebf737abd36140f549b34e4215b3c7e48b921bd`。
-- T72临时Provider凭据本轮未再次调用、未落盘；当前待发布提交、双站标签/Release和附件回读。
+- T72临时Provider凭据本轮未再次调用、未落盘；本轮临时Gitee令牌仅用于发布API且未持久化。
+- 发布准备提交 `df22b4239ddedcf1c51a4cb255435a301efe8f86` 已安全快进 GitHub `main`；Gitee `main` 保持独立 `ab94d324ffd776148aa7479d6b33ce242d782f0f`，未合并或强推。GitHub/Gitee 注释标签对象均为 `10e378875311174ed1f2a8f83198db029cc5b508`，均解引用到发布提交。
+- GitHub 正式 Release ID `388469329`：`https://github.com/Molotov0cocktail/Clender/releases/tag/v1.3.0`，非 draft/prerelease；三件附件的服务端大小与 SHA-256 digest 全部匹配。
+- Gitee 正式 Release ID `1144006`：`https://gitee.com/Molotov0coaktail/clender/releases`，非 prerelease；三件附件从公开下载地址重新下载后大小与 SHA-256 全部匹配。
+- 首次 GitHub Git 预检因仓库要求的代理键未被 Git HTTPS 传输采用而连接失败，未触及远端；显式使用 `http.proxy` 后完成安全推送。GitHub公开下载回验曾遇代理504，服务端digest已提供同等摘要证据；Gitee按要求执行实际下载回验。内置浏览器运行时初始化失败，未打开或修改页面；用户提供的临时Gitee令牌仅在当前进程内用于API发布，未写入文件、Git凭据、日志或提交，由用户随后在Gitee撤销。
