@@ -1,6 +1,6 @@
-# T78 v1.3.1双端发行（进行中）
+# T78 v1.3.1双端发行（完成）
 
-用户授权直接发行，复用T76/T77验证产物；仅轻量核对，推GitHub main与双站tag/Release。见T78-v1.3.1-release.md。
+GitHub/Gitee正式Release均公开，三附件摘要核对一致，双站tag指向7b2b1bf；Gitee main不变。按用户要求未重跑测试/构建。完整回执见[T78](T78-v1.3.1-release.md)。
 
 # T77 Windows三栏竖线修复（本地完成，待用户验收）
 

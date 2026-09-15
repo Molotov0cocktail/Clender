@@ -1,6 +1,8 @@
-# T78 v1.3.1 双端发行（2026-09-15，发行中）
+# T78 v1.3.1 双端发行（2026-09-15，完成）
 
 用户已明确授权推送Release并要求不再复杂验证。本轮仅发行文档与轻量产物/远程核对，复用T76最终Android1.3.1(3)签名APK/AAB和T77最终EXE，不重新构建或测试。GitHub main安全快进，Gitee main保留独立历史，仅双站注释v1.3.1标签与三附件正式Release。临时Gitee令牌只在进程内使用，不入文件/日志/提交。发布结果见doc/tasks/T78-v1.3.1-release.md。此用户授权取代此前待验收/不发布状态及本轮文档修改触发完整构建的历史要求。
+
+维护记录（T78）：复用已验产物，未重跑构建/测试；GitHub main已安全快进发行提交7b2b1bfa8d0cf72d80f93fedfb190ee144c1e209，双站v1.3.1注释标签对象06cb36dbefd8f8a7a64cf025ea0c5e4a0d698f97均解引用同一提交；Gitee main保持ab94d324不变。GitHub Release389090328、Gitee Release1145724均正式公开，三附件GitHub服务端digest及Gitee公开下载SHA256/大小与本地一致。Windows EXE45592135bytes/SHA256150596a2cee7ae44a5380fccd3ddf5607ac3bb3afbc8b2c65f9dce0cc8d65b0b；Android APK1878621bytes/SHA256c516e1b763f5095a51d8d2597f9d437a4b326aa35aed05c60035035e5f2a09d8，AAB4995662bytes/SHA256887aa42de62b79986411a7abd8d35b8837cab5b2bf21becccd5d101867456fd2。令牌未落盘，发布调用已结束。公开链接与限制见T78任务及README。
 
 # T77 Windows三栏竖线修复（2026-09-15，本地验证完成，待用户验收）
 
