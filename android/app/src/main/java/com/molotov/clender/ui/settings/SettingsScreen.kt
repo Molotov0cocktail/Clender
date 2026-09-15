@@ -1,10 +1,15 @@
 package com.molotov.clender.ui.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -13,6 +18,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,6 +28,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -116,7 +124,26 @@ internal fun SettingsConfirmationDialogs(state: SettingsUiState, actions: Settin
 
 @Composable
 private fun SettingsSectionTabs(selected: SettingsSection, onSelected: (SettingsSection) -> Unit) {
-    TabRow(selectedTabIndex = selected.ordinal) {
+    val shape = RoundedCornerShape(16.dp)
+    TabRow(
+        selectedTabIndex = selected.ordinal,
+        modifier = Modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(shape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
+        containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.primary,
+        divider = {},
+        indicator = { positions ->
+            Box(
+                Modifier
+                    .tabIndicatorOffset(positions[selected.ordinal])
+                    .padding(horizontal = 16.dp)
+                    .height(3.dp)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp))
+            )
+        }
+    ) {
         Tab(
             selected = selected == SettingsSection.APPLICATION,
             onClick = { onSelected(SettingsSection.APPLICATION) },

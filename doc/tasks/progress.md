@@ -1,3 +1,7 @@
+# T76 Android 设置透明化（本地验证完成；关于更新功能待确认）
+
+基线main/76ab3b5。独立agent完成设置透明分组/圆角透明三tab，Android 1.3.1(3)，Windows按用户要求跳过。verify-all exit0、2189应用测试/112发布夹具/两组109策略与签名APK/AAB审计通过，API36覆盖升级保留合成设置、65截图审查完成并清理设备。大字Widget浮动label局部压线及未穷尽应用页底部如实保留。关于更新方式用户尚未选择，检查/下载功能未实施，T76整体待续；本地交付不推送/Release。完整证据与SHA256见T76-android-transparent-settings-update.md。
+
 # T73 双端 v1.3.0 正式发布（2026-09-14，完成）
 
 用户授权将 T70–T72 提交为新的应用版本并更新双端 Release。版本为 `v1.3.0`，Android 包内版本提升为 `1.3.0 (2)`；双端构建、测试、签名审计、Windows数据完整性和API26旧包覆盖升级均通过。发布提交 `df22b42` 已安全快进 GitHub `main`，Gitee `main` 的独立历史保持不变；双站注释标签对象 `10e37887` 均解引用到发布提交。GitHub Release ID `388469329` 的服务端 digest 与 Gitee Release ID `1144006` 的公开重新下载摘要均逐项匹配三件正式附件。任务、矩阵、完整回执和回滚见 `T73-dual-platform-v1.3.0-release.md`。

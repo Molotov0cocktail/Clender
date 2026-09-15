@@ -1,3 +1,11 @@
+# T76 Android 设置透明化（2026-09-15，本地验证完成；关于更新功能待确认）
+
+用户授权独立子 agent 修改Android设置透明分组与应用/AI/WebDAV顶栏，并在关于页增加应用更新。用户追加仅构建Android，跳过Windows修改/测试/构建与dist/data读取；版本定为1.3.1，本次Android从1.3.0(2)升为1.3.1(3)，保留applicationId与正式签名，不推送、不Release。
+
+当前实现：九个SettingsGroupCard容器透明，显式onBackground文字、0dp抬升、1dp outlineVariant边框；TabRow透明、16dp圆角细边、内缩3dp选中线。全局背景强度/日夜遮罩、全部tag、回调、dirty及秘密charArray/清空effect作用域保持；Room v3/WebDAV v1/AI/权限/Manifest/依赖不变。关于页仅自动读取新的包内版本，检查/下载更新功能尚未实施，用户尚未选择检查后跳发布页/仅发布页/应用内下载安装；T76整体不标完成。
+
+维护记录（T76）：两实现agent与独立review；设置先6tests/4RED，版本先1test/2RED（该次误用Python314，后续统一指定Miniconda），修复后聚焦44/相关223通过，新增测试ktlint换行失败局部修正留痕。完整verify-all exit0，215suites/2189tests（UI84/921）零失败/错误/跳过/四类泄漏，112发布夹具与foundation/boundary各109通过；lintDebug/lintRelease/detekt/ktlint及正式APK/AAB构建审计通过。APK1877137bytes/SHA256 5094c0b3240a596b2fe35101a5c56d0c214b62323d1bac723b9d76fa21187ccf；AAB4990906bytes/SHA256 c5583bd59d235b8adef2220ef5cee5104369bd454cd29106b5a009f3a4a01dd2；原证书62824893…44615f。465源码/schema摘要未漂移。API36同包逐字节核验、旧1.3.0覆盖升级同UID10150/合成深色设置保留；原创背景DocumentsUI导入，明暗×0/100×三tab及320dp/2x共65图逐张审查（主9+review56）。透明/tab目标通过；320dp/2x Widget浮动标签局部压到上一字段边框，未旧包对照，大字应用页未穷尽最末底部，未验厂商真机。字号/显示恢复回读1.0/1080×1920/420dpi，uninstall成功并按AVD身份关闭。任务/矩阵/命令与待确认第二项见doc/tasks/T76-android-transparent-settings-update.md；Git提交回执以日志为准。
+
 # T75 Android 设置说明精简与 Card 化（2026-09-15，本地验证完成，待用户验收）
 
 用户授权去除不必要说明文字（尤其设置界面）并继续美化；版本号不动（保持`1.3.0 (2)`），不推送、不 Release，待用户验收后随 v1.3.1 处理。设置三分节全部 Material3 Card 分组（surfaceVariant、16dp 圆角、组内 8dp/组间 16dp，组 testTag `settings_group_appearance/background/alarm_sound/alert_permissions/ai_connection/ai_generation/ai_prompt/webdav_connection/webdav_operations`）；主题三按钮改单行三等宽分段（选中实心，`settings_theme_*` tag/回调/enabled/≥48dp 保留）。删除 `ai_embedded_contract` 展示与 `ModelCapabilityHint`（`ai_model_limits_received/unknown`，`values{,-en}/ai_settings.xml` 移除；`applyCapabilities` 自动填充逻辑不变）；zh/en 同步精简 `alarm_sound_hint`、`background_local_hint`、`alert_background_explanation`、`alert_alarm_explanation`、`alert_timer_explanation`、`alert_notifications_ready/blocked`、`alert_exact_blocked`、`alert_channel_blocked`、`widget_opacity_explanation`（testTag 保留）、`ai_token_count_explanation`、`ai_context_explanation`；错误/状态反馈、标签、确认对话框、关于页保留。WebDAV 状态行移入操作卡（文案/tag 不变）。既有 testTag、秘密输入 charArray、草稿 dirty/确认、Room v3、WebDAV v1、权限、Manifest、依赖零变更。
