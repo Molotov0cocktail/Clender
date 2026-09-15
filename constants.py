@@ -52,8 +52,13 @@ MODEL_CAPABILITIES = {
 
 # ── 事件颜色（从 calendar_widget.py COLORS 提取）──
 EVENT_COLORS = [
-    '#58a6ff', '#7c6ff7', '#3fb950', '#d29922', '#e74c3c', '#00b894',
-    '#6c5ce7', '#0984e3', '#f39c12', '#2ecc71', '#9b59b6', '#1abc9c',
+    '#4272e8', '#5a5ce0', '#7d54d9', '#b04fd4', '#d64d9a', '#e05252',
+    '#cf6a30', '#a97f14', '#7f8f1a', '#37a05a', '#1aa37f', '#2396b8',
+]
+
+EVENT_COLORS_DARK = [
+    '#6ea8ff', '#8b97ff', '#b48cf5', '#df8ce8', '#f783ac', '#ff8787',
+    '#ffab5e', '#f2cc60', '#d7e35c', '#6ede8a', '#4fd8b0', '#56cfe1',
 ]
 
 # ── 默认配置（从 config.py DEFAULT_CONFIG 提取）──

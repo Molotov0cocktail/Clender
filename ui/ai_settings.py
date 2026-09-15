@@ -25,6 +25,11 @@ class SettingsDialog(QDialog):
 
         layout = QFormLayout(self)
         layout.setSpacing(10)
+        layout.setContentsMargins(20, 14, 20, 14)
+
+        connection_section = QLabel('接口与模型')
+        connection_section.setObjectName('aiSettingsSection')
+        layout.addRow(connection_section)
 
         self._edit_ep = QLineEdit()
         self._edit_ep.setPlaceholderText('https://api.openai.com')
@@ -77,10 +82,9 @@ class SettingsDialog(QDialog):
         layout.addRow('   思考强度:', self._cmb_think)
 
         self._lbl_info = QLabel('')
+        self._lbl_info.setObjectName('aiSettingsInfo')
         layout.addRow(self._lbl_info)
 
-        # ── AI人格描述 ──
-        layout.addRow(QLabel(''))
         persona_header = QHBoxLayout()
         self._lbl_personality = QLabel('🎭 AI 人格设定')
         self._lbl_personality.setObjectName('aiSettingsPersonalityTitle')
@@ -92,16 +96,18 @@ class SettingsDialog(QDialog):
             '内置日程指令自动生效；\n'
             '此处可设置语气与人格，留空清除自定义内容。'
         )
+        self._personality_hint.setObjectName('aiSettingsHint')
         self._personality_hint.setWordWrap(True)
         layout.addRow(self._personality_hint)
         self._edit_personality = QTextEdit()
         self._edit_personality.setPlaceholderText('如："你是一个严谨的时间管理专家，说话简洁专业"\n或 "你是一个亲切的私人助理，用轻松幽默的语气回复"\n\n留空则不添加额外人格设定')
-        self._edit_personality.setMaximumHeight(100)
-        self._edit_personality.setMinimumHeight(100)
+        self._edit_personality.setMaximumHeight(110)
+        self._edit_personality.setMinimumHeight(110)
         layout.addRow(self._edit_personality)
 
         btn = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         btn.button(QDialogButtonBox.Save).setText('保存')
+        btn.button(QDialogButtonBox.Save).setProperty('btnClass', 'primary')
         btn.button(QDialogButtonBox.Cancel).setText('取消')
         btn.accepted.connect(self._save)
         btn.rejected.connect(self.reject)
@@ -114,14 +120,34 @@ class SettingsDialog(QDialog):
         """Apply the current application typography and theme colors."""
         t = theme_manager.get_current_theme()
         scale = app_scale_from_config(cfg_mod.load_config())
-        self._lbl_info.setStyleSheet(
-            f'color:{t["subtitle_color"]};font-size:{scale.secondary_px}px;'
-        )
-        title_style = (
-            f'font-weight:bold;color:{t["title_color"]};'
-            f'font-size:{scale.section_title_px}px;'
-        )
-        self._lbl_personality.setStyleSheet(title_style)
+        self.setStyleSheet(f'''
+            QDialog {{ background: {t["frame_bg"]}; }}
+            QLabel {{ color: {t["text_color"]}; background: transparent; }}
+            QLabel#aiSettingsSection, QLabel#aiSettingsPersonalityTitle {{
+                font-size: {scale.section_title_px}px; font-weight: bold;
+                color: {t["primary"]};
+                border-left: 3px solid {t["primary"]};
+                padding: 2px 8px;
+            }}
+            QLabel#aiSettingsInfo, QLabel#aiSettingsHint {{
+                color: {t["subtitle_color"]};
+                font-size: {scale.secondary_px}px;
+            }}
+            QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
+                background: {t.get("input_bg", t["list_bg"])}; color: {t["text_color"]};
+                border: 1px solid {t.get("border_soft", t["input_border"])};
+                border-radius: 6px; padding: 6px;
+            }}
+            QTextEdit {{
+                background: {t.get("input_bg", t["list_bg"])}; color: {t["text_color"]};
+                border: 1px solid {t.get("border_soft", t["input_border"])};
+                border-radius: 6px; padding: 4px;
+            }}
+            QLineEdit:focus, QTextEdit:focus, QComboBox:focus,
+            QSpinBox:focus, QDoubleSpinBox:focus {{
+                border: 1px solid {t["primary"]};
+            }}
+        ''')
 
     def _load(self):
         cfg = cfg_mod.load_config()

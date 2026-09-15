@@ -234,6 +234,7 @@ class AppSettingsDialog(QDialog):
         self._btn_save = QPushButton("保存并关闭")
         self._btn_save.clicked.connect(self._save)
         self._btn_save.setObjectName('settingsSave')
+        self._btn_save.setProperty('btnClass', 'primary')
         footer = QHBoxLayout()
         cancel = QPushButton('取消')
         cancel.clicked.connect(self.reject)
@@ -392,23 +393,55 @@ class AppSettingsDialog(QDialog):
     def apply_theme(self):
         theme = theme_manager.get_current_theme()
         scale = app_scale_from_config(self._config)
+        frame_border = theme.get("frame_border", theme["frame_bg"])
+        border_soft = theme.get("border_soft", frame_border)
+        input_bg = theme.get("input_bg", theme["frame_bg"])
+        gradient_start = theme.get("accent_gradient_start", theme["primary"])
+        gradient_end = theme.get("accent_gradient_end", theme["primary"])
+        primary_pressed = theme.get("primary_pressed", theme["primary"])
         self.setStyleSheet(f'''
             QDialog {{ background: {theme["frame_bg"]}; color: {theme["text_color"]}; }}
             QLabel, QCheckBox {{ color: {theme["text_color"]}; }}
             QWidget#settingsContent, QScrollArea {{ background: {theme["frame_bg"]}; }}
-            QLabel#settingsSection {{ font-size: {scale.section_title_px}px; font-weight: bold; padding-top: 12px; color: {theme["primary"]}; }}
+            QLabel#settingsSection {{
+                font-size: {scale.section_title_px}px; font-weight: bold;
+                padding: 12px 8px 4px 8px;
+                color: {theme["primary"]};
+                border-left: 3px solid {theme["primary"]};
+                background: transparent;
+            }}
             QLabel#settingsTitle {{
                 color: {theme["title_color"]};
-                font-size: {scale.section_title_px}px; font-weight: bold;
+                font-size: {scale.page_title_px}px; font-weight: bold;
             }}
             QLabel#webdavTitle {{
                 color: {theme["title_color"]};
                 font-size: {scale.section_title_px}px; font-weight: bold;
+                border-left: 3px solid {theme["primary"]};
+                padding: 12px 8px 4px 8px;
+                background: transparent;
+            }}
+            QLineEdit, QSpinBox, QTimeEdit {{
+                background: {input_bg}; color: {theme["text_color"]};
+                border: 1px solid {border_soft}; border-radius: 6px; padding: 6px;
+            }}
+            QLineEdit:focus, QSpinBox:focus, QTimeEdit:focus {{
+                border: 1px solid {theme["primary"]};
             }}
             QPushButton {{
                 background: {theme.get("header_bg", theme["frame_bg"])}; color: {theme["text_color"]};
-                border: 1px solid {theme.get("frame_border", theme["frame_bg"])}; border-radius: 8px; padding: 8px;
+                border: 1px solid {frame_border}; border-radius: 8px; padding: 8px;
             }}
             QPushButton:hover {{ background: {theme.get("list_item_hover", theme["primary_hover"])}; }}
-            QPushButton#settingsSave {{ background: {theme["primary"]}; color: {theme["primary_text"]}; }}
+            QPushButton[btnClass="primary"] {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 {gradient_start}, stop:1 {gradient_end});
+                color: {theme["primary_text"]};
+                border: none; border-radius: 8px; padding: 8px 16px;
+            }}
+            QPushButton[btnClass="primary"]:hover {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 {theme["primary_hover"]}, stop:1 {gradient_start});
+            }}
+            QPushButton[btnClass="primary"]:pressed {{ background: {primary_pressed}; }}
         ''')

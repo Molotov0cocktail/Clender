@@ -657,19 +657,25 @@ class DailyFloatingWindow(QWidget):
             QWidget {{ background: {theme["frame_bg"]}; color: {theme["text_color"]}; }}
             QListWidget {{
                 background: {theme["list_bg"]}; color: {theme["text_color"]};
-                border: 1px solid {theme["frame_border"]}; border-radius: 6px;
+                border: 1px solid {theme["border_soft"]}; border-radius: 8px;
+                padding: 2px;
             }}
-            QListWidget::item {{ padding: 7px; }}
+            QListWidget::item {{ padding: 7px; border-radius: 6px; }}
             QListWidget::item:hover {{ background: {theme["list_item_hover"]}; }}
             QLineEdit {{
                 background: {theme["input_bg"]}; color: {theme["text_color"]};
-                border: 1px solid {theme["input_border"]}; border-radius: 4px;
+                border: 1px solid {theme["border_soft"]}; border-radius: 6px;
                 padding: 6px;
             }}
+            QLineEdit:focus {{ border: 1px solid {theme["primary"]}; }}
             QPushButton {{
                 background: {theme["header_bg"]}; color: {theme["text_color"]};
-                border: 1px solid {theme["input_border"]}; border-radius: 4px;
+                border: 1px solid {theme["border_soft"]}; border-radius: 6px;
                 padding: 5px;
+            }}
+            QPushButton:hover {{
+                background: {theme["surface_raised"]};
+                border-color: {theme["input_border"]};
             }}
             QPushButton:checked {{
                 background: {theme["primary"]}; color: {theme["primary_text"]};
@@ -678,7 +684,7 @@ class DailyFloatingWindow(QWidget):
                 background: {theme["primary"]}; color: {theme["primary_text"]};
                 border: 1px solid {theme["primary"]};
             }}
-            QScrollArea {{ border: 1px solid {theme["frame_border"]}; border-radius: 8px; }}
+            QScrollArea {{ border: 1px solid {theme["border_soft"]}; border-radius: 8px; }}
         ''')
         self.apply_font_scale(self._font_scale)
         self._apply_event_states(datetime.now())

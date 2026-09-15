@@ -19,8 +19,8 @@ LIGHT_THEME = {
     "subtitle_color": "#636e72",
     "text_color": "#2d3436",
     "muted_color": "#5b6878",
-    "primary": "#5555c8",
-    "primary_hover": "#786add",
+    "primary": "#4968e8",
+    "primary_hover": "#6a84f2",
     "primary_text": "#ffffff",
     "danger": "#d63031",
     "danger_hover": "#ff7675",
@@ -54,6 +54,22 @@ LIGHT_THEME = {
     "switch_btn_checked_bg": "#6c5ce7",
     "slot_bg": "#f8f9fa",
     "slot_border": "#dfe6e9",
+    "theme_name": "light",
+    "accent_gradient_start": "#4968e8",
+    "accent_gradient_end": "#6851cb",
+    "primary_pressed": "#3b52c9",
+    "surface_raised": "#ffffff",
+    "surface_sunken": "#eaeef8",
+    "border_soft": "#e8ebf5",
+    "grid_line_color": "#dde3ee",
+    "grid_line_minor_color": "#edf0f7",
+    "event_block_text": "#ffffff",
+    "chat_user_bubble_bg": "#dde5fb",
+    "chat_ai_bubble_bg": "#f1f4fb",
+    "chat_think_bubble_bg": "#e9edf6",
+    "success_soft": "#dcf3e8",
+    "warning_soft": "#fdeeda",
+    "danger_soft": "#fbdfdd",
 }
 
 # ========== 夜间主题（Dark）— 零亮色，纯暗色系 ==========
@@ -100,6 +116,22 @@ DARK_THEME = {
     "switch_btn_checked_bg": "#7c6ff7",
     "slot_bg": "#0d1117",
     "slot_border": "#30363d",
+    "theme_name": "dark",
+    "accent_gradient_start": "#6e7bf2",
+    "accent_gradient_end": "#9168e8",
+    "primary_pressed": "#5a63d6",
+    "surface_raised": "#202a40",
+    "surface_sunken": "#121826",
+    "border_soft": "#252d40",
+    "grid_line_color": "#2b3345",
+    "grid_line_minor_color": "#222a3a",
+    "event_block_text": "#121826",
+    "chat_user_bubble_bg": "#2a3550",
+    "chat_ai_bubble_bg": "#232b3a",
+    "chat_think_bubble_bg": "#1c2330",
+    "success_soft": "#17291f",
+    "warning_soft": "#2b2314",
+    "danger_soft": "#2e1a1c",
 }
 
 
@@ -176,7 +208,8 @@ def apply_theme(app: QApplication, config: dict | None = None):
             background-color: {theme["frame_bg"]};
             color: {theme["text_color"]};
             border: 1px solid {theme["frame_border"]};
-            padding: 4px;
+            border-radius: 6px;
+            padding: 4px 8px;
         }}
         QScrollBar:vertical {{
             background: {theme["app_bg"]};
@@ -186,6 +219,9 @@ def apply_theme(app: QApplication, config: dict | None = None):
             background: {theme["scrollbar_bg"]};
             border-radius: 4px;
             min-height: 20px;
+        }}
+        QScrollBar::handle:vertical:hover {{
+            background: {theme["muted_color"]};
         }}
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
             height: 0px;
@@ -199,6 +235,9 @@ def apply_theme(app: QApplication, config: dict | None = None):
             border-radius: 4px;
             min-width: 20px;
         }}
+        QScrollBar::handle:horizontal:hover {{
+            background: {theme["muted_color"]};
+        }}
         QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
             width: 0px;
         }}
@@ -207,15 +246,115 @@ def apply_theme(app: QApplication, config: dict | None = None):
             color: {theme["text_color"]};
         }}
         QPushButton {{
-            background: {theme["header_bg"]};
+            background-color: {theme["surface_raised"]};
             color: {theme["text_color"]};
-            border: 1px solid {theme["frame_border"]};
+            border: 1px solid {theme["border_soft"]};
             border-radius: 8px;
             padding: 6px 10px;
         }}
-        QPushButton:hover {{ background: {theme["list_item_hover"]}; }}
-        QPushButton:disabled {{ color: {theme["muted_color"]}; }}
-        QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDateTimeEdit:focus {{
+        QPushButton:hover {{
+            background-color: {theme["list_item_hover"]};
+            border-color: {theme["input_border"]};
+        }}
+        QPushButton:pressed {{
+            background-color: {theme["header_bg"]};
+            border-color: {theme["input_border"]};
+        }}
+        QPushButton:disabled {{
+            background-color: {theme["header_bg"]};
+            color: {theme["muted_color"]};
+            border-color: {theme["border_soft"]};
+        }}
+        QPushButton[btnClass="primary"] {{
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                stop:0 {theme["accent_gradient_start"]},
+                stop:1 {theme["accent_gradient_end"]});
+            color: {theme["primary_text"]};
+            border: none;
+            border-radius: 8px;
+            padding: 6px 12px;
+        }}
+        QPushButton[btnClass="primary"]:hover {{
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                stop:0 {theme["primary_hover"]},
+                stop:1 {theme["accent_gradient_start"]});
+        }}
+        QPushButton[btnClass="primary"]:pressed {{
+            background: {theme["primary_pressed"]};
+        }}
+        QPushButton[btnClass="primary"]:disabled {{
+            background: {theme["header_bg"]};
+            color: {theme["muted_color"]};
+        }}
+        QPushButton[btnClass="danger"] {{
+            background: {theme["danger"]};
+            color: {theme["primary_text"]};
+            border: none;
+            border-radius: 8px;
+            padding: 6px 12px;
+        }}
+        QPushButton[btnClass="danger"]:hover {{ background: {theme["danger_hover"]}; }}
+        QPushButton[btnClass="danger"]:pressed {{ background: {theme["danger"]}; }}
+        QPushButton[btnClass="danger"]:disabled {{
+            background: {theme["header_bg"]};
+            color: {theme["muted_color"]};
+        }}
+        QPushButton[btnClass="info"] {{
+            background: {theme["info"]};
+            color: {theme["primary_text"]};
+            border: none;
+            border-radius: 8px;
+            padding: 6px 12px;
+        }}
+        QPushButton[btnClass="info"]:hover {{ background: {theme["info_hover"]}; }}
+        QPushButton[btnClass="info"]:pressed {{ background: {theme["info"]}; }}
+        QPushButton[btnClass="info"]:disabled {{
+            background: {theme["header_bg"]};
+            color: {theme["muted_color"]};
+        }}
+        QPushButton[btnClass="ghost"] {{
+            background: transparent;
+            color: {theme["text_color"]};
+            border: none;
+            border-radius: 8px;
+            padding: 6px 10px;
+        }}
+        QPushButton[btnClass="ghost"]:hover {{ background: {theme["surface_raised"]}; }}
+        QPushButton[btnClass="ghost"]:pressed {{ background: {theme["header_bg"]}; }}
+        QPushButton[btnClass="ghost"]:disabled {{
+            background: transparent;
+            color: {theme["muted_color"]};
+        }}
+        QCheckBox, QRadioButton {{
+            color: {theme["text_color"]};
+            background: transparent;
+            spacing: 6px;
+        }}
+        QCheckBox::indicator, QRadioButton::indicator {{
+            width: 16px;
+            height: 16px;
+            background-color: {theme["input_bg"]};
+            border: 1px solid {theme["input_border"]};
+        }}
+        QCheckBox::indicator {{ border-radius: 5px; }}
+        QRadioButton::indicator {{ border-radius: 9px; }}
+        QCheckBox::indicator:hover, QRadioButton::indicator:hover {{
+            border-color: {theme["primary"]};
+        }}
+        QCheckBox::indicator:checked, QRadioButton::indicator:checked {{
+            background-color: {theme["primary"]};
+            border-color: {theme["primary"]};
+        }}
+        QCheckBox::indicator:checked:hover, QRadioButton::indicator:checked:hover {{
+            background-color: {theme["primary_hover"]};
+            border-color: {theme["primary_hover"]};
+        }}
+        QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{
+            background-color: {theme["header_bg"]};
+            border-color: {theme["border_soft"]};
+        }}
+        QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDateTimeEdit:focus,
+        QSpinBox:focus, QDoubleSpinBox:focus {{
             border: 1px solid {theme["primary"]};
         }}
         QMenuBar {{
@@ -234,10 +373,22 @@ def apply_theme(app: QApplication, config: dict | None = None):
             background-color: {theme["frame_bg"]};
             color: {theme["text_color"]};
             border: 1px solid {theme["frame_border"]};
+            border-radius: 8px;
+            padding: 4px;
+        }}
+        QMenu::item {{
+            padding: 6px 16px;
+            border-radius: 6px;
+            background: transparent;
         }}
         QMenu::item:selected {{
             background-color: {theme["primary"]};
             color: {theme["primary_text"]};
+        }}
+        QMenu::separator {{
+            height: 1px;
+            background: {theme["border_soft"]};
+            margin: 4px 8px;
         }}
         QMessageBox {{
             background-color: {theme["frame_bg"]};

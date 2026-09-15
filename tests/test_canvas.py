@@ -40,6 +40,12 @@ THEME = {
     "calendar_cell_bg": "#ffffff",
     "calendar_cell_border": "#dddddd",
     "calendar_cell_text": "#202020",
+    "theme_name": "light",
+    "surface_raised": "#ffffff",
+    "border_soft": "#e8ebf5",
+    "grid_line_color": "#d0d7e5",
+    "grid_line_minor_color": "#e8ecf4",
+    "event_block_text": "#ffffff",
 }
 
 

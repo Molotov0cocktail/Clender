@@ -128,13 +128,16 @@ class CalendarWidget(QFrame):
     def _render_view(self):
         t=self._t()
         scale=self._scale()
-        self.setStyleSheet(f"CalendarWidget{{background:{self.property('backgroundSurface') or t['frame_bg']};border-radius:8px;}}")
-        self._btn_prev.setStyleSheet(f'QPushButton{{font-size:{scale.section_title_px}px;border:none;background:transparent;color:{t["nav_btn_color"]};}}QPushButton:hover{{color:{t["primary"]};}}')
-        self._btn_next.setStyleSheet(self._btn_prev.styleSheet())
+        surface=t.get('surface_raised', t['frame_bg'])
+        border_soft=t.get('border_soft', t['frame_bg'])
+        self.setStyleSheet(f"CalendarWidget{{background:{self.property('backgroundSurface') or t['frame_bg']};border:1px solid {border_soft};border-radius:8px;}}")
+        nav_ss=f'QPushButton{{font-size:{scale.section_title_px}px;border:1px solid {border_soft};border-radius:18px;background:{surface};color:{t["nav_btn_color"]};}}QPushButton:hover{{background:{t["primary"]};color:{t["primary_text"]};border-color:{t["primary"]};}}QPushButton:pressed{{background:{t["primary_hover"]};color:{t["primary_text"]};}}'
+        self._btn_prev.setStyleSheet(nav_ss)
+        self._btn_next.setStyleSheet(nav_ss)
         self._lbl_title.setStyleSheet(f'font-size:{scale.page_title_px}px;font-weight:bold;color:{t["title_color"]};')
-        ss=f'QPushButton{{border:1px solid {t["input_border"]};border-radius:4px;padding:2px 12px;font-size:{scale.control_px}px;background:{t["frame_bg"]};color:{t["switch_btn_text"]};}}QPushButton:checked{{background:{t["switch_btn_checked_bg"]};color:{t["primary_text"]};border-color:{t["switch_btn_checked_bg"]};}}QPushButton:hover{{background:{t["primary_hover"]};color:{t["primary_text"]};}}'
+        ss=f'QPushButton{{border:1px solid {border_soft};border-radius:15px;padding:2px 14px;font-size:{scale.control_px}px;background:{surface};color:{t["switch_btn_text"]};}}QPushButton:checked{{background:{t["switch_btn_checked_bg"]};color:{t["primary_text"]};border-color:{t["switch_btn_checked_bg"]};}}QPushButton:hover{{background:{t["primary_hover"]};color:{t["primary_text"]};border-color:{t["primary_hover"]};}}'
         for b in (self._btn_month,self._btn_week,self._btn_day): b.setStyleSheet(ss)
-        self._btn_today.setStyleSheet(f'QPushButton{{border:1px solid {t["info"]};border-radius:4px;padding:2px 10px;font-size:{scale.control_px}px;background:{t["info"]};color:{t["primary_text"]};}}QPushButton:hover{{background:{t["info_hover"]};}}')
+        self._btn_today.setStyleSheet(f'QPushButton{{border:1px solid {t["info"]};border-radius:15px;padding:2px 12px;font-size:{scale.control_px}px;background:{t["info"]};color:{t["primary_text"]};}}QPushButton:hover{{background:{t["info_hover"]};border-color:{t["info_hover"]};}}QPushButton:pressed{{background:{t["info"]};}}')
         if self._view_mode=='month': self._render_month_view()
         elif self._view_mode=='week': self._render_week_view()
         else: self._render_day_view()
@@ -150,8 +153,10 @@ class CalendarWidget(QFrame):
 
     def _render_month_view(self):
         t=self._t(); scale=self._scale(); grid=QGridLayout(); grid.setSpacing(3)
+        surface=t.get('surface_raised', t['calendar_cell_bg'])
+        border_soft=t.get('border_soft', t['calendar_cell_border'])
         hds=['一','二','三','四','五','六','日']
-        hs=f'QLabel{{font-size:{scale.section_title_px}px;font-weight:bold;color:{t["subtitle_color"]};padding:6px;background:{t["header_bg"]};border-radius:4px;}}'
+        hs=f'QLabel{{font-size:{scale.section_title_px}px;font-weight:bold;color:{t["subtitle_color"]};padding:6px 2px;background:transparent;border-bottom:1px solid {border_soft};}}'
         for c,n in enumerate(hds):
             l=QLabel(n);l.setAlignment(Qt.AlignCenter);l.setStyleSheet(hs);grid.addWidget(l,0,c)
         y,m=self._current_date.year,self._current_date.month
@@ -165,8 +170,8 @@ class CalendarWidget(QFrame):
                     is_t=cd==today; is_s=cd==self._selected_date
                     if is_s: bg,bd,tc,bw=t["calendar_selected_bg"],t["calendar_selected_border"],t["calendar_selected_text"],2
                     elif is_t: bg,bd,tc,bw=t["calendar_today_bg"],t["calendar_today_border"],t["calendar_today_text"],2
-                    else: bg,bd,tc,bw=t["calendar_cell_bg"],t["calendar_cell_border"],t["calendar_cell_text"],1
-                    btn.setStyleSheet(f'QPushButton{{border:{bw}px solid {bd};border-radius:6px;background:{bg};font-size:{scale.body_px}px;color:{tc};min-height:56px;max-height:72px;text-align:left;padding:4px;}}QPushButton:hover{{background:{t["info_hover"]};color:{t["primary_text"]};}}')
+                    else: bg,bd,tc,bw=surface,border_soft,t["calendar_cell_text"],1
+                    btn.setStyleSheet(f'QPushButton{{border:{bw}px solid {bd};border-radius:8px;background:{bg};font-size:{scale.body_px}px;color:{tc};min-height:56px;max-height:72px;text-align:left;padding:4px;}}QPushButton:hover{{background:{t["primary_hover"]};color:{t["primary_text"]};border-color:{t["primary_hover"]};}}QPushButton:pressed{{background:{t["primary"]};color:{t["primary_text"]};}}')
                     if cd in self._event_dates and self._event_dates[cd]>0:
                         btn.setText(f'{dn}\n● {self._event_dates[cd]}项')
                     btn.clicked.connect(lambda _,d=cd: self._on_date_clicked(d))
@@ -177,6 +182,7 @@ class CalendarWidget(QFrame):
     def _render_week_view(self):
         t=self._t()
         scale=self._scale()
+        border_soft=t.get('border_soft', t['header_bg'])
         wd=self._current_date.weekday()
         ws=self._current_date-timedelta(days=wd)
         we=date.fromordinal(min(date.max.toordinal(), ws.toordinal()+6))
@@ -199,10 +205,10 @@ class CalendarWidget(QFrame):
             wdn=['一','二','三','四','五','六','日'][ci]
             lbl=QLabel(f'{wdn}\n{cd.month}/{cd.day}');lbl.setAlignment(Qt.AlignCenter)
             is_t=cd==today; is_s=cd==self._selected_date
-            if is_s: bg,cl=t["calendar_selected_bg"],t["calendar_selected_text"]
-            elif is_t: bg,cl=t["calendar_today_bg"],t["calendar_today_text"]
-            else: bg,cl=t["header_bg"],t["title_color"]
-            lbl.setStyleSheet(f'font-size:{scale.caption_px}px;font-weight:bold;color:{cl};background:{bg};padding:4px;border-radius:4px;')
+            if is_s: bg,cl,bd=t["calendar_selected_bg"],t["calendar_selected_text"],t["calendar_selected_border"]
+            elif is_t: bg,cl,bd=t["calendar_today_bg"],t["calendar_today_text"],t["calendar_today_border"]
+            else: bg,cl,bd=t["header_bg"],t["title_color"],border_soft
+            lbl.setStyleSheet(f'font-size:{scale.caption_px}px;font-weight:bold;color:{cl};background:{bg};border:1px solid {bd};padding:4px 2px;border-radius:12px;margin:1px;')
             hdr_row.addWidget(lbl)
         container.addLayout(hdr_row)
 

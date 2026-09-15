@@ -9,8 +9,10 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
+import config as cfg_mod
 import theme_manager
 from models import Event, EventType
+from typography import app_scale_from_config
 
 
 class EventDetailDialog(QDialog):
@@ -28,6 +30,11 @@ class EventDetailDialog(QDialog):
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(12)
+        section = QLabel("事项信息")
+        section.setObjectName("eventDetailSection")
+        layout.addWidget(section)
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignRight | Qt.AlignTop)
 
@@ -63,16 +70,24 @@ class EventDetailDialog(QDialog):
         layout.addLayout(form)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.button(QDialogButtonBox.Close).setProperty('btnClass', 'ghost')
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
     def apply_theme(self):
         theme = theme_manager.get_current_theme()
+        scale = app_scale_from_config(cfg_mod.load_config())
         self.setStyleSheet(f'''
             QDialog {{ background: {theme["frame_bg"]}; color: {theme["text_color"]}; }}
-            QLabel {{ color: {theme["text_color"]}; }}
+            QLabel {{ color: {theme["text_color"]}; background: transparent; }}
+            QLabel#eventDetailSection {{
+                font-size: {scale.section_title_px}px; font-weight: bold;
+                color: {theme["primary"]};
+                border-left: 3px solid {theme["primary"]};
+                padding: 2px 8px;
+            }}
             QTextBrowser {{
-                background: {theme["input_bg"]}; color: {theme["text_color"]};
-                border: 1px solid {theme["input_border"]}; border-radius: 4px;
+                background: {theme.get("surface_sunken", theme["input_bg"])}; color: {theme["text_color"]};
+                border: 1px solid {theme.get("border_soft", theme["input_border"])}; border-radius: 6px;
             }}
         ''')

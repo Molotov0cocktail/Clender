@@ -2,9 +2,9 @@
 from datetime import datetime, date
 import sqlite3
 
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QLabel, QListWidget, QListWidgetItem, QFrame,
-                             QMessageBox)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+                             QPushButton, QLabel, QListWidget, QListWidgetItem,
+                             QFrame, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
 
@@ -52,22 +52,24 @@ class EventManager(QFrame):
         layout.addWidget(self._list_widget, 1)
 
         # ---- 操作按钮 ----
-        btn_layout = QHBoxLayout()
+        btn_layout = QGridLayout()
         btn_layout.setSpacing(8)
 
         self._btn_add = QPushButton('＋ 添加事项')
+        self._btn_add.setProperty('btnClass', 'primary')
         self._btn_add.clicked.connect(self._on_add_clicked)
 
         self._btn_edit = QPushButton('编辑选中')
+        self._btn_edit.setProperty('btnClass', 'info')
         self._btn_edit.clicked.connect(self._on_edit_clicked)
 
         self._btn_delete = QPushButton('删除选中')
+        self._btn_delete.setProperty('btnClass', 'danger')
         self._btn_delete.clicked.connect(self._on_delete_clicked)
 
-        btn_layout.addWidget(self._btn_add)
-        btn_layout.addWidget(self._btn_edit)
-        btn_layout.addWidget(self._btn_delete)
-        btn_layout.addStretch()
+        btn_layout.addWidget(self._btn_add, 0, 0, 1, 2)
+        btn_layout.addWidget(self._btn_edit, 1, 0)
+        btn_layout.addWidget(self._btn_delete, 1, 1)
 
         layout.addLayout(btn_layout)
         self.apply_theme()
@@ -155,9 +157,12 @@ class EventManager(QFrame):
                 'timespan': 'event_timespan_color',
             }.get(event_type, 'muted_color')
             item.setForeground(QColor(t[color_key]))
+        selection = QColor(t['primary'])
+        selection_bg = f'rgba({selection.red()}, {selection.green()}, {selection.blue()}, 64)'
         self.setStyleSheet(f'''
             EventManager {{
                 background-color: {t["frame_bg"]};
+                border: 1px solid {t["border_soft"]};
                 border-radius: 8px;
             }}
         ''')
@@ -176,56 +181,21 @@ class EventManager(QFrame):
                 background-color: {t["list_bg"]};
                 font-size: {scale.body_px}px;
                 color: {t["text_color"]};
+                outline: none;
             }}
             QListWidget::item {{
                 padding: 10px;
+                margin: 1px 2px;
+                border: 1px solid {t["border_soft"]};
                 border-radius: 6px;
             }}
             QListWidget::item:hover {{
                 background-color: {t["list_item_hover"]};
+                border-color: {t["input_border"]};
             }}
-        """)
-        self._btn_add.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {t["primary"]};
-                color: {t["primary_text"]};
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: {scale.control_px}px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {t["primary_hover"]};
-            }}
-        """)
-        self._btn_delete.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {t["danger"]};
-                color: {t["primary_text"]};
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: {scale.control_px}px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {t["danger_hover"]};
-            }}
-        """)
-
-        self._btn_edit.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {t["info"]};
-                color: {t["primary_text"]};
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: {scale.control_px}px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {t["info_hover"]};
+            QListWidget::item:selected {{
+                background-color: {selection_bg};
+                border-color: {t["primary"]};
             }}
         """)
 

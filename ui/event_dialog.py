@@ -6,9 +6,11 @@ from PyQt5.QtWidgets import (QDialog, QFormLayout, QLineEdit, QComboBox,
                              QTextEdit, QSpinBox, QCheckBox, QLabel)
 from PyQt5.QtCore import QDate, QTime
 
+import config as cfg_mod
 import theme_manager
 from logger import get_logger
 from event_service import EventService
+from typography import app_scale_from_config
 from ui.time_input import TimeInput
 
 _log = get_logger(__name__)
@@ -26,6 +28,8 @@ class EventDialog(QDialog):
         layout = QFormLayout(self)
         layout.setSpacing(12)
         layout.setContentsMargins(24, 24, 24, 24)
+
+        layout.addRow(self._section_label('基本信息'))
 
         # 类型选择
         self._cmb_type = QComboBox()
@@ -69,6 +73,13 @@ class EventDialog(QDialog):
         layout.addRow('预估时长：', self._spin_duration)
         self._lbl_duration = layout.labelForField(self._spin_duration)
 
+        self._edit_desc = QTextEdit()
+        self._edit_desc.setPlaceholderText('可选的备注说明...')
+        self._edit_desc.setMaximumHeight(80)
+        layout.addRow('备注：', self._edit_desc)
+
+        layout.addRow(self._section_label('提醒策略'))
+
         self._notification = QCheckBox('提醒')
         self._notification.setChecked(not edit_event)
         self._timer_minutes = QSpinBox()
@@ -78,18 +89,13 @@ class EventDialog(QDialog):
         layout.addRow('到时通知：', self._notification)
         layout.addRow('开始后计时：', self._timer_minutes)
         self._alert_note = QLabel('提醒使用系统通知；计时在开始后到期通知。需要保持应用运行。')
+        self._alert_note.setObjectName('eventDialogAlertNote')
         self._alert_note.setWordWrap(True)
         layout.addRow(self._alert_note)
 
-        # 备注
-        self._edit_desc = QTextEdit()
-        self._edit_desc.setPlaceholderText('可选的备注说明...')
-        self._edit_desc.setMaximumHeight(80)
-        layout.addRow('备注：', self._edit_desc)
-
-        # 按钮
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btn_box.button(QDialogButtonBox.Ok).setText('确定')
+        btn_box.button(QDialogButtonBox.Ok).setProperty('btnClass', 'primary')
         btn_box.button(QDialogButtonBox.Cancel).setText('取消')
         btn_box.accepted.connect(self._validate_and_accept)
         btn_box.rejected.connect(self.reject)
@@ -100,16 +106,35 @@ class EventDialog(QDialog):
         self._on_type_changed()
         self.apply_theme()
 
+    @staticmethod
+    def _section_label(text: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName('eventDialogSection')
+        return label
+
     def apply_theme(self):
         """Refresh form colors while inheriting the application's type scale."""
         t = theme_manager.get_current_theme()
+        scale = app_scale_from_config(cfg_mod.load_config())
         self.setStyleSheet(f'''
             QDialog {{ background: {t["frame_bg"]}; }}
-            QLineEdit, QDateTimeEdit, QTextEdit, QComboBox, QSpinBox {{
-                padding: 7px; border: 1px solid {t["frame_border"]};
-                border-radius: 6px; background: {t["list_bg"]}; color: {t["text_color"]};
+            QLabel {{ color: {t["text_color"]}; background: transparent; }}
+            QLabel#eventDialogSection {{
+                font-size: {scale.section_title_px}px; font-weight: bold;
+                color: {t["primary"]};
+                border-left: 3px solid {t["primary"]};
+                padding: 2px 8px;
             }}
-            QLineEdit:focus, QDateTimeEdit:focus, QTextEdit:focus {{
+            QLabel#eventDialogAlertNote {{
+                color: {t["subtitle_color"]};
+                font-size: {scale.secondary_px}px;
+            }}
+            QLineEdit, QDateTimeEdit, QTextEdit, QComboBox, QSpinBox {{
+                padding: 7px; border: 1px solid {t.get("border_soft", t["frame_border"])};
+                border-radius: 6px; background: {t.get("input_bg", t["list_bg"])}; color: {t["text_color"]};
+            }}
+            QLineEdit:focus, QDateTimeEdit:focus, QTextEdit:focus,
+            QComboBox:focus, QSpinBox:focus {{
                 border: 1px solid {t["primary"]};
             }}
         ''')

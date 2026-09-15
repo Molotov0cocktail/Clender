@@ -1,3 +1,11 @@
+# T74 Windows UI 美化（2026-09-15，本地验证完成，待用户验收）
+
+用户授权自主决策美化 Windows 端 UI（Android 不动），素材全部原创（QSS/矢量绘制，无外部下载），验收后再发布 v1.3.1。四个子 agent 按文件边界实施：A 设计令牌与全局 QSS（串行先行），B 日历画布/月视图，C 主窗口/侧栏/事项面板/聊天气泡，D 对话框/悬浮窗（并行）；主 agent 集成修复与最终验证。任务、门禁与矩阵见 `doc/tasks/T74-windows-ui-beautification.md`。
+
+当前视觉契约：theme_manager 双主题各 58 键——原 42 键语义不变（light primary 对齐全品牌 #4968e8），新增 theme_name、accent_gradient_start/end、primary_pressed、surface_raised/sunken、border_soft、grid_line_color/minor、event_block_text、chat_user/ai/think_bubble_bg、success/warning/danger_soft。全局 QSS 支持按钮角色动态属性 `btnClass`（primary 渐变/danger/info/ghost），对话框区块标题用 objectName `*Section`+3px accent 竖条。constants 的 EVENT_COLORS 换 12 色现代色板并新增 EVENT_COLORS_DARK（Canvas 按 theme_name 选变体，块=圆角6+alpha 填充+左 3px 色条，半点虚线网格）。聊天为 QTextBrowser table bgcolor 气泡（user 右/assistant 左/think 左，toPlainText 与锚点折叠契约不变）。事项面板按钮两行栅格防大字号裁切。rgba/transparent 背景替换链、静态裸字号扫描、Canvas 几何与全部 objectName/文案门禁保持。
+
+维护记录（T74，2026-09-15）：各 agent 均先 RED 后 GREEN（A 3f/11e→12ok；B 15f→43ok；C 9f+1e→42ok；D 11f→83ok 并修一处预存在 ai_settings 大字号压线）。集成期修复：20px 事项按钮裁切改两行栅格；offscreen 截图空白为环境字体库空（QT_QPA_FONTDIR 解决，非回归）；周视图月格重叠为 deleteLater 截图伪影（HEAD 即存在）。最终 335/335 unittest（284 既有+51 新增）零失败/错误/跳过，35 模块 imports、build --check 通过；完整 PyInstaller EXE 45,590,808 bytes SHA256 `86592e76761a9b9b8ab7ed879d6ad9023e5345e28f3d159294d2647f40aa6dd2`；dist/data 前后 5 文件/167951 bytes/组合摘要 `13bde8e6b2ff25438321798251355a33787619ffb894686c72e315aa186aa119` 一致；隔离 EXE 普通→静默/静默→普通双场景全真通过、零残留进程。Light/Dark × 8/13/20px 主窗口四态+四对话框+悬浮窗共 38 图读图审查通过。限制：offscreen 不渲染彩色 emoji、气泡为直角 table 色块、20px 周视图需横滚（既有行为）。未推送、未 Release、版本号不动。
+
 # T73 双端 v1.3.0 正式发布（2026-09-14，完成）
 
 用户授权将T70–T72提交为新的双端应用版本并更新GitHub/Gitee Release。版本定为`v1.3.0`；Android包内版本从历史`1.0.0 (1)`提升到`1.3.0 (2)`，applicationId、原正式签名、Room v3、WebDAV v1、权限、Manifest和依赖不变。发布附件为带版本名的EXE/APK/AAB，不上传debug、mapping、用户数据、配置、密钥、日志或缓存。GitHub main可安全快进；Gitee main保留独立LICENSE历史，只推新标签，禁止强推。任务、测试矩阵、回滚和发布回读见`doc/tasks/T73-dual-platform-v1.3.0-release.md`。
@@ -185,7 +193,7 @@ Clender/
 │  ├─ ai_settings.py          # API、模型、Token、Thinking、提示词设置
 │  ├─ sidebar.py              # 对话选择/新建/删除/重命名信号
 │  └─ __init__.py
-├─ tests/                     # 252 项 unittest：既有能力、隔离exe工具、背景/图标/动作文字/对比度
+├─ tests/                     # 335 项 unittest：既有能力、隔离exe工具、背景/图标/动作文字/对比度、T74 令牌/画布/面板/对话框视觉门禁
 ├─ .github/workflows/test.yml # Windows + Python 3.12.4 CI
 ├─ data/                      # 真实运行数据；被忽略，视为敏感数据
 │  ├─ clender.db

@@ -5,10 +5,15 @@ from collections import defaultdict
 from math import ceil
 
 from PyQt5.QtCore import QRectF, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QBrush, QColor, QPainter, QPen
+from PyQt5.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen
 from PyQt5.QtWidgets import QApplication, QFrame
 
-from constants import EVENT_COLORS, OVERLAP_MARKER_COLOR, REMINDER_LINE_COLOR
+from constants import (
+    EVENT_COLORS,
+    EVENT_COLORS_DARK,
+    OVERLAP_MARKER_COLOR,
+    REMINDER_LINE_COLOR,
+)
 
 
 class _BaseCalendarCanvas(QFrame):
@@ -27,6 +32,12 @@ class _BaseCalendarCanvas(QFrame):
     TIME_LABEL = "00:00"
     TIME_GAP = 8.0
     TIME_LEFT_PADDING = 4.0
+    BLOCK_RADIUS = 6.0
+    ACCENT_BAR_WIDTH = 3.0
+    BLOCK_FILL_ALPHA = 225
+    MARKER_RING_ALPHA = 90
+    MARKER_DOT_RADIUS = 3.0
+    MARKER_RING_RADIUS = 5.0
 
     def __init__(self, blocks, timeline_height, per_hour, theme, parent=None):
         super().__init__(parent)
@@ -86,11 +97,24 @@ class _BaseCalendarCanvas(QFrame):
             float(self.timeline_height) - base_label_rect.height(),
         )
 
-        painter.setPen(QPen(QColor(self.theme["muted_color"]), 1, Qt.DashLine))
+        major_color = QColor(self.theme.get("grid_line_color", self.theme["muted_color"]))
+        minor_color = QColor(
+            self.theme.get("grid_line_minor_color", self.theme["muted_color"])
+        )
+
+        painter.setPen(QPen(minor_color, 1, Qt.DashLine))
+        for hour in range(24):
+            minor_y = int(float(hour * self.per_hour) + self.per_hour / 2.0)
+            painter.drawLine(int(grid_start), minor_y, width, minor_y)
+
+        painter.setPen(QPen(major_color, 1, Qt.SolidLine))
+        for hour in range(24):
+            major_y = int(float(hour * self.per_hour))
+            painter.drawLine(int(grid_start), major_y, width, major_y)
+
+        painter.setPen(QPen(QColor(self.theme["muted_color"]), 1))
         for hour in range(25):
             y = float(hour * self.per_hour)
-            if hour < 24:
-                painter.drawLine(int(grid_start), int(y), width, int(y))
             label_top = max(
                 0.0,
                 min(y - base_label_rect.height() / 2.0, max_label_top),
@@ -348,11 +372,30 @@ class _BaseCalendarCanvas(QFrame):
         rect = entry["rect"]
         y = rect.top()
         color = QColor(REMINDER_LINE_COLOR)
-        painter.setPen(QPen(color, 3))
+        ring = QColor(color)
+        ring.setAlpha(self.MARKER_RING_ALPHA)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(ring))
+        painter.drawEllipse(
+            QRectF(
+                rect.left() + self.MARKER_DOT_RADIUS - self.MARKER_RING_RADIUS,
+                y - self.MARKER_RING_RADIUS,
+                self.MARKER_RING_RADIUS * 2.0,
+                self.MARKER_RING_RADIUS * 2.0,
+            )
+        )
+        painter.setPen(QPen(color, 3, Qt.SolidLine, Qt.RoundCap))
         painter.drawLine(int(rect.left()), int(y), int(rect.right()), int(y))
         painter.setBrush(QBrush(color))
         painter.setPen(Qt.NoPen)
-        painter.drawEllipse(QRectF(rect.left(), y - 3.0, 6.0, 6.0))
+        painter.drawEllipse(
+            QRectF(
+                rect.left(),
+                y - self.MARKER_DOT_RADIUS,
+                self.MARKER_DOT_RADIUS * 2.0,
+                self.MARKER_DOT_RADIUS * 2.0,
+            )
+        )
 
     def _draw_text(self, painter: QPainter, entry: dict, text_rect: QRectF) -> None:
         if text_rect.width() < self.MIN_TEXT_WIDTH:
@@ -395,6 +438,17 @@ class _BaseCalendarCanvas(QFrame):
             )
         painter.restore()
 
+    def _palette(self) -> list:
+        theme_name = str(self.theme.get("theme_name", "light")).lower()
+        return EVENT_COLORS_DARK if theme_name == "dark" else EVENT_COLORS
+
+    def _block_colors(self, color_index: int) -> tuple:
+        palette = self._palette()
+        accent = QColor(palette[int(color_index) % len(palette)])
+        fill = QColor(accent)
+        fill.setAlpha(self.BLOCK_FILL_ALPHA)
+        return accent, fill
+
     def _draw_entry(self, painter: QPainter, entry: dict) -> None:
         rect = entry["rect"]
         if entry["overflow"]:
@@ -402,7 +456,7 @@ class _BaseCalendarCanvas(QFrame):
             color_index = first.get("color_idx", 0)
         else:
             color_index = entry["block"].get("color_idx", 0)
-        color = QColor(EVENT_COLORS[color_index % len(EVENT_COLORS)])
+        accent, fill = self._block_colors(color_index)
 
         if entry.get("marker", False):
             self._draw_marker(painter, entry)
@@ -410,9 +464,25 @@ class _BaseCalendarCanvas(QFrame):
             return
 
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(color))
-        painter.drawRoundedRect(rect, 3, 3)
-        painter.setPen(QColor(255, 255, 255))
+        painter.setBrush(QBrush(fill))
+        painter.drawRoundedRect(rect, self.BLOCK_RADIUS, self.BLOCK_RADIUS)
+
+        painter.save()
+        clip = QPainterPath()
+        clip.addRoundedRect(rect, self.BLOCK_RADIUS, self.BLOCK_RADIUS)
+        painter.setClipPath(clip)
+        painter.setBrush(QBrush(accent))
+        painter.drawRect(
+            QRectF(
+                rect.left(),
+                rect.top(),
+                min(self.ACCENT_BAR_WIDTH, rect.width()),
+                rect.height(),
+            )
+        )
+        painter.restore()
+
+        painter.setPen(QColor(self.theme.get("event_block_text", "#ffffff")))
 
         if entry["overflow"]:
             label = f'+{len(entry["event_ids"])}'

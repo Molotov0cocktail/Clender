@@ -88,15 +88,18 @@ class ConversationSidebar(QFrame):
     def apply_theme(self):
         t = theme_manager.get_current_theme()
         scale = app_scale_from_config(cfg_mod.load_config())
+        selection = QColor(t['primary'])
+        selection_bg = f'rgba({selection.red()}, {selection.green()}, {selection.blue()}, 64)'
         self._lbl_title.setStyleSheet(
             f'font-weight:bold;color:{t["title_color"]};'
             f'font-size:{scale.section_title_px}px;'
         )
         self._btn_new.setStyleSheet(
-            f'QPushButton{{border:1px solid {t["input_border"]};border-radius:4px;'
-            f'background:{t["frame_bg"]};color:{t["text_color"]};font-weight:bold;'
+            f'QPushButton{{border:1px solid {t["input_border"]};border-radius:6px;'
+            f'background:{t["surface_raised"]};color:{t["primary"]};font-weight:bold;'
             f'font-size:{scale.control_px}px;}}'
-            f'QPushButton:hover{{background:{t["list_item_hover"]};}}'
+            f'QPushButton:hover{{background:{t["list_item_hover"]};border-color:{t["primary"]};}}'
+            f'QPushButton:pressed{{background:{t["header_bg"]};}}'
         )
         control_extent = max(
             24,
@@ -104,7 +107,8 @@ class ConversationSidebar(QFrame):
         )
         self._btn_new.setFixedSize(control_extent, control_extent)
         self._list.setStyleSheet(f"""
-            QListWidget{{border:1px solid {t["frame_border"]};border-radius:4px;background:{t["list_bg"]};color:{t["text_color"]};font-size:{scale.secondary_px}px;}}
-            QListWidget::item{{padding:5px 4px;border-bottom:1px solid {t["frame_border"]};}}
+            QListWidget{{border:1px solid {t["frame_border"]};border-radius:6px;background:{t["list_bg"]};color:{t["text_color"]};font-size:{scale.secondary_px}px;outline:none;}}
+            QListWidget::item{{padding:6px 6px;margin:1px 0;border-left:2px solid transparent;border-radius:4px;}}
             QListWidget::item:hover{{background:{t["list_item_hover"]};}}
+            QListWidget::item:selected{{background:{selection_bg};border-left:2px solid {t["primary"]};}}
         """)

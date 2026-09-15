@@ -7,6 +7,8 @@ from PyQt5.QtCore import Qt, QRectF, QSize
 from PyQt5.QtGui import QColor, QImage, QImageReader, QPainter
 from PyQt5.QtWidgets import QWidget
 
+from theme_manager import DARK_THEME, LIGHT_THEME
+
 
 @dataclass(frozen=True)
 class BackgroundSettings:
@@ -72,7 +74,8 @@ class BackgroundWidget(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        color = QColor('#101522' if self._theme == 'dark' else '#f0f3fa')
+        theme = DARK_THEME if self._theme == 'dark' else LIGHT_THEME
+        color = QColor(theme['app_bg'])
         painter.fillRect(self.rect(), color)
         if self.has_background:
             painter.setRenderHint(QPainter.SmoothPixmapTransform)

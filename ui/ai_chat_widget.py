@@ -74,6 +74,8 @@ class AIChatWidget(QFrame):
         title_row = QHBoxLayout()
         self._btn_toggle_sidebar = QPushButton('对话')
         self._btn_toggle_sidebar.setToolTip('显示/隐藏对话列表')
+        self._btn_toggle_sidebar.setProperty('btnClass', 'ghost')
+        self._btn_toggle_sidebar.setStyleSheet('QPushButton{padding:2px 4px;}')
         self._btn_toggle_sidebar.clicked.connect(self._toggle_sidebar)
 
         self._lbl_conv_title = QLabel('AI 智能助手')
@@ -82,10 +84,14 @@ class AIChatWidget(QFrame):
         title_row.addStretch()
         self._btn_settings = QPushButton('设置')
         self._btn_settings.setToolTip('AI设置')
+        self._btn_settings.setProperty('btnClass', 'ghost')
+        self._btn_settings.setStyleSheet('QPushButton{padding:2px 4px;}')
         self._btn_settings.clicked.connect(self._open_settings)
         title_row.addWidget(self._btn_settings)
         self._btn_clear = QPushButton('清空')
         self._btn_clear.setToolTip('清空当前对话')
+        self._btn_clear.setProperty('btnClass', 'ghost')
+        self._btn_clear.setStyleSheet('QPushButton{padding:2px 4px;}')
         self._btn_clear.clicked.connect(self._clear_chat)
         title_row.addWidget(self._btn_clear)
         right.addLayout(title_row)
@@ -119,6 +125,7 @@ class AIChatWidget(QFrame):
         self._edit_input.returnPressed.connect(self._send_message)
         input_row.addWidget(self._edit_input, 1)
         self._btn_send = QPushButton('发送')
+        self._btn_send.setProperty('btnClass', 'primary')
         self._btn_send.clicked.connect(self._send_message)
         input_row.addWidget(self._btn_send)
         right.addLayout(input_row)
@@ -201,28 +208,57 @@ class AIChatWidget(QFrame):
                     pass  # 无效的时间戳格式
 
             if role == 'user':
-                header = f'<p><b style="color:{t["chat_user_color"]}">你 {time_str}</b></p>'
-                body = f'<p style="color:{t["text_color"]}; margin-left:10px;">{self._esc(content)}</p>'
+                header = (
+                    f'<p style="margin-top:0;margin-bottom:0;">'
+                    f'<b style="color:{t["chat_user_color"]};font-size:{scale.caption_px}px;">你 {time_str}</b></p>'
+                )
+                body = (
+                    f'<p style="color:{t["text_color"]};margin-top:2px;margin-bottom:0;">'
+                    f'{self._esc(content)}</p>'
+                )
+                html = self._bubble(header + body, t['chat_user_bubble_bg'], '85%', 'right')
             elif role == 'assistant':
-                header = f'<p><b style="color:{t["chat_ai_color"]}">AI {time_str}</b></p>'
-                body = f'<p style="color:{t["text_color"]}; margin-left:10px;">{self._esc(content)}</p>'
+                header = (
+                    f'<p style="margin-top:0;margin-bottom:0;">'
+                    f'<b style="color:{t["chat_ai_color"]};font-size:{scale.caption_px}px;">AI {time_str}</b></p>'
+                )
+                body = (
+                    f'<p style="color:{t["text_color"]};margin-top:2px;margin-bottom:0;">'
+                    f'{self._esc(content)}</p>'
+                )
+                html = self._bubble(header + body, t['chat_ai_bubble_bg'], '85%', 'left')
             elif role == 'think':
                 think_idx = sum(1 for m in self._active_conv.messages[:i] if m.role == 'think')
                 expansion_key = (self._active_conv.id, think_idx)
                 is_expanded = self._think_expanded.get(expansion_key, False)
                 anchor_name = self._think_anchor_name(think_idx)
+                link_style = f'color:{t["primary"]};text-decoration:none;font-size:{scale.caption_px}px;'
                 if is_expanded:
-                    header = f'<p><b style="color:{t["warning_text"]}">思考 {time_str}</b> '
-                    header += f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:{scale.caption_px}px;">收起 ▲</a></p>'
-                    body = f'<p style="color:{t["subtitle_color"]}; margin-left:10px; font-style:italic;">{self._esc(content)}</p>'
+                    header = (
+                        f'<p style="margin-top:0;margin-bottom:0;">'
+                        f'<b style="color:{t["warning_text"]};font-size:{scale.caption_px}px;">思考 {time_str}</b> '
+                        f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="{link_style}">收起 ▲</a></p>'
+                    )
+                    body = (
+                        f'<p style="color:{t["subtitle_color"]};margin-top:2px;margin-bottom:0;font-style:italic;">'
+                        f'{self._esc(content)}</p>'
+                    )
                 else:
                     short_preview = content[:100].replace('\n', ' ') + ('…' if len(content) > 100 else '')
-                    header = f'<p><b style="color:{t["warning_text"]}">思考 {time_str} ({len(content)}字)</b> '
-                    header += f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="color:{t["primary"]};text-decoration:none;font-size:{scale.caption_px}px;">展开 ▼</a></p>'
-                    body = f'<p style="color:{t["muted_color"]}; margin-left:10px; font-size:{scale.caption_px}px;">{self._esc(short_preview)}</p>'
+                    header = (
+                        f'<p style="margin-top:0;margin-bottom:0;">'
+                        f'<b style="color:{t["warning_text"]};font-size:{scale.caption_px}px;">思考 {time_str} ({len(content)}字)</b> '
+                        f'<a name="{anchor_name}" href="toggle_think_{think_idx}" style="{link_style}">展开 ▼</a></p>'
+                    )
+                    body = (
+                        f'<p style="color:{t["muted_color"]};margin-top:2px;margin-bottom:0;font-size:{scale.caption_px}px;">'
+                        f'{self._esc(short_preview)}</p>'
+                    )
+                html = self._bubble(header + body, t['chat_think_bubble_bg'], '90%', 'left')
             else:
                 continue
-            self._chat_display.insertHtml(header + body + f'<hr style="border:0;height:1px;background:{t["frame_border"]};">')
+            spacer = f'<p style="margin-top:2px;margin-bottom:2px;font-size:{scale.caption_px}px;">&nbsp;</p>'
+            self._chat_display.insertHtml(html + spacer)
         if scroll_mode == "preserve" and scroll_bar is not None:
             current_anchor_y = self._anchor_document_y(anchor) if anchor else None
             if previous_anchor_y is None or current_anchor_y is None:
@@ -238,6 +274,14 @@ class AIChatWidget(QFrame):
             if scroll_bar is not None:
                 scroll_bar.setValue(scroll_bar.maximum())
         self._chat_display.anchorClicked.connect(self._on_think_toggle)
+
+    @staticmethod
+    def _bubble(inner: str, background: str, width: str, align: str) -> str:
+        return (
+            f'<table width="{width}" align="{align}" bgcolor="{background}"'
+            f' cellpadding="6" cellspacing="0" border="0">'
+            f'<tr><td>{inner}</td></tr></table>'
+        )
 
     @staticmethod
     def _think_anchor_name(think_idx):
@@ -480,11 +524,11 @@ class AIChatWidget(QFrame):
         scale = app_scale_from_config(cfg_mod.load_config())
         ratio = used / max(total, 1)
         if ratio > 0.8:
-            chunk = '#e74c3c'
+            chunk = t['danger']
         elif ratio > 0.5:
-            chunk = '#d29922'
+            chunk = t['warning_text']
         else:
-            chunk = '#3fb950'
+            chunk = t['success']
         token_height = max(
             14,
             QFontMetrics(qfont_for(scale, 'caption')).height() + 4,
@@ -537,7 +581,7 @@ class AIChatWidget(QFrame):
     def apply_theme(self):
         t = self._t()
         scale = app_scale_from_config(cfg_mod.load_config())
-        self.setStyleSheet(f'AIChatWidget{{background:{t["frame_bg"]};border-radius:8px;}}')
+        self.setStyleSheet(f'AIChatWidget{{background:{t["frame_bg"]};border:1px solid {t["border_soft"]};border-radius:8px;}}')
         self._lbl_conv_title.setStyleSheet(
             f'font-size:{scale.section_title_px}px;font-weight:bold;'
             f'color:{t["title_color"]};'
@@ -555,10 +599,6 @@ class AIChatWidget(QFrame):
             QTextEdit{{padding:6px;font-size:{scale.control_px}px;border:1px solid {t["input_border"]};border-radius:8px;background:{t["input_bg"]};color:{t["text_color"]};}}
             QTextEdit:focus{{border:1px solid {t["primary"]};}}
         ''')
-        self._btn_send.setStyleSheet(f"""
-            QPushButton{{background:{t["primary"]};color:{t["primary_text"]};border:none;border-radius:5px;padding:6px 16px;font-size:{scale.control_px}px;font-weight:bold;}}
-            QPushButton:hover{{background:{t["primary_hover"]};}} QPushButton:disabled{{background:{t["muted_color"]};}}
-        """)
         control_extent = max(
             26,
             QFontMetrics(qfont_for(scale, 'control')).height() + 8,
@@ -566,10 +606,6 @@ class AIChatWidget(QFrame):
         for btn in (self._btn_settings, self._btn_clear, self._btn_toggle_sidebar):
             text_width = QFontMetrics(qfont_for(scale, 'control')).horizontalAdvance(btn.text())
             btn.setFixedSize(max(control_extent, text_width + 16), control_extent)
-            btn.setStyleSheet(f"""
-                QPushButton{{border:1px solid {t["input_border"]};border-radius:4px;padding:2px 4px;font-size:{scale.control_px}px;background:{t["frame_bg"]};color:{t["text_color"]};}}
-                QPushButton:hover{{background:{t["list_item_hover"]};}}
-            """)
         self._sidebar.apply_theme()
         self._update_token_bar()
         if self._active_conv:

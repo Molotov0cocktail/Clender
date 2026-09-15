@@ -11,9 +11,10 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout, QV
                              QSystemTrayIcon, QMenu, QInputDialog, QDialog,
                              QMessageBox)
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QFontMetrics, QPixmap
 from background import BackgroundWidget
-from app_icon import create_app_icon
+from app_icon import create_app_icon, render_icon
+from typography import app_scale_from_config, qfont_for
 
 import config as cfg_mod
 import theme_manager
@@ -73,10 +74,22 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(16, 12, 16, 16)
         main_layout.setSpacing(12)
         header = QHBoxLayout()
-        self._brand_label = QLabel('Clender  /  我的日程')
-        header.addWidget(self._brand_label)
+        header.setSpacing(10)
+        self._brand_icon = QLabel()
+        self._brand_icon.setObjectName('brandIcon')
+        header.addWidget(self._brand_icon)
+        brand_text = QVBoxLayout()
+        brand_text.setSpacing(0)
+        self._brand_label = QLabel('Clender')
+        self._brand_label.setObjectName('brandTitle')
+        self._brand_subtitle = QLabel('我的日程')
+        self._brand_subtitle.setObjectName('brandSubtitle')
+        brand_text.addWidget(self._brand_label)
+        brand_text.addWidget(self._brand_subtitle)
+        header.addLayout(brand_text)
         header.addStretch()
         appearance = QPushButton('外观与设置')
+        appearance.setProperty('btnClass', 'info')
         appearance.setToolTip('背景、字号、悬浮窗和同步设置')
         appearance.clicked.connect(self._open_settings_dialog)
         header.addWidget(appearance)
@@ -94,7 +107,6 @@ class MainWindow(QMainWindow):
 
         self._splitter = QSplitter(Qt.Horizontal)
         self._splitter.setHandleWidth(10)
-        self._splitter.setStyleSheet('QSplitter::handle { background: transparent; }')
         self._splitter.addWidget(self._calendar)
         self._splitter.addWidget(self._event_mgr)
         self._splitter.addWidget(self._ai_chat)
@@ -113,16 +125,19 @@ class MainWindow(QMainWindow):
         # 设置按钮
         self._btn_settings = QPushButton('设置')
         self._btn_settings.setToolTip('设置')
+        self._btn_settings.setProperty('btnClass', 'ghost')
         self._btn_settings.clicked.connect(self._open_settings_dialog)
         self._status_bar.addPermanentWidget(self._btn_settings)
 
         # 主题切换
         self._theme_btn = QPushButton()
         self._theme_btn.setToolTip('切换日间/夜间主题')
+        self._theme_btn.setProperty('btnClass', 'ghost')
         self._theme_btn.clicked.connect(self._toggle_theme)
         self._status_bar.addPermanentWidget(self._theme_btn)
 
         self.setStatusBar(self._status_bar)
+        self._apply_chrome_styles()
 
     def _init_tray(self):
         if not QSystemTrayIcon.isSystemTrayAvailable():
@@ -227,8 +242,35 @@ class MainWindow(QMainWindow):
         current = cfg_mod.get_theme()
         self._theme_btn.setText('日间' if current == 'dark' else '夜间')
 
+    def _apply_chrome_styles(self):
+        t = theme_manager.get_current_theme()
+        scale = app_scale_from_config(cfg_mod.load_config())
+        icon_extent = max(24, QFontMetrics(qfont_for(scale, 'section_title')).height() + 8)
+        self._brand_icon.setPixmap(
+            QPixmap.fromImage(render_icon(icon_extent * 2)).scaled(
+                icon_extent, icon_extent, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+        )
+        self._brand_label.setStyleSheet(
+            f'font-size:{scale.page_title_px}px;font-weight:bold;'
+            f'color:{t["title_color"]};background:transparent;'
+        )
+        self._brand_subtitle.setStyleSheet(
+            f'font-size:{scale.caption_px}px;color:{t["subtitle_color"]};'
+            f'background:transparent;'
+        )
+        self._splitter.setStyleSheet(
+            'QSplitter::handle {'
+            ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
+            ' stop:0 transparent, stop:0.42 transparent,'
+            f' stop:0.42 {t["border_soft"]}, stop:0.58 {t["border_soft"]},'
+            ' stop:0.58 transparent, stop:1 transparent);'
+            ' }'
+        )
+
     def _apply_component_styles(self):
         self.centralWidget().apply_config(cfg_mod.load_config())
+        self._apply_chrome_styles()
         self._calendar.setProperty('backgroundSurface', None)
         self._calendar.apply_theme()
         self._event_mgr.apply_theme()
