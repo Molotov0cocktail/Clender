@@ -7,7 +7,8 @@ import math
 import re
 from datetime import datetime
 import config as cfg_mod
-from constants import SYSTEM_PROMPT, MODEL_CAPABILITIES
+from constants import SYSTEM_PROMPT
+from model_capabilities import resolve_model_capabilities
 from event_service import EventService
 from models import Conversation
 from logger import get_logger
@@ -157,36 +158,12 @@ class AIService:
     # ── 模型能力推断 ──
 
     @staticmethod
-    def guess_model_capabilities(model_id: str) -> tuple[int, int]:
-        """根据模型名称推断上下文窗口大小和最大输出 token
-
-        Returns:
-            tuple: (context_window, max_output_tokens)
-        """
-        model_lower = model_id.lower()
-        ctx_win = 128000
-        max_out = 4096
-
-        for key, (ctx, out) in MODEL_CAPABILITIES.items():
-            if key in model_lower:
-                ctx_win = ctx
-                max_out = out
-                break
-        else:
-            if 'deepseek' in model_lower:
-                ctx_win = 131072; max_out = 8192
-            elif 'gpt-4' in model_lower or 'gpt4' in model_lower:
-                ctx_win = 128000; max_out = 16384
-            elif 'gpt-3.5' in model_lower:
-                ctx_win = 16385; max_out = 4096
-            elif 'claude' in model_lower:
-                ctx_win = 200000; max_out = 8192
-            elif 'gemini' in model_lower:
-                ctx_win = 131072; max_out = 8192
-            elif 'context' in model_lower or 'large' in model_lower:
-                ctx_win = 131072; max_out = 16384
-
-        return ctx_win, max_out
+    def guess_model_capabilities(
+        model_id: str, endpoint: str = '', metadata: dict | None = None,
+    ) -> tuple[int | None, int | None]:
+        """兼容旧调用；未知能力不再伪装成固定 128K / 8192。"""
+        caps = resolve_model_capabilities(model_id, endpoint, metadata)
+        return caps.context_window, caps.max_output_tokens
 
     # ── 响应解析 ──
 

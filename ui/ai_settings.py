@@ -12,6 +12,7 @@ import config as cfg_mod
 import theme_manager
 from ai_client import fetch_models_list
 from ai_service import AIService
+from model_capabilities import TOKEN_LIMIT_MAX, resolve_model_capabilities
 from typography import app_scale_from_config
 
 
@@ -46,7 +47,7 @@ class SettingsDialog(QDialog):
         self._cmb_model.setMinimumWidth(300)
         model_row.addWidget(self._cmb_model, 1)
         self._btn_fetch = QPushButton('🔄 获取模型')
-        self._btn_fetch.setToolTip('从API获取模型列表，并自动填充上下文窗口和最大输出Token')
+        self._btn_fetch.setToolTip('获取模型列表；按 API 元数据或官方文档填充已知上限，未知项可手动填写')
         self._btn_fetch.clicked.connect(self._fetch_models)
         model_row.addWidget(self._btn_fetch)
         layout.addRow('模型:', model_row)
@@ -58,13 +59,13 @@ class SettingsDialog(QDialog):
         layout.addRow('温度:', self._spin_temp)
 
         self._spin_max_tok = QSpinBox()
-        self._spin_max_tok.setRange(100, 65536)
+        self._spin_max_tok.setRange(1, TOKEN_LIMIT_MAX)
         self._spin_max_tok.setSingleStep(256)
         self._spin_max_tok.setValue(4096)
         layout.addRow('最大输出Token:', self._spin_max_tok)
 
         self._spin_ctx = QSpinBox()
-        self._spin_ctx.setRange(1024, 1048576)
+        self._spin_ctx.setRange(1, TOKEN_LIMIT_MAX)
         self._spin_ctx.setSingleStep(1024)
         self._spin_ctx.setValue(128000)
         self._spin_ctx.setToolTip('上下文窗口大小（token），控制发送给AI的历史长度')
@@ -83,6 +84,7 @@ class SettingsDialog(QDialog):
 
         self._lbl_info = QLabel('')
         self._lbl_info.setObjectName('aiSettingsInfo')
+        self._lbl_info.setWordWrap(True)
         layout.addRow(self._lbl_info)
 
         persona_header = QHBoxLayout()
@@ -114,6 +116,9 @@ class SettingsDialog(QDialog):
         layout.addRow(btn)
 
         self._load()
+        self._cmb_model.currentTextChanged.connect(self._model_changed)
+        self._edit_ep.textChanged.connect(self._endpoint_changed)
+        self._show_capabilities()
         self.apply_theme()
 
     def apply_theme(self):
@@ -151,6 +156,8 @@ class SettingsDialog(QDialog):
 
     def _load(self):
         cfg = cfg_mod.load_config()
+        self._metadata_endpoint = cfg.get('available_models_endpoint', '')
+        self._model_metadata = cfg.get('model_capabilities', {})
         self._edit_ep.setText(cfg.get('api_endpoint', ''))
         self._edit_key.setText(cfg.get('api_key', ''))
         self._edit_personality.setPlainText(AIService.merge_personality_settings(cfg))
@@ -175,12 +182,61 @@ class SettingsDialog(QDialog):
         if idx >= 0:
             self._cmb_think.setCurrentIndex(idx)
 
+    def _capabilities(self):
+        from ai_client import normalize_endpoint
+        endpoint = self._edit_ep.text().strip()
+        model = self._cmb_model.currentText().strip()
+        metadata = None
+        if (self._metadata_endpoint and
+                normalize_endpoint(endpoint) == normalize_endpoint(self._metadata_endpoint) and
+                isinstance(self._model_metadata, dict)):
+            metadata = self._model_metadata.get(model)
+        return resolve_model_capabilities(model, endpoint, metadata)
+
+    def _show_capabilities(self, prefix=''):
+        caps = self._capabilities()
+        source = {'metadata': 'API 元数据', 'official': '官方文档',
+                  'metadata+official': 'API 元数据 / 官方文档', 'unknown': '未提供能力'}.get(caps.source, '未提供能力')
+        context = f'{caps.context_window:,}' if caps.context_window else '未知'
+        output = f'{caps.max_output_tokens:,}' if caps.max_output_tokens else '未知'
+        self._lbl_info.setText(f'{prefix}{source} | 上下文窗口: {context} | 最大输出: {output}')
+        self._lbl_info.setToolTip(caps.source_url or (
+            '服务商模型列表返回的能力；未知项可按服务商文档手动填写。'
+            if caps.source == 'metadata' else
+            '未知项可按服务商文档手动填写；当前输入不会被猜测值覆盖。'))
+        return caps
+
+    def _model_changed(self):
+        caps = self._show_capabilities()
+        self._apply_capabilities(caps)
+
+    def _apply_capabilities(self, caps, fill_maximum=False):
+        output = self._spin_max_tok.value()
+        if caps.context_window:
+            self._spin_ctx.setValue(caps.context_window)
+            # Match the request budget's safety margin. Independent input/output
+            # ceilings do not mean they can both be consumed in one request.
+            available = max(1, caps.context_window -
+                            max(32, int(caps.context_window * 0.1)) - 1)
+            if fill_maximum and caps.max_output_tokens and caps.max_output_tokens <= available:
+                output = caps.max_output_tokens
+            output = min(output, available)
+        if caps.max_output_tokens:
+            output = min(output, caps.max_output_tokens)
+        self._spin_max_tok.setValue(output)
+
+    def _endpoint_changed(self):
+        self._metadata_endpoint = ''
+        self._model_metadata = {}
+        self._model_changed()
+
     def _fetch_models(self):
         ep = self._edit_ep.text().strip()
         key = self._edit_key.text().strip()
         if not ep or not key:
             self._lbl_info.setText('❌ 请填写 API 地址和密钥后再获取模型')
             return
+        selected = self._cmb_model.currentText().strip()
         current = cfg_mod.load_config()
         current['api_endpoint'] = ep
         current['api_key'] = key
@@ -193,18 +249,35 @@ class SettingsDialog(QDialog):
         if err:
             self._lbl_info.setText(f'❌ {err}')
         else:
+            saved = cfg_mod.load_config()
+            self._metadata_endpoint = saved.get('available_models_endpoint', '')
+            self._model_metadata = saved.get('model_capabilities', {})
+            self._cmb_model.blockSignals(True)
             self._cmb_model.clear()
             self._cmb_model.addItems(models)
-            cur = cfg_mod.load_config().get('model', 'deepseek-v4-pro')
-            idx = self._cmb_model.findText(cur)
+            idx = self._cmb_model.findText(selected)
             if idx >= 0:
                 self._cmb_model.setCurrentIndex(idx)
-            ctx_win, max_out = AIService.guess_model_capabilities(cur)
-            self._spin_ctx.setValue(ctx_win)
-            self._spin_max_tok.setValue(max_out)
-            self._lbl_info.setText(f'✅ 获取到 {len(models)} 个模型 | 上下文窗口: {ctx_win//1024}K | 最大输出: {max_out}')
+            elif not models:
+                self._cmb_model.setEditText(selected)
+            self._cmb_model.blockSignals(False)
+            caps = self._show_capabilities(f'✅ 获取到 {len(models)} 个模型\n')
+            self._apply_capabilities(caps, fill_maximum=True)
 
     def _save(self):
+        caps = self._capabilities()
+        context = self._spin_ctx.value()
+        output = self._spin_max_tok.value()
+        error = ''
+        if caps.context_window and context > caps.context_window:
+            error = f'上下文窗口不能超过当前模型上限 {caps.context_window:,} tokens。'
+        elif caps.max_output_tokens and output > caps.max_output_tokens:
+            error = f'最大输出不能超过当前模型上限 {caps.max_output_tokens:,} tokens。'
+        elif output >= context:
+            error = '最大输出必须小于上下文窗口，为输入消息保留空间。'
+        if error:
+            QMessageBox.warning(self, 'Token 设置无效', error)
+            return
         current = dict(cfg_mod.load_config())
         current.update({
             'api_endpoint': self._edit_ep.text().strip(),

@@ -1,3 +1,10 @@
+# T79 Windows 模型上下文与输出限制修复（2026-09-15，本地完成，待用户验收）
+
+用户授权独立子 agent 编码、官方资料查询、Windows 测试与本轮临时 GLM Key 合成验证。任务与矩阵见doc/tasks/T79-windows-model-capabilities.md。保留获取模型前保存连接的既有契约；临时凭据验证只用进程内 mock 配置存取和真实 HTTP，不落盘。Android、版本、日程与同步契约不动，不推送或发布。模型能力依接口有效元数据/官方精确 ID 与端点解析，未知可手填；取消宽泛名称猜测和旧控件上限，精确整数展示保存。
+
+
+维护记录（T79）：能力/设置/client三agent实施与交叉review，明确RED→GREEN。最终384 unittest零失败/错误/跳过、37模块AST/导入、build --check、完整PyInstaller与隔离普通→静默/静默→普通均通过；六张明暗8/13/20px设置截图完整整数与按钮读图通过。GLM两轮models/chat共4次HTTP200，output预算2048/131072，合计2616tokens，仅合成reply，无真实日程。EXE45599685bytes/SHA256 f1dfe7bc575cdc4a87aeb611236fb1ad8966cf633358482d1b75088a3929c22b；dist/data五文件169092bytes路径/大小/mtime/hash不变。未知精确上下文允许手填，原生Claude协议与Kimi多轮reasoning_content未新增，不能称全部厂商在线验收。任务含来源、失败、矩阵及限制；本地提交，不推送或Release。
+
 # T78 v1.3.1 双端发行（2026-09-15，完成）
 
 用户已明确授权推送Release并要求不再复杂验证。本轮仅发行文档与轻量产物/远程核对，复用T76最终Android1.3.1(3)签名APK/AAB和T77最终EXE，不重新构建或测试。GitHub main安全快进，Gitee main保留独立历史，仅双站注释v1.3.1标签与三附件正式Release。临时Gitee令牌只在进程内使用，不入文件/日志/提交。发布结果见doc/tasks/T78-v1.3.1-release.md。此用户授权取代此前待验收/不发布状态及本轮文档修改触发完整构建的历史要求。
@@ -202,6 +209,7 @@ Clender/
 ├─ conversation_store.py      # Conversation JSON 持久化
 ├─ ai_service.py              # 上下文、预算、解析、操作验证与执行
 ├─ ai_client.py               # 模型列表请求、Chat Completions QThread
+├─ model_capabilities.py      # 纯能力解析/官方精确ID与端点目录，无网络/配置/Qt依赖
 ├─ calendar_logic.py          # 周/日 block、真实碰撞、lane/cluster 与重叠区间纯函数
 ├─ floating_window_logic.py   # 悬浮设置校验、日期窗口、时间标签与 current/next 分类纯函数
 ├─ webdav_sync.py             # WebDAV 设置/文档校验、LWW 合并、HTTP 与同步服务
@@ -395,7 +403,9 @@ Schema 变化必须有幂等迁移、旧库测试和回滚说明；禁止在真�
 ]}
 ```
 
-`ai_client.fetch_models_list()` 调用 `GET /v1/models`，超时 15 秒。
+`ai_client.fetch_models_list()` 保持 `(models, error)` 返回，超时15秒；支持版本化 base、Gemini `/v1beta/openai` 和完整聊天地址，模型 metadata 只缓存正整数白名单到 `model_capabilities`，`available_models_endpoint` 绑定端点。`model_capabilities.resolve_model_capabilities(model_id, endpoint, metadata)` 返回不可变 ModelCapabilities（context_window/max_output_tokens/source/source_url）；逐字段 API metadata 优先，再官方端点精确 ID 回退，未知为 None。`AIService.guess_model_capabilities` 保留 tuple 兼容入口，未知亦为 None；禁止品牌子串猜测。来源及精确值限制见 T79-model-capability-sources。
+
+T79 设置整数控件支持1–2147483647（Qt边界，不是模型额度），获取/切换按当前实际模型；未知不覆盖手填，显示精确上限与来源；输出上限独立于实际请求预算，自动填充值须预留输入空间，保存拒绝超过已知上限和output>=context。实际发送继续保留10%安全余量和完整系统/本轮消息。官方 OpenAI 精确推理模型、Kimi K3 使用 max_completion_tokens；GLM/DeepSeek等保留max_tokens。没有增加原生Anthropic协议；Kimi K3多轮reasoning_content回传不在本轮验证范围。
 
 `AICallThread(messages: list[dict])` 只接收已构建消息，调用 `POST /v1/chat/completions`，超时 180 秒：
 

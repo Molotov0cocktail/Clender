@@ -1,3 +1,9 @@
+# T79 Windows 模型上下文与输出限制修复（本地完成，待用户验收）
+
+三个独立 agent 分工能力资料/解析、设置交互、HTTP 元数据与请求参数；主 agent 集成验证。范围及矩阵见[T79](T79-windows-model-capabilities.md)。仅 Windows，本地测试构建交付，不发布。
+
+最终384 tests、37模块导入、完整EXE、普通/静默隔离启动与六图通过；GLM大输出参数131072真实HTTP200，2轮共2616tokens，用户数据摘要一致。未推送/发布。
+
 # T78 v1.3.1双端发行（完成）
 
 GitHub/Gitee正式Release均公开，三附件摘要核对一致，双站tag指向7b2b1bf；Gitee main不变。按用户要求未重跑测试/构建。完整回执见[T78](T78-v1.3.1-release.md)。

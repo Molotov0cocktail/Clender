@@ -1,5 +1,6 @@
 import os
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -139,6 +140,129 @@ class AISettingsModelFetchTests(unittest.TestCase):
                 self.assertTrue(dialog._lbl_info.text())
                 self.assertIn("API", dialog._lbl_info.text())
                 self.assertTrue(dialog._lbl_info.isVisible())
+
+    def test_large_exact_token_values_round_trip_without_clipping(self):
+        config = {**self._base_config(), 'max_tokens': 393216, 'context_window': 2097152}
+        with mock.patch('config.load_config', return_value=config), mock.patch('config.save_config') as save, mock.patch('ui.ai_settings.QMessageBox.information'):
+            dialog = SettingsDialog()
+            self.addCleanup(dialog.close)
+            self.assertEqual(393216, dialog._spin_max_tok.value())
+            self.assertEqual(2097152, dialog._spin_ctx.value())
+            dialog._spin_max_tok.setValue(1000001)
+            dialog._spin_ctx.setValue(10000001)
+            dialog._save()
+            self.assertEqual(1000001, save.call_args.args[0]['max_tokens'])
+            self.assertEqual(10000001, save.call_args.args[0]['context_window'])
+
+    def test_output_cannot_consume_entire_context(self):
+        with mock.patch('config.load_config', return_value=self._base_config()), mock.patch('config.save_config') as save, mock.patch('ui.ai_settings.QMessageBox.information'), mock.patch('ui.ai_settings.QMessageBox.warning') as warning:
+            dialog = SettingsDialog()
+            self.addCleanup(dialog.close)
+            dialog._spin_ctx.setValue(4096)
+            dialog._spin_max_tok.setValue(4096)
+            dialog._save()
+            save.assert_not_called()
+            warning.assert_called_once()
+
+    def _capability(self, context=None, output=None, source='unknown'):
+        return SimpleNamespace(context_window=context, max_output_tokens=output,
+                               source=source, source_url='https://docs.invalid/model' if source != 'unknown' else '')
+
+    def test_fetch_uses_visible_model_and_reports_exact_official_limits(self):
+        config = self._base_config()
+        with mock.patch('config.load_config', return_value=config), mock.patch('config.save_config'), mock.patch('ui.ai_settings.fetch_models_list', return_value=(['first-model', 'selected-model'], None)), mock.patch('ui.ai_settings.resolve_model_capabilities') as resolve:
+            resolve.side_effect = lambda model, *_: self._capability(1048576, 393216, 'official') if model == 'selected-model' else self._capability()
+            dialog = SettingsDialog()
+            self.addCleanup(dialog.close)
+            dialog._cmb_model.setEditText('selected-model')
+            dialog._fetch_models()
+            self.assertEqual('selected-model', dialog._cmb_model.currentText())
+            self.assertEqual(1048576, dialog._spin_ctx.value())
+            self.assertEqual(393216, dialog._spin_max_tok.value())
+            self.assertIn('官方文档', dialog._lbl_info.text())
+            self.assertIn('1,048,576', dialog._lbl_info.text())
+            self.assertNotIn('API 元数据', dialog._lbl_info.text())
+
+    def test_fetch_missing_saved_model_uses_first_actual_model(self):
+        with mock.patch('config.load_config', return_value=self._base_config()), mock.patch('config.save_config'), mock.patch('ui.ai_settings.fetch_models_list', return_value=(['first-model'], None)), mock.patch('ui.ai_settings.resolve_model_capabilities') as resolve:
+            resolve.side_effect = lambda model, *_: self._capability(2000000, 500000, 'metadata') if model == 'first-model' else self._capability()
+            dialog = SettingsDialog()
+            self.addCleanup(dialog.close)
+            dialog._fetch_models()
+            self.assertEqual('first-model', dialog._cmb_model.currentText())
+            self.assertEqual(2000000, dialog._spin_ctx.value())
+            self.assertEqual(500000, dialog._spin_max_tok.value())
+
+    def test_unknown_model_preserves_manual_values_without_inventing_limits(self):
+        with mock.patch('config.load_config', return_value=self._base_config()), mock.patch('config.save_config'), mock.patch('ui.ai_settings.fetch_models_list', return_value=(['unknown-new-model'], None)), mock.patch('ui.ai_settings.resolve_model_capabilities', return_value=self._capability()):
+            dialog = SettingsDialog()
+            self.addCleanup(dialog.close)
+            dialog._spin_ctx.setValue(3000000)
+            dialog._spin_max_tok.setValue(333333)
+            dialog._fetch_models()
+            self.assertEqual(3000000, dialog._spin_ctx.value())
+            self.assertEqual(333333, dialog._spin_max_tok.value())
+            self.assertIn('未知', dialog._lbl_info.text())
+
+    def test_fetch_only_output_limit_does_not_overrun_unknown_context(self):
+        with mock.patch('config.load_config', return_value=self._base_config()), mock.patch('config.save_config'), mock.patch('ui.ai_settings.fetch_models_list', return_value=(['partial-model'], None)), mock.patch('ui.ai_settings.resolve_model_capabilities', return_value=self._capability(None, 131072, 'official')):
+            dialog = SettingsDialog()
+            self.addCleanup(dialog.close)
+            dialog._fetch_models()
+            self.assertEqual(128000, dialog._spin_ctx.value())
+            self.assertEqual(4096, dialog._spin_max_tok.value())
+            self.assertIn('131,072', dialog._lbl_info.text())
+
+    def test_real_fetch_independent_ceilings_preserve_valid_output_budget(self):
+        from tests.test_ai_client import FakeResponse
+        for context, previous_output in ((65536, 4096), (8192, 8192)):
+            stored = {**self._base_config(), 'max_tokens': previous_output}
+            def save(value):
+                stored.clear()
+                stored.update(value)
+            with self.subTest(context=context), mock.patch('config.load_config', side_effect=lambda: dict(stored)), mock.patch('config.save_config', side_effect=save), mock.patch('ai_client.requests.get', return_value=FakeResponse(200, {'data': [{'id': 'independent', 'context_window': context, 'max_output_tokens': context}]})), mock.patch('ui.ai_settings.QMessageBox.information'), mock.patch('ui.ai_settings.QMessageBox.warning') as warning:
+                dialog = SettingsDialog()
+                self.addCleanup(dialog.close)
+                dialog._fetch_models()
+                self.assertEqual(context, dialog._spin_ctx.value())
+                self.assertLessEqual(dialog._spin_max_tok.value(), previous_output)
+                self.assertLess(dialog._spin_max_tok.value() + max(32, int(context * 0.1)), context)
+                dialog._save()
+                warning.assert_not_called()
+                self.assertEqual('independent', stored['model'])
+
+    def test_endpoint_change_invalidates_cached_metadata(self):
+        record = {'context_window': 1048576, 'max_output_tokens': 393216}
+        config = {**self._base_config(), 'available_models_endpoint': 'https://saved.invalid/v1', 'model_capabilities': {'saved-model': record}}
+        with mock.patch('config.load_config', return_value=config), mock.patch('ui.ai_settings.resolve_model_capabilities', return_value=self._capability()) as resolve:
+            dialog = SettingsDialog()
+            self.addCleanup(dialog.close)
+            self.assertEqual(record, resolve.call_args.args[2])
+            dialog._edit_ep.setText('https://different.invalid/v1')
+            self.assertIsNone(resolve.call_args.args[2])
+            dialog._edit_ep.setText('https://saved.invalid/v1')
+            self.assertIsNone(resolve.call_args.args[2])
+
+    def test_switch_model_updates_context_and_does_not_raise_output_budget(self):
+        with mock.patch('config.load_config', return_value=self._base_config()), mock.patch('ui.ai_settings.resolve_model_capabilities') as resolve:
+            resolve.side_effect = lambda model, *_: self._capability(2000000, 500000, 'official') if model == 'new-model' else self._capability()
+            dialog = SettingsDialog()
+            self.addCleanup(dialog.close)
+            dialog._cmb_model.setEditText('new-model')
+            self.assertEqual(2000000, dialog._spin_ctx.value())
+            self.assertEqual(4096, dialog._spin_max_tok.value())
+
+    def test_known_limit_save_rejects_excess_without_clipping_draft(self):
+        for field, value in (('_spin_ctx', 2000001), ('_spin_max_tok', 500001)):
+            with self.subTest(field=field), mock.patch('config.load_config', return_value=self._base_config()), mock.patch('config.save_config') as save, mock.patch('ui.ai_settings.QMessageBox.warning') as warning, mock.patch('ui.ai_settings.resolve_model_capabilities', return_value=self._capability(2000000, 500000, 'official')):
+                dialog = SettingsDialog()
+                self.addCleanup(dialog.close)
+                dialog._spin_ctx.setValue(2000000)
+                getattr(dialog, field).setValue(value)
+                dialog._save()
+                save.assert_not_called()
+                warning.assert_called_once()
+                self.assertEqual(value, getattr(dialog, field).value())
 
     def test_current_form_connection_is_saved_before_fetching_models(self):
         operations = []

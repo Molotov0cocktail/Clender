@@ -1,13 +1,39 @@
 """AI HTTP 客户端 - 纯网络层，无 UI 依赖"""
 import re
+from urllib.parse import urlsplit
 import requests
 from PyQt5.QtCore import QThread, pyqtSignal
 
 import config as cfg_mod
 from logger import get_logger
 from ai_service import AIService
+from model_capabilities import parse_model_metadata
 
 _log = get_logger(__name__)
+_OPENAI_REASONING_MODELS = frozenset({
+    'o1', 'o1-2024-12-17', 'o3', 'o3-2025-04-16',
+    'o3-mini', 'o3-mini-2025-01-31', 'o4-mini', 'o4-mini-2025-04-16',
+    'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5-2025-08-07',
+    'gpt-5.1', 'gpt-5.1-2025-11-13', 'gpt-5.2', 'gpt-5.2-2025-12-11',
+    'gpt-5.4', 'gpt-5.4-2026-03-05', 'gpt-6-astra',
+})
+
+
+def normalize_endpoint(endpoint: str) -> str:
+    """Normalize a configured base or complete chat URL for cache binding."""
+    endpoint = endpoint.strip().rstrip('/')
+    if endpoint.endswith('/chat/completions'):
+        endpoint = endpoint[:-len('/chat/completions')]
+    return endpoint
+
+
+def _api_url(endpoint: str, resource: str) -> str:
+    """Keep explicit compatibility routes, adding v1 only for bare bases."""
+    base = normalize_endpoint(endpoint)
+    if (endpoint.strip().rstrip('/').endswith('/chat/completions')
+            or re.search(r'/v[0-9]+$', base) or base.endswith('/openai')):
+        return f'{base}/{resource}'
+    return f'{base}/v1/{resource}'
 
 
 def fetch_models_list() -> tuple:
@@ -17,23 +43,42 @@ def fetch_models_list() -> tuple:
         tuple: (模型ID列表, 错误信息或None)
     """
     cfg = cfg_mod.load_config()
-    ep = cfg.get('api_endpoint', '').strip().rstrip('/')
+    ep = normalize_endpoint(cfg.get('api_endpoint', ''))
     key = cfg.get('api_key', '').strip()
     if not ep or not key:
         return [], '请先配置API地址和密钥'
     try:
-        url = f'{ep}/models' if re.search(r'/v[0-9]+$', ep) else f'{ep}/v1/models'
+        url = _api_url(cfg.get('api_endpoint', ''), 'models')
         r = requests.get(url, headers={'Authorization': f'Bearer {key}'}, timeout=15)
         if r.status_code == 200:
-            models_data = r.json().get('data', [])
-            models = [m['id'] for m in models_data]
+            response = r.json()
+            if not isinstance(response, dict) or not isinstance(response.get('data'), list):
+                return [], '模型列表响应格式错误'
+            models, capabilities = [], {}
+            for record in response['data']:
+                if not isinstance(record, dict):
+                    continue
+                model_id = record.get('id')
+                if not isinstance(model_id, str) or not model_id.strip() or model_id in models:
+                    continue
+                models.append(model_id)
+                context, output = parse_model_metadata(record)
+                limits = {}
+                if context is not None:
+                    limits['context_window'] = context
+                if output is not None:
+                    limits['max_output_tokens'] = output
+                if limits:
+                    capabilities[model_id] = limits
             cfg['available_models'] = models
+            cfg['available_models_endpoint'] = ep
+            cfg['model_capabilities'] = capabilities
             cfg_mod.save_config(cfg)
             return models, None
         return [], f'获取失败 ({r.status_code})'
-    except Exception as e:
-        _log.warning(f"获取模型列表失败: {e}")
-        return [], str(e)
+    except Exception:
+        _log.warning('获取模型列表失败（连接、响应或配置保存异常）')
+        return [], '获取模型失败，请检查连接、响应格式或配置保存权限'
 
 
 class AICallThread(QThread):
@@ -81,19 +126,44 @@ class AICallThread(QThread):
                 effective_effort = 'low' if requires_thinking else None
             else:
                 effective_effort = (
-                    'high' if requires_thinking and think_eff == 'medium'
+                    'high' if requires_thinking and think_eff in ('medium', 'xhigh')
                     else (think_eff or 'high')
                 )
             payload['thinking'] = {'type': 'enabled' if effective_effort is not None else 'disabled'}
             if effective_effort is not None:
                 payload['reasoning_effort'] = effective_effort
 
-            if re.search(r'/v[0-9]+$', ep):
-                url = f'{ep}/chat/completions'
-            elif '/chat/completions' in ep:
-                url = ep
-            else:
-                url = f'{ep}/v1/chat/completions'
+            # OpenAI reasoning families require the completion budget to include
+            # hidden reasoning. Keep the same budget on the extension retry.
+            endpoint_parts = urlsplit(ep)
+            if (endpoint_parts.scheme == 'https'
+                    and endpoint_parts.hostname == 'api.openai.com'
+                    and endpoint_parts.port in (None, 443)
+                    and endpoint_parts.username is None
+                    and model in _OPENAI_REASONING_MODELS):
+                payload['max_completion_tokens'] = payload.pop('max_tokens')
+                payload.pop('temperature', None)
+                payload.pop('thinking', None)
+                # "max" is a local setting, not a portable OpenAI effort value.
+                payload['reasoning_effort'] = (
+                    ('high' if think_eff == 'max' else think_eff)
+                    if thinking_enabled else 'low'
+                )
+
+            if (endpoint_parts.scheme == 'https'
+                    and endpoint_parts.hostname in ('api.moonshot.cn', 'api.moonshot.ai', 'api.kimi.com')
+                    and endpoint_parts.port in (None, 443)
+                    and endpoint_parts.username is None
+                    and model == 'kimi-k3'):
+                payload['max_completion_tokens'] = payload.pop('max_tokens')
+                payload.pop('temperature', None)
+                payload.pop('thinking', None)
+                payload['reasoning_effort'] = (
+                    (think_eff if think_eff in ('low', 'high', 'max') else 'high')
+                    if thinking_enabled else 'low'
+                )
+
+            url = ep if ep.endswith('/chat/completions') else _api_url(ep, 'chat/completions')
 
             resp = requests.post(url, headers=headers, json=payload, timeout=180)
             if resp.status_code in (400, 422) and not model.lower().startswith('glm-'):
@@ -112,7 +182,8 @@ class AICallThread(QThread):
             data = resp.json()
             choices = data.get('choices')
             if not isinstance(choices, list) or not choices:
-                raise ValueError('API 响应缺少 choices')
+                self.error_occurred.emit('API 响应缺少 choices')
+                return
             if choices[0].get('finish_reason') == 'length':
                 self.error_occurred.emit('模型回复被截断，未执行操作，请增加输出Token或缩小请求')
                 return
@@ -136,6 +207,6 @@ class AICallThread(QThread):
             self.error_occurred.emit('请求超时')
         except requests.exceptions.ConnectionError:
             self.error_occurred.emit('无法连接API服务')
-        except Exception as e:
-            _log.error(f"AI调用异常: {e}", exc_info=True)
-            self.error_occurred.emit(f'AI调用异常: {e}')
+        except Exception:
+            _log.error('AI调用异常（配置、网络或响应格式错误）')
+            self.error_occurred.emit('AI调用异常，请检查配置、连接或响应格式')

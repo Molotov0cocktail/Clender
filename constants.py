@@ -30,25 +30,8 @@ notification_enabled和alarm_enabled为布尔值。新增reminder默认普通通
 
 当前平台为Windows，以下规则优先于上面的平台相关示例。Windows只有一种提醒，使用系统通知，不区分普通、重要或闹钟，不向用户提供这些独立选项。新增或修改提醒统一使用notification_enabled=true或false，并设置alarm_enabled=false；alarm_enabled仅用于兼容旧操作输入，其true与notification_enabled=true效果相同，同一事项同刻只提醒一次。用户要求关闭提醒时两个字段均为false。timer_minutes到期也使用系统通知。提醒依赖Clender正在运行，退出后不会唤醒应用。不得承诺手机式闹铃或退出后的后台提醒。"""
 
-# ── 模型能力映射（从 ai_chat.py MODEL_CAPS 提取）──
-MODEL_CAPABILITIES = {
-    "deepseek-v4-pro":     (1048576, 65536),
-    "deepseek-v3":         (128000,  8192),
-    "deepseek-r1":         (128000,  8192),
-    "deepseek":            (131072,  8192),
-    "gpt-4":               (128000,  16384),
-    "gpt-4-turbo":         (128000,  4096),
-    "gpt-4o":              (128000,  16384),
-    "gpt-4o-mini":         (128000,  16384),
-    "gpt-3.5-turbo":       (16385,   4096),
-    "claude-3":            (200000,  4096),
-    "claude-3.5":          (200000,  8192),
-    "llama3":              (128000,  4096),
-    "llama3.1":            (131072,  4096),
-    "qwen":                (32768,   4096),
-    "mixtral":             (32768,   4096),
-    "command-r":           (131072,  4096),
-}
+# Exact model catalog retained as an import-compatible public constant.
+from model_capabilities import MODEL_CAPABILITIES
 
 # ── 事件颜色（从 calendar_widget.py COLORS 提取）──
 EVENT_COLORS = [
