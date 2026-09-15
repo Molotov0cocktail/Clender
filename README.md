@@ -15,36 +15,35 @@ Clender 是一个面向 Windows 与 Android 的本地智能日程管理应用。
 
 ## 下载正式版
 
-当前正式版本为 **v1.3.0**：
+当前正式版本为 **v1.3.1**：
 
 | 平台 | 文件 | 用途 |
 |---|---|---|
-| Windows | `Clender-Windows-v1.3.0.exe` | Windows 10/11 单文件桌面应用 |
-| Android | `Clender-Android-v1.3.0.apk` | Android 8.0（API 26）及以上直接安装包 |
-| Android | `Clender-Android-v1.3.0.aab` | Android 应用商店发布包，不用于直接安装 |
+| Windows | `Clender-Windows-v1.3.1.exe` | Windows 10/11 单文件桌面应用 |
+| Android | `Clender-Android-v1.3.1.apk` | Android 8.0（API 26）及以上直接安装包 |
+| Android | `Clender-Android-v1.3.1.aab` | Android 应用商店发布包，不用于直接安装 |
 
-- [GitHub Releases](https://github.com/Molotov0cocktail/Clender/releases/tag/v1.3.0)
+- [GitHub Releases](https://github.com/Molotov0cocktail/Clender/releases/tag/v1.3.1)
 - [Gitee Releases](https://gitee.com/Molotov0coaktail/clender/releases)
 
 下载后可用 SHA-256 校验文件：
 
 ```text
-Clender-Windows-v1.3.0.exe  196c0eea521d58be7ba085d82ebf737abd36140f549b34e4215b3c7e48b921bd
-Clender-Android-v1.3.0.apk  3d80a52bcf055df7e710e2f568bfa30641edde0032a7781baca4972c7fe86f32
-Clender-Android-v1.3.0.aab  df93d42d02bdde3a615ef586799492f8001356477ec250541019ba6da6141711
+Clender-Windows-v1.3.1.exe  150596a2cee7ae44a5380fccd3ddf5607ac3bb3afbc8b2c65f9dce0cc8d65b0b
+Clender-Android-v1.3.1.apk  c516e1b763f5095a51d8d2597f9d437a4b326aa35aed05c60035035e5f2a09d8
+Clender-Android-v1.3.1.aab  887aa42de62b79986411a7abd8d35b8837cab5b2bf21becccd5d101867456fd2
 ```
 
-Android 包内版本为 `1.3.0 (2)`，沿用原正式签名，可从上一正式包直接覆盖升级并保留本机数据。
+Android 包内版本为 `1.3.1 (3)`，沿用原正式签名，可从上一正式包直接覆盖升级并保留本机数据。
 
-### v1.3.0 更新
+### v1.3.1 更新
 
-- 双端 AI 请求带入明确的当前时钟、本轮边界和历史消息时间，降低跨日对话把旧“今天/明天”当成当前日期的风险；
-- Android 日期选择器在窄屏、低高度和大字号下保持完整日历与可达操作按钮；
-- Windows AI 人格设置合并为单一入口，并兼容保留旧自定义内容；
-- Android 可导入应用私有的自选闹钟音源，原文件删除后仍可播放，并继续遵守频道静音、停止和音频焦点；
-- 双端提醒与 AI 正文执行链路继续使用严格校验、真实回执和有界回退。
+- Windows 优化主窗口、日历、事项与对话界面，外观入口集中到顶栏，并去除三栏间多余竖线，保留拖动调整栏宽；
+- Android 设置采用轻薄半透明分组与透明标签栏，精简说明，保留自定义背景；
+- Android“关于”增加 GitHub、Gitee 发布页入口，两个按钮同等呈现并留出间距；
+- 延续原有日程、AI、WebDAV 和提醒功能，Android 沿用正式签名，包内版本为 1.3.1 (3)。
 
-已知限制：Android 首次使用自选闹钟音源时需在“设置 → 应用 → 闹钟铃声”重新选择一次；320dp 窄屏日期表头需要横向拖动；模型输出仍可能因格式或语义错误被严格校验拒绝；Windows 通知依赖应用保持运行。
+已知限制：Android 极大字号下 Widget 字号标签仍有局部压线；320dp 窄屏日期表头需要横向拖动；模型输出仍可能因格式或语义错误被严格校验拒绝；Windows 通知依赖应用保持运行。
 
 ## 环境要求
 

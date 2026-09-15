@@ -1,3 +1,7 @@
+# T78 v1.3.1双端发行（进行中）
+
+用户授权直接发行，复用T76/T77验证产物；仅轻量核对，推GitHub main与双站tag/Release。见T78-v1.3.1-release.md。
+
 # T77 Windows三栏竖线修复（本地完成，待用户验收）
 
 透明化QSplitter handle、保留10px拖动；344 tests/完整EXE构建/两场景隔离启动/6图通过，用户数据摘要不变。Android和版本不动；详见[T77](T77-windows-splitter-lines.md)。
