@@ -115,10 +115,10 @@
     <string name="conversation_thinking_expanded">已展开</string>
     <string name="conversation_thinking_collapsed">已折叠</string>
     <string name="ai_token_count_cumulative">累计 Token：%1$d</string>
-    <string name="ai_token_count_explanation">本对话累计 Token：%1$d，来自 Provider 返回的输入和输出用量，不代表当前上下文占用。</string>
+    <string name="ai_token_count_explanation">本对话累计 Token：%1$d（Provider 返回的用量）。</string>
     <string name="ai_context_unknown">上次上下文：尚未估算</string>
     <string name="ai_context_estimate">上次上下文 ~%1$d / %2$d · %3$d%%</string>
-    <string name="ai_context_explanation">%1$s。最近一次发送时的输入 Token 估算与当时配置的上下文窗口。</string>
+    <string name="ai_context_explanation">%1$s。上次发送时的输入 Token 估算与配置的上下文窗口。</string>
     <string name="ai_composer_input">输入给 AI 的消息</string>
     <string name="ai_composer_send">发送</string>
     <string name="ai_status_working">正在思考</string>
@@ -147,6 +147,12 @@
     <string name="settings_widget_preview">Widget 预览 %1$dsp</string>
     <string name="settings_widget_preview_semantics">Widget 字号预览</string>
     <string name="settings_save_application">保存应用设置</string>
+    <string name="settings_group_appearance">外观</string>
+    <string name="settings_group_ai_connection">连接</string>
+    <string name="settings_group_ai_generation">生成参数</string>
+    <string name="settings_group_ai_prompt">人格设定</string>
+    <string name="settings_group_webdav_connection">连接</string>
+    <string name="settings_group_webdav_operations">操作</string>
     <string name="settings_ai_endpoint">HTTPS endpoint</string>
     <string name="settings_ai_key">API Key</string>
     <string name="settings_ai_key_configured">API Key 已配置</string>

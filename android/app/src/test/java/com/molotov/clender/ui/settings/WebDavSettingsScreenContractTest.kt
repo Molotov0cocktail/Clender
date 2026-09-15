@@ -515,6 +515,7 @@ class WebDavSettingsScreenContractTest {
 
     private fun assertStatusText(tag: String, expected: String) {
         val actual = composeRule.onNodeWithTag(tag)
+            .performScrollTo()
             .assertIsDisplayed()
             .fetchSemanticsNode().config
             .getOrNull(SemanticsProperties.Text)

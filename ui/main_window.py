@@ -7,7 +7,7 @@ import calendar
 import sqlite3
 
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-                             QSplitter, QStatusBar, QLabel, QPushButton,
+                             QSplitter, QLabel, QPushButton,
                              QSystemTrayIcon, QMenu, QInputDialog, QDialog,
                              QMessageBox)
 from PyQt5.QtCore import Qt, QTimer
@@ -88,11 +88,16 @@ class MainWindow(QMainWindow):
         brand_text.addWidget(self._brand_subtitle)
         header.addLayout(brand_text)
         header.addStretch()
-        appearance = QPushButton('外观与设置')
-        appearance.setProperty('btnClass', 'info')
-        appearance.setToolTip('背景、字号、悬浮窗和同步设置')
-        appearance.clicked.connect(self._open_settings_dialog)
-        header.addWidget(appearance)
+        self._theme_btn = QPushButton()
+        self._theme_btn.setToolTip('切换日间/夜间主题')
+        self._theme_btn.setProperty('btnClass', 'ghost')
+        self._theme_btn.clicked.connect(self._toggle_theme)
+        header.addWidget(self._theme_btn)
+        self._appearance_btn = QPushButton('外观与设置')
+        self._appearance_btn.setProperty('btnClass', 'info')
+        self._appearance_btn.setToolTip('背景、字号、悬浮窗和同步设置')
+        self._appearance_btn.clicked.connect(self._open_settings_dialog)
+        header.addWidget(self._appearance_btn)
         main_layout.addLayout(header)
 
         self._calendar = CalendarWidget()
@@ -117,26 +122,6 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(self._splitter)
 
-        # 状态栏
-        self._status_bar = QStatusBar()
-        self._status_label = QLabel('就绪')
-        self._status_bar.addWidget(self._status_label)
-
-        # 设置按钮
-        self._btn_settings = QPushButton('设置')
-        self._btn_settings.setToolTip('设置')
-        self._btn_settings.setProperty('btnClass', 'ghost')
-        self._btn_settings.clicked.connect(self._open_settings_dialog)
-        self._status_bar.addPermanentWidget(self._btn_settings)
-
-        # 主题切换
-        self._theme_btn = QPushButton()
-        self._theme_btn.setToolTip('切换日间/夜间主题')
-        self._theme_btn.setProperty('btnClass', 'ghost')
-        self._theme_btn.clicked.connect(self._toggle_theme)
-        self._status_bar.addPermanentWidget(self._theme_btn)
-
-        self.setStatusBar(self._status_bar)
         self._apply_chrome_styles()
 
     def _init_tray(self):
@@ -165,11 +150,11 @@ class MainWindow(QMainWindow):
         try:
             self._alert_dispatcher.poll()
         except sqlite3.Error:
-            self._status_label.setText('系统提醒暂时不可用，请稍后重试')
+            _log.warning('系统提醒轮询失败，本轮跳过')
 
     def _deliver_event_alert(self, title: str, body: str) -> bool:
         if not self.has_system_tray() or not QSystemTrayIcon.supportsMessages():
-            self._status_label.setText('系统通知不可用')
+            _log.warning('系统通知不可用，提醒未投递')
             return False
         self._tray_icon.showMessage(title, body, QSystemTrayIcon.Information, 10000)
         return True
@@ -267,6 +252,17 @@ class MainWindow(QMainWindow):
             ' stop:0.58 transparent, stop:1 transparent);'
             ' }'
         )
+        self._update_theme_button()
+        self._resize_header_buttons(scale)
+
+    def _resize_header_buttons(self, scale) -> None:
+        """Keep header actions readable across the app font range."""
+        metrics = QFontMetrics(qfont_for(scale, 'control'))
+        for button in (self._theme_btn, self._appearance_btn):
+            button.setMinimumSize(
+                max(52, metrics.horizontalAdvance(button.text()) + 28),
+                max(30, metrics.height() + 16),
+            )
 
     def _apply_component_styles(self):
         self.centralWidget().apply_config(cfg_mod.load_config())
@@ -282,7 +278,6 @@ class MainWindow(QMainWindow):
         if self._settings_dialog is not None:
             self._settings_dialog.apply_theme()
         self._update_theme_button()
-        self._resize_status_buttons()
 
     def _apply_background_surfaces(self):
         """Keep background visible through panel shells and large reading areas."""
@@ -300,13 +295,6 @@ class MainWindow(QMainWindow):
             if area is not None:
                 area.setStyleSheet(area.styleSheet().replace(theme['list_bg'], 'transparent'))
                 area.viewport().setAutoFillBackground(False)
-
-    def _resize_status_buttons(self):
-        """Keep compact text actions readable across the app font range."""
-        for button in (self._btn_settings, self._theme_btn):
-            metrics = button.fontMetrics()
-            button.setFixedSize(max(52, metrics.horizontalAdvance(button.text()) + 24),
-                                max(28, metrics.height() + 14))
 
     def _connect_signals(self):
         self._calendar.date_selected.connect(self._on_date_selected)
@@ -340,16 +328,13 @@ class MainWindow(QMainWindow):
         self._event_mgr.set_date(d)
         self._calendar.set_selected_date(d)
         self._calendar.update_event_markers(self._get_event_counts())
-        self._status_label.setText(f'已选中: {d.year}年{d.month}月{d.day}日')
 
     def _on_data_changed(self):
         self._refresh_all()
-        self._status_label.setText('日程已更新 ✓')
         self._sync_controller.request_sync('local-change')
 
     def _on_remote_data_changed(self):
         self._refresh_all()
-        self._status_label.setText('已应用 WebDAV 远端日程 ✓')
 
     def _manual_sync(self):
         self._sync_controller.request_sync('manual')
@@ -358,7 +343,7 @@ class MainWindow(QMainWindow):
         text = str(status)
         if ':' in text:
             _kind, text = text.split(':', 1)
-        self._status_label.setText(text[:200])
+        _log.info('同步状态：%s', text[:200])
         if self._settings_dialog is not None:
             self._settings_dialog.set_webdav_status(status)
 

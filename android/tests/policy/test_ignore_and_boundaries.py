@@ -79,6 +79,10 @@ class IgnoreAndBoundaryTests(PolicyTestCase):
             paths.append(path.replace("\\", "/"))
 
         allowed_exact = {
+            # T75: dual-platform UI refinement task record and Windows chrome tests.
+            "doc/tasks/T75-dual-platform-ui-refinement.md",
+            "tests/test_panel_visual.py",
+            "tests/test_main_window_chrome.py",
             # T73: public release download links, checksums, and notes.
             "README.md",
             # T73: exact dual-platform v1.3.0 release task record.

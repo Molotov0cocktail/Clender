@@ -8,7 +8,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QColor, QImage
-from PyQt5.QtWidgets import QApplication, QLabel
+from PyQt5.QtWidgets import QApplication, QLabel, QStatusBar
 
 import theme_manager
 from models import Conversation
@@ -168,8 +168,10 @@ class MainWindowChromeTests(unittest.TestCase):
         self.assertIsNotNone(pixmap)
         self.assertFalse(pixmap.isNull())
         self.assertIn('Clender', window._brand_label.text())
-        self.assertEqual(window._btn_settings.text(), '设置')
-        self.assertTrue(window._btn_settings.property('btnClass'))
+        self.assertEqual(window._appearance_btn.text(), '外观与设置')
+        self.assertTrue(window._appearance_btn.property('btnClass'))
+        self.assertEqual(window._theme_btn.property('btnClass'), 'ghost')
+        self.assertIsNone(window.findChild(QStatusBar))
         self.assertEqual(window._splitter.handleWidth(), 10)
         self.assertIn('QSplitter::handle', window._splitter.styleSheet())
 

@@ -77,20 +77,6 @@ internal fun ThinkingEffortSelector(
     }
 }
 
-@Composable
-internal fun ModelCapabilityHint(state: SettingsUiState) {
-    if (state.ai.model in state.models) {
-        val capabilities = state.modelCapabilities[state.ai.model]
-        val known = capabilities?.contextWindow != null || capabilities?.maxOutputTokens != null
-        Text(
-            stringResource(
-                if (known) R.string.ai_model_limits_received else R.string.ai_model_limits_unknown
-            ),
-            modifier = Modifier.testTag("settings_ai_model_limits")
-        )
-    }
-}
-
 private const val MIN_INPUT_RESERVE = 1_024
 private const val MIN_SAFETY_RESERVE = 32
 private const val INPUT_RESERVE_DIVISOR = 4

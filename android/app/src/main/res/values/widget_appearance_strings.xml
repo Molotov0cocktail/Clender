@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="widget_opacity_explanation" formatted="false">背景不透明度：0% 为透明，100% 为实色，文字保持清晰。保存后应用；之后可点小组件右上角“编辑”再次调整。</string>
+    <string name="widget_opacity_explanation" formatted="false">0% 透明，100% 实色；保存后生效。</string>
     <string name="widget_opacity_preview_value">背景预览 · %1$d%%</string>
     <string name="widget_opacity_preview_event">示例事项\n10:40–12:00</string>
 </resources>

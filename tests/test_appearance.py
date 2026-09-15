@@ -163,7 +163,7 @@ class AppearanceTests(unittest.TestCase):
                     window._apply_app_settings(values)
                     self.app.processEvents()
                     self.assertTrue(window.centralWidget().has_background)
-                    self.assertEqual(window._btn_settings.text(), '设置')
+                    self.assertEqual(window._appearance_btn.text(), '外观与设置')
                     self.assertEqual(window._calendar._btn_prev.accessibleName(), '上一页')
                     for mode in ('week', 'day', 'month'):
                         window._calendar._switch_view(mode)

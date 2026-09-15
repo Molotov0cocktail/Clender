@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="alarm_sound_title">闹钟铃声</string>
-    <string name="alarm_sound_hint">本机音乐优先在下次开始响铃时使用，正在响铃时不会切换。系统频道设为静音时仍保持静音。支持最多32MiB的可播放音频。</string>
+    <string name="alarm_sound_hint">本机音乐将在下次响铃时生效；系统频道静音时保持静音。</string>
     <string name="alarm_sound_selected">已选择本机音乐</string>
     <string name="alarm_sound_system">使用系统频道铃声</string>
     <string name="alarm_sound_choose">选择音乐</string>

@@ -1,6 +1,6 @@
 <resources>
     <string name="background_title">自定义背景</string>
-    <string name="background_local_hint">仅保存在本机，选择与调整立即保存。日夜模式自动柔化背景，确保文字清晰。</string>
+    <string name="background_local_hint">仅保存在本机，修改立即生效。</string>
     <string name="background_choose">选择背景图片</string>
     <string name="background_strength">背景可见度 · %1$d%%</string>
     <string name="background_remove">移除背景</string>

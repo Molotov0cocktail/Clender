@@ -117,10 +117,10 @@
     <string name="conversation_thinking_expanded">Expanded</string>
     <string name="conversation_thinking_collapsed">Collapsed</string>
     <string name="ai_token_count_cumulative">Cumulative Tokens: %1$d</string>
-    <string name="ai_token_count_explanation">Conversation cumulative Tokens: %1$d, from provider reported input and output usage, not current context occupancy.</string>
+    <string name="ai_token_count_explanation">Conversation cumulative Tokens: %1$d (provider-reported usage).</string>
     <string name="ai_context_unknown">Last context: not estimated</string>
     <string name="ai_context_estimate">Last context ~%1$d / %2$d · %3$d%%</string>
-    <string name="ai_context_explanation">%1$s. Estimated input Tokens at the last submission and its configured context window.</string>
+    <string name="ai_context_explanation">%1$s. Estimated input Tokens at the last submission and the configured context window.</string>
     <string name="ai_composer_input">Message for AI</string>
     <string name="ai_composer_send">Send</string>
     <string name="ai_status_working">Thinking</string>
@@ -149,6 +149,12 @@
     <string name="settings_widget_preview">Widget preview %1$dsp</string>
     <string name="settings_widget_preview_semantics">Widget font preview</string>
     <string name="settings_save_application">Save application settings</string>
+    <string name="settings_group_appearance">Appearance</string>
+    <string name="settings_group_ai_connection">Connection</string>
+    <string name="settings_group_ai_generation">Generation</string>
+    <string name="settings_group_ai_prompt">Personality</string>
+    <string name="settings_group_webdav_connection">Connection</string>
+    <string name="settings_group_webdav_operations">Operations</string>
     <string name="settings_ai_endpoint">HTTPS endpoint</string>
     <string name="settings_ai_key">API Key</string>
     <string name="settings_ai_key_configured">API Key configured</string>

@@ -1,3 +1,11 @@
+# T75 双端 UI 精简与继续美化（2026-09-15，本地验证完成，待用户验收）
+
+用户授权继续美化双端并精简界面：Windows 删除底栏（QStatusBar，功能归设置弹窗与顶栏），Android 去除不必要说明文字（尤其设置界面，仅保留必要使用说明）；素材仍全部原创，开发效率优先，完成后待用户确认再发布 v1.3.1，本轮不推送、不 Release、版本号不动（Android 保持 1.3.0 (2)）。任务与矩阵见 `doc/tasks/T75-dual-platform-ui-refinement.md`。
+
+当前契约变化：Windows 主窗口无状态栏——`_status_label`/`_btn_settings`/`_resize_status_buttons` 已删除；主题快速切换按钮 `_theme_btn`（ghost，日间/夜间）与 `_appearance_btn`（外观与设置，info）位于顶栏 header；瞬时状态消息改走 logger（`_on_sync_status` 仍路由 `AppSettingsDialog.set_webdav_status`；`_deliver_event_alert` 返回 bool 契约不变）。Android 设置三分节全部 Material3 Card 分组（组 testTag `settings_group_appearance/background/alarm_sound/alert_permissions/ai_connection/ai_generation/ai_prompt/webdav_connection/webdav_operations`），主题为单行分段选择（`settings_theme_*` tag 保留）；已删除字符串 `ai_embedded_contract`、`ai_model_limits_received/unknown`（values{,-en}/ai_settings.xml 移除，能力自动填充逻辑不变），12 条说明字符串 zh/en 同步精简（alarm_sound_hint、background_local_hint、alert_* 五条、widget_opacity_explanation、ai_token_count_explanation、ai_context_explanation 等）；WebDAV 状态行位于操作卡内。既有 testTag/objectName、秘密输入 charArray、草稿 dirty/确认、T74 视觉令牌与全部门禁不变。
+
+维护记录（T75，2026-09-15）：Agent W 先 RED（2f+5e）后 GREEN，Windows 341/341 unittest（335 既有+6 新增 test_main_window_chrome）零失败/错误/跳过，imports、build --check、Light/Dark×8/13/20px 截图读图通过；主 agent 完整 PyInstaller EXE 45,592,003 bytes SHA256 `CD45E36C8F1C290513F1D1647A6532B00A49C3E2EAC6C832228D08F59A22AF4B`，dist/data 前后 5 文件/167303 bytes/组合摘要 `1758827fec16fa9962b9e637d9231ae33ce2f5c4b88d27bee5b9675981c6cc04` 一致，隔离 EXE 普通→静默/静默→普通双场景全真、零残留进程。Agent A 先 RED（14/14）后 GREEN，Android 214 suites/2183 tests（UI 83/915）零失败/错误/跳过/四类泄漏，lint/detekt/ktlint、112 发布夹具、policy foundation/boundary 各 109、完整 verify-all exit 0；签名 APK 1,877,153 bytes SHA256 `9af70e1e8a7983305c4df800940f752790bda0f2410d3119b6c3fe010df2ce1f`、AAB 4,990,734 bytes SHA256 `ff4ec083c21c7119fb6217e4abacbf8a92b9343e05e44520f73e319ca3cb9cce`，证书不变；API36 headless 模拟器安装复核摘要后设置三 tab × 明/暗 22 图逐张读图通过，uninstall+emu kill 清理、adb devices 为空。集成期修复留痕：Card lambda 作用域致 ApiKeyDraftScreenRegressionTest 失效，secretInputEmpty+LaunchedEffect 移入连接卡作用域复原基线语义（T49 契约测试双向验证）。限制：Windows 瞬时状态不再上屏（日志+设置弹窗）；Android Card 不透明遮挡自定义背景（设计预期）、320dp/2x 分段文字可换行、未验厂商真机。未推送、未 Release、版本号不动。
+
 # T74 Windows UI 美化（2026-09-15，本地验证完成，待用户验收）
 
 用户授权自主决策美化 Windows 端 UI（Android 不动），素材全部原创（QSS/矢量绘制，无外部下载），验收后再发布 v1.3.1。四个子 agent 按文件边界实施：A 设计令牌与全局 QSS（串行先行），B 日历画布/月视图，C 主窗口/侧栏/事项面板/聊天气泡，D 对话框/悬浮窗（并行）；主 agent 集成修复与最终验证。任务、门禁与矩阵见 `doc/tasks/T74-windows-ui-beautification.md`。
@@ -193,7 +201,7 @@ Clender/
 │  ├─ ai_settings.py          # API、模型、Token、Thinking、提示词设置
 │  ├─ sidebar.py              # 对话选择/新建/删除/重命名信号
 │  └─ __init__.py
-├─ tests/                     # 335 项 unittest：既有能力、隔离exe工具、背景/图标/动作文字/对比度、T74 令牌/画布/面板/对话框视觉门禁
+├─ tests/                    # 341 项 unittest：既有能力、隔离exe工具、背景/图标/动作文字/对比度、T74 令牌/画布/面板/对话框视觉门禁、T75 主窗口无底栏/顶栏主题按钮
 ├─ .github/workflows/test.yml # Windows + Python 3.12.4 CI
 ├─ data/                      # 真实运行数据；被忽略，视为敏感数据
 │  ├─ clender.db

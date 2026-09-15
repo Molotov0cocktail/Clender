@@ -2,12 +2,20 @@ package com.molotov.clender.ui.settings
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -23,6 +31,83 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.molotov.clender.R
 import com.molotov.clender.ui.foundation.ThemeMode
+
+@Composable
+internal fun SettingsGroupCard(
+    tag: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(tag),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = content
+        )
+    }
+}
+
+@Composable
+internal fun SettingsGroupTitle(@StringRes label: Int) {
+    Text(
+        stringResource(label),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary
+    )
+}
+
+@Composable
+internal fun ThemeSegmentedRow(
+    state: SettingsUiState,
+    operationActive: Boolean,
+    actions: SettingsActions
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        ThemeMode.entries.forEach { theme ->
+            val selected = state.appearance.themeMode == theme
+            val onClick = {
+                actions.onAppearanceChange(state.appearance.copy(themeMode = theme))
+            }
+            val modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 48.dp)
+                .testTag("settings_theme_${theme.name.lowercase()}")
+            val contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+            if (selected) {
+                Button(
+                    onClick = onClick,
+                    enabled = !operationActive,
+                    modifier = modifier,
+                    contentPadding = contentPadding
+                ) {
+                    Text(stringResource(theme.labelResource()), maxLines = 2)
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onClick,
+                    enabled = !operationActive,
+                    modifier = modifier,
+                    contentPadding = contentPadding
+                ) {
+                    Text(stringResource(theme.labelResource()), maxLines = 2)
+                }
+            }
+        }
+    }
+}
 
 @Composable
 internal fun SettingsTextField(

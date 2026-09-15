@@ -24,13 +24,6 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.molotov.clender.R
-import com.molotov.clender.ui.event.AlertPermissionSection
-
-@Composable
-internal fun AlertSettingsSection() {
-    AlarmSoundSettingsSection()
-    AlertPermissionSection()
-}
 
 @Composable
 fun AlarmSoundSettingsSection() {

@@ -1,20 +1,16 @@
 package com.molotov.clender.ui.settings
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -35,7 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.molotov.clender.R
-import com.molotov.clender.ui.foundation.ThemeMode
+import com.molotov.clender.ui.event.AlertPermissionSection
 
 @Composable
 fun SettingsScreen(
@@ -59,7 +55,7 @@ fun SettingsScreen(
                     .testTag("settings_content")
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 when (state.section) {
                     SettingsSection.APPLICATION -> ApplicationSettingsSection(
@@ -153,58 +149,58 @@ private fun ApplicationSettingsSection(
         stringResource(R.string.settings_section_application),
         style = MaterialTheme.typography.titleLarge
     )
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ThemeMode.entries.forEach { theme ->
-            OutlinedButton(
-                onClick = { actions.onAppearanceChange(state.appearance.copy(themeMode = theme)) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .taggedTarget("settings_theme_${theme.name.lowercase()}"),
-                enabled = !operationActive
-            ) {
-                Text(stringResource(theme.labelResource()))
-            }
+    SettingsGroupCard("settings_group_appearance") {
+        SettingsGroupTitle(R.string.settings_group_appearance)
+        ThemeSegmentedRow(state, operationActive, actions)
+        SettingsTextField(
+            value = state.appearance.appFontSize,
+            onValueChange = {
+                actions.onAppearanceChange(state.appearance.copy(appFontSize = it))
+            },
+            options = SettingsFieldOptions(
+                R.string.settings_app_font_size,
+                "settings_app_font",
+                !operationActive,
+                SettingsValidationError.APP_FONT_SIZE in state.validationErrors
+            )
+        )
+        SettingsTextField(
+            value = state.appearance.widgetFontSize,
+            onValueChange = {
+                actions.onAppearanceChange(state.appearance.copy(widgetFontSize = it))
+            },
+            options = SettingsFieldOptions(
+                R.string.settings_widget_font_size,
+                "settings_widget_font",
+                !operationActive,
+                SettingsValidationError.WIDGET_FONT_SIZE in state.validationErrors
+            )
+        )
+        Text(
+            text = stringResource(R.string.settings_widget_preview, state.widgetFontSizeSp),
+            modifier = Modifier
+                .testTag("settings_widget_preview")
+                .semantics { contentDescription = widgetPreviewDescription }
+        )
+        Button(
+            onClick = actions.onSaveAppearance,
+            enabled = !operationActive,
+            modifier = Modifier
+                .fillMaxWidth()
+                .taggedTarget("settings_save_application")
+        ) {
+            Text(stringResource(R.string.settings_save_application))
         }
     }
-    SettingsTextField(
-        value = state.appearance.appFontSize,
-        onValueChange = {
-            actions.onAppearanceChange(state.appearance.copy(appFontSize = it))
-        },
-        options = SettingsFieldOptions(
-            R.string.settings_app_font_size,
-            "settings_app_font",
-            !operationActive,
-            SettingsValidationError.APP_FONT_SIZE in state.validationErrors
-        )
-    )
-    SettingsTextField(
-        value = state.appearance.widgetFontSize,
-        onValueChange = {
-            actions.onAppearanceChange(state.appearance.copy(widgetFontSize = it))
-        },
-        options = SettingsFieldOptions(
-            R.string.settings_widget_font_size,
-            "settings_widget_font",
-            !operationActive,
-            SettingsValidationError.WIDGET_FONT_SIZE in state.validationErrors
-        )
-    )
-    Text(
-        text = stringResource(R.string.settings_widget_preview, state.widgetFontSizeSp),
-        modifier = Modifier
-            .testTag("settings_widget_preview")
-            .semantics { contentDescription = widgetPreviewDescription }
-    )
-    Button(
-        onClick = actions.onSaveAppearance,
-        enabled = !operationActive,
-        modifier = Modifier.taggedTarget("settings_save_application")
-    ) {
-        Text(stringResource(R.string.settings_save_application))
+    SettingsGroupCard("settings_group_background") {
+        BackgroundSettingsSection()
     }
-    BackgroundSettingsSection()
-    AlertSettingsSection()
+    SettingsGroupCard("settings_group_alarm_sound") {
+        AlarmSoundSettingsSection()
+    }
+    SettingsGroupCard("settings_group_alert_permissions") {
+        AlertPermissionSection()
+    }
 }
 
 @Composable
@@ -221,14 +217,26 @@ private fun AiSettingsSection(
             draft.fill('\u0000')
         }
     }
-    val secretInputEmpty = state.secretInput.isEmpty()
-    LaunchedEffect(secretInputEmpty, state.removeKeyPending) {
-        if (secretInputEmpty || state.removeKeyPending) secretText = ""
-    }
     Text(stringResource(R.string.settings_section_ai), style = MaterialTheme.typography.titleLarge)
-    AiConnectionSettings(state, operationActive, actions, secretText) { secretText = it }
-    AiGenerationSettings(state, operationActive, actions)
-    AiPromptSettings(state, operationActive, actions)
+    SettingsGroupCard("settings_group_ai_connection") {
+        // T75: the clear effect lives in the card content scope, which is the scope
+        // that reads secretText; this keeps the T49 snapshot semantics where the
+        // effect key only flips when the mutable SecretInput snapshot changes.
+        val secretInputEmpty = state.secretInput.isEmpty()
+        LaunchedEffect(secretInputEmpty, state.removeKeyPending) {
+            if (secretInputEmpty || state.removeKeyPending) secretText = ""
+        }
+        SettingsGroupTitle(R.string.settings_group_ai_connection)
+        AiConnectionSettings(state, operationActive, actions, secretText) { secretText = it }
+    }
+    SettingsGroupCard("settings_group_ai_generation") {
+        SettingsGroupTitle(R.string.settings_group_ai_generation)
+        AiGenerationSettings(state, operationActive, actions)
+    }
+    SettingsGroupCard("settings_group_ai_prompt") {
+        SettingsGroupTitle(R.string.settings_group_ai_prompt)
+        AiPromptSettings(state, operationActive, actions)
+    }
     ModelFetchStatus(state, operationActive, actions)
     AiOperationButtons(operationActive, actions)
 }
@@ -335,7 +343,6 @@ private fun AiPromptSettings(
     operationActive: Boolean,
     actions: SettingsActions
 ) {
-    Text(stringResource(R.string.ai_embedded_contract))
     SettingsTextField(
         state.ai.personality,
         { actions.onAiChange(state.ai.copy(personality = it)) },
@@ -414,7 +421,6 @@ private fun ModelFetchStatus(
         SettingsStatus.TESTING,
         SettingsStatus.VALIDATION_FAILED -> Unit
     }
-    ModelCapabilityHint(state)
     state.models.forEach { model ->
         OutlinedButton(
             onClick = { actions.onAiChange(state.ai.copy(model = model)) },

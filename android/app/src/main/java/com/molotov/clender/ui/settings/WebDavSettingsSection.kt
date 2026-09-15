@@ -50,9 +50,15 @@ internal fun WebDavSettingsSection(
         stringResource(R.string.settings_section_webdav),
         style = MaterialTheme.typography.titleLarge
     )
-    WebDavStatusBanner(state)
-    WebDavConnectionSettings(state, operationActive, actions, secretText) { secretText = it }
-    WebDavOperationButtons(operationActive, actions)
+    SettingsGroupCard("settings_group_webdav_connection") {
+        SettingsGroupTitle(R.string.settings_group_webdav_connection)
+        WebDavConnectionSettings(state, operationActive, actions, secretText) { secretText = it }
+    }
+    SettingsGroupCard("settings_group_webdav_operations") {
+        SettingsGroupTitle(R.string.settings_group_webdav_operations)
+        WebDavStatusBanner(state)
+        WebDavOperationButtons(operationActive, actions)
+    }
 }
 
 @Composable
@@ -167,16 +173,18 @@ private fun WebDavPasswordField(
 
 @Composable
 private fun WebDavOperationButtons(operationActive: Boolean, actions: SettingsActions) {
-    Button(
-        onClick = actions.onSaveWebDav,
-        enabled = !operationActive,
-        modifier = Modifier.taggedTarget("settings_webdav_save")
-    ) {
-        Text(stringResource(R.string.settings_webdav_save))
-    }
     androidx.compose.foundation.layout.Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        Button(
+            onClick = actions.onSaveWebDav,
+            enabled = !operationActive,
+            modifier = Modifier
+                .fillMaxWidth()
+                .taggedTarget("settings_webdav_save")
+        ) {
+            Text(stringResource(R.string.settings_webdav_save))
+        }
         OutlinedButton(
             onClick = actions.onTestWebDavConnection,
             enabled = !operationActive,

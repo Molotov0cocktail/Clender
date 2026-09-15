@@ -126,7 +126,7 @@ class WebDavSettingsProductionIntegrationTest {
             composeRule.waitForIdle()
             Thread.sleep(100)
         }
-        composeRule.onNodeWithText(disabledLabel).assertIsDisplayed()
+        composeRule.onNodeWithText(disabledLabel).performScrollTo().assertIsDisplayed()
     }
 
     private fun shellViewModel(): AppShellViewModel =

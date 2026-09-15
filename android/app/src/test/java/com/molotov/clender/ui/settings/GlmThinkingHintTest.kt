@@ -6,6 +6,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import com.molotov.clender.app.ClenderApplication
 import com.molotov.clender.testsupport.RobolectricComposeHost
+import com.molotov.clender.ui.foundation.AppearanceUiState
+import com.molotov.clender.ui.foundation.ThemeMode
+import com.molotov.clender.ui.theme.ClenderTheme
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -35,6 +38,7 @@ class GlmThinkingHintTest {
         listOf("glm-5.3-flash", "glm-5.3", "GLM-5.3", "GLM-5.3-Flash").forEach { model ->
             show(model)
             composeRule.onNodeWithTag("settings_ai_glm_thinking_hint").assertDoesNotExist()
+            composeRule.onNodeWithTag("settings_ai_model_limits").assertDoesNotExist()
             composeRule.onNodeWithText("无法关闭思考", substring = true).assertDoesNotExist()
             composeRule.onNodeWithText("MEDIUM", substring = true).assertDoesNotExist()
         }
@@ -45,15 +49,40 @@ class GlmThinkingHintTest {
         listOf("other-model", "glm-5.3-flash-custom", "", "glm-5.3 ").forEach { model ->
             show(model)
             composeRule.onNodeWithTag("settings_ai_glm_thinking_hint").assertDoesNotExist()
+            composeRule.onNodeWithTag("settings_ai_model_limits").assertDoesNotExist()
         }
     }
 
     private fun show(model: String) {
         composeRule.runOnUiThread {
             host.activity.setContent {
-                ModelCapabilityHint(SettingsUiState(ai = AiSettingsDraft(model = model)))
+                ClenderTheme(AppearanceUiState(ThemeMode.LIGHT, 13, 13)) {
+                    SettingsScreen(
+                        state = SettingsUiState(
+                            section = SettingsSection.AI,
+                            ai = AiSettingsDraft(model = model),
+                            models = listOf(model)
+                        ),
+                        actions = actions()
+                    )
+                }
             }
         }
         composeRule.waitForIdle()
     }
+
+    private fun actions() = SettingsActions(
+        onSectionChange = {},
+        onAppearanceChange = {},
+        onAiChange = {},
+        onSecretInput = {},
+        onSaveAppearance = {},
+        onSaveAi = {},
+        onFetchModels = {},
+        onRequestRemoveKey = {},
+        onConfirmRemoveKey = {},
+        onCancelRemoveKey = {},
+        onConfirmDiscard = {},
+        onCancelDiscard = {}
+    )
 }

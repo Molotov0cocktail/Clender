@@ -170,7 +170,7 @@ class EventAlertTests(unittest.TestCase):
 
     def test_tray_unavailable_does_not_report_delivery(self):
         from ui.main_window import MainWindow
-        window = SimpleNamespace(has_system_tray=lambda: False, _status_label=Mock(), _tray_icon=Mock())
+        window = SimpleNamespace(has_system_tray=lambda: False, _tray_icon=Mock())
         self.assertFalse(MainWindow._deliver_event_alert(window, 'synthetic', 'body'))
         window._tray_icon.showMessage.assert_not_called()
         window.has_system_tray = lambda: True
