@@ -1,3 +1,7 @@
+# T77 Windows三栏竖线修复（2026-09-15，本地验证完成，待用户验收）
+
+用户确认Android无问题，本轮仅Windows。MainWindow局部QSplitter::handle改为background:transparent;border:none，消除全局底色与渐变中线，保留10px鼠标拖动区域及面板边缘。新增test_windows_splitter三项隔离像素/缺图回退/鼠标拖动测试；有效RED20像素子场景→17聚焦通过，344全量测试零失败/错误/跳过，33导入、build --check、完整PyInstaller通过。明暗×8/13/20px六图读图通过；最终EXE普通→静默/静默→普通双场景全真，清理成功。dist/data五文件167603bytes路径/大小/mtime/hash不变。EXE45592135bytes SHA256 150596a2cee7ae44a5380fccd3ddf5607ac3bb3afbc8b2c65f9dce0cc8d65b0b。任务/失败/矩阵/视觉限制见doc/tasks/T77-windows-splitter-lines.md；Android和版本不动，不推送或Release。
+
 # T76 第三阶段视觉修订（2026-09-15，本地验证完成，待用户验收）
 
 用户截图反馈已落实：九个设置分组为无描边、surface色24%不透明度圆角蒙板（76%透底），保留onBackground与0dp抬升；应用/AI/WebDAV顶栏删外框、透明底与选中线保留。关于GitHub/Gitee统一OutlinedButton、12dp纵向间距，两语言均去备用标注；URL/错误重试/草稿/秘密作用域/全局背景强度不变。版本保持1.3.1(3)，仅Android，不推送或Release。

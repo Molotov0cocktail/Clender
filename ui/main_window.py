@@ -245,12 +245,7 @@ class MainWindow(QMainWindow):
             f'background:transparent;'
         )
         self._splitter.setStyleSheet(
-            'QSplitter::handle {'
-            ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
-            ' stop:0 transparent, stop:0.42 transparent,'
-            f' stop:0.42 {t["border_soft"]}, stop:0.58 {t["border_soft"]},'
-            ' stop:0.58 transparent, stop:1 transparent);'
-            ' }'
+            'QSplitter::handle { background: transparent; border: none; }'
         )
         self._update_theme_button()
         self._resize_header_buttons(scale)
