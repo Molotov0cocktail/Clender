@@ -12,6 +12,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
@@ -56,12 +57,15 @@ class T76TransparentSettingsTest {
     fun close() = host.close()
 
     @Test
-    fun everySettingsGroupAndTabPreservesBackgroundPixels() {
+    fun everySettingsGroupUsesLightScrimWhileTabsStayTransparent() {
         val section = mutableStateOf(SettingsSection.APPLICATION)
         val theme = mutableStateOf(ThemeMode.LIGHT)
+        var groupPixel = Color.Unspecified
         host.activity.setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f)) {
                 ClenderTheme(AppearanceUiState(theme.value, 13, 13)) {
+                    groupPixel = MaterialTheme.colorScheme.surface.copy(alpha = 0.24f)
+                        .compositeOver(BACKDROP)
                     Box(Modifier.size(360.dp, 640.dp).background(BACKDROP)) {
                         SettingsScreen(
                             SettingsUiState(
@@ -80,11 +84,35 @@ class T76TransparentSettingsTest {
             GROUPS.forEach { (page, groups) ->
                 composeRule.runOnIdle { section.value = page }
                 composeRule.waitForIdle()
-                assertBackground("settings_section_${page.name.lowercase()}", 6)
+                assertPixel("settings_section_${page.name.lowercase()}", 6, BACKDROP)
                 groups.forEach { group ->
                     composeRule.onNodeWithTag("settings_group_$group").performScrollTo()
-                    assertBackground("settings_group_$group", 4)
+                    assertPixel("settings_group_$group", 4, groupPixel)
+                    assertPixel("settings_group_$group", 0, groupPixel)
                 }
+            }
+        }
+    }
+
+    @Test
+    fun tabTopEdgeHasNoOutlineInEitherTheme() {
+        val theme = mutableStateOf(ThemeMode.LIGHT)
+        host.activity.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f)) {
+                ClenderTheme(AppearanceUiState(theme.value, 13, 13)) {
+                    Box(Modifier.size(360.dp, 640.dp).background(BACKDROP)) {
+                        SettingsScreen(
+                            SettingsUiState(active = true, status = SettingsStatus.READY),
+                            actions {}
+                        )
+                    }
+                }
+            }
+        }
+        for (mode in listOf(ThemeMode.LIGHT, ThemeMode.DARK)) {
+            composeRule.runOnIdle { theme.value = mode }
+            SettingsSection.entries.forEach { page ->
+                assertPixel("settings_section_${page.name.lowercase()}", 0, BACKDROP)
             }
         }
     }
@@ -136,7 +164,7 @@ class T76TransparentSettingsTest {
         }
     }
 
-    private fun assertBackground(tag: String, inset: Int) {
+    private fun assertPixel(tag: String, inset: Int, expected: Color) {
         val bounds = composeRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInWindow
         val actual = composeRule.runOnUiThread {
             val view = host.activity.window.decorView
@@ -148,7 +176,17 @@ class T76TransparentSettingsTest {
                 bitmap.recycle()
             }
         }
-        assertEquals("Background must show through $tag", BACKDROP.toArgb(), actual)
+        val expectedArgb = expected.toArgb()
+        listOf(0, 8, 16, 24).forEach { shift ->
+            val expectedChannel = (expectedArgb ushr shift) and 0xFF
+            val actualChannel = (actual ushr shift) and 0xFF
+            assertEquals(
+                "Composited pixel for $tag at inset $inset, channel $shift",
+                expectedChannel.toDouble(),
+                actualChannel.toDouble(),
+                1.0
+            )
+        }
     }
 
     private companion object {

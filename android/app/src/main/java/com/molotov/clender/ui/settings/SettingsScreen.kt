@@ -1,7 +1,6 @@
 package com.molotov.clender.ui.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -129,8 +128,7 @@ private fun SettingsSectionTabs(selected: SettingsSection, onSelected: (Settings
         selectedTabIndex = selected.ordinal,
         modifier = Modifier
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clip(shape)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
+            .clip(shape),
         containerColor = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.primary,
         divider = {},

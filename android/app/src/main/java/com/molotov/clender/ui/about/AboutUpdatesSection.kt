@@ -1,10 +1,11 @@
 package com.molotov.clender.ui.about
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -46,12 +47,13 @@ internal fun AboutUpdatesSection(onOpenReleasePage: ((OfficialReleasePage) -> Bo
             modifier = Modifier.padding(vertical = 8.dp),
             style = MaterialTheme.typography.bodyLarge
         )
-        Button(
+        OutlinedButton(
             onClick = { openPage(OfficialReleasePage.GITHUB) },
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("about_update_github")
         ) {
             Text(stringResource(R.string.about_update_github))
         }
+        Spacer(Modifier.height(12.dp))
         OutlinedButton(
             onClick = { openPage(OfficialReleasePage.GITEE) },
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("about_update_gitee")

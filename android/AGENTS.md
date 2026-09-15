@@ -1,3 +1,9 @@
+# T76 第三阶段视觉修订（2026-09-15，本地验证完成，待用户验收）
+
+用户截图反馈已落实：九个设置分组为无描边、surface色24%不透明度圆角蒙板（76%透底），保留onBackground与0dp抬升；应用/AI/WebDAV顶栏删外框、透明底与选中线保留。关于GitHub/Gitee统一OutlinedButton、12dp纵向间距，两语言均去备用标注；URL/错误重试/草稿/秘密作用域/全局背景强度不变。版本保持1.3.1(3)，仅Android，不推送或Release。
+
+维护记录：settings8/4 RED、about12/8 RED→20聚焦通过；测试长行ktlint失败局部修复，完整verify-all exit0（9m40s），216 suites/2203 tests（UI85/935）零失败/错误/跳过及四类泄漏；112发布夹具和foundation/boundary各109通过。正式APK/AAB及原证书审计通过，470源码/schema摘要无漂移。最终同包API36原创背景明暗三tab与320dp/2x共44图已读（review39+主5），关于大字追加滚动到底截图；设置本次视觉目标通过，旧Widget大字浮动label压线及应用5滚未穷尽底部限制保留，不称全页无重叠。无Windows改动/测试/构建/真实数据读取。下方旧阶段视觉记录已由本段取代；详细命令、失败、摘要、设备清理见T76任务。
+
 # T76 Android 设置透明化与关于更新（2026-09-15，本地验证完成，待用户验收）
 
 两项请求均完成：设置九个分组及应用/AI/WebDAV顶栏透明化；关于页增加GitHub发布页与Gitee备用页。用户选择直接跳转，OfficialReleasePageOpener仅显式点击时发送固定HTTPS ACTION_VIEW/BROWSABLE Intent，捕获ActivityNotFoundException/SecurityException显示可重试通用提示；无自动版本检查、下载或安装权限。新增about_update_github/gitee/error tags，原metadata、隐私、导航及滚动契约保留。版本保持1.3.1(3)，原正式证书；只改/验/构建Android，不推送或Release。

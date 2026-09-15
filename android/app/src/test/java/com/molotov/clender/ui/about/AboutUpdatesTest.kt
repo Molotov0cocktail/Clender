@@ -4,11 +4,19 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertHeightIsAtLeast
@@ -61,6 +69,8 @@ class AboutUpdatesTest {
         assertTrue(context.attempts.isEmpty())
         composeRule.onNodeWithTag("about_updates_title").performScrollTo()
             .assertTextEquals("App updates")
+        composeRule.onNodeWithTag("about_update_gitee").performScrollTo()
+            .assertTextEquals("Gitee releases")
         click("about_update_github")
         click("about_update_gitee")
         assertEquals(
@@ -115,9 +125,71 @@ class AboutUpdatesTest {
         click("about_update_github")
         composeRule.onNodeWithTag("about_update_gitee").performScrollTo().assertIsDisplayed()
             .assertHeightIsAtLeast(48.dp)
+            .assertTextEquals("Gitee 发布页")
         click("about_update_gitee")
         assertEquals(2, context.attempts.size)
         composeRule.onNodeWithTag("about_ai_policy").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun bothReleaseButtonsPreserveTheSameBackgroundInLightAndDarkThemes() {
+        val theme = mutableStateOf(ThemeMode.LIGHT)
+        val backdrop = Color(0xFF41A383)
+        host.activity.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f)) {
+                ClenderTheme(AppearanceUiState(theme.value, 13, 13)) {
+                    Box(Modifier.size(360.dp, 640.dp).background(backdrop)) {
+                        AboutUpdatesSection { true }
+                    }
+                }
+            }
+        }
+        for (mode in listOf(ThemeMode.LIGHT, ThemeMode.DARK)) {
+            composeRule.runOnIdle { theme.value = mode }
+            listOf("about_update_github", "about_update_gitee").forEach { tag ->
+                val bounds = composeRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+                val actual = composeRule.runOnUiThread {
+                    val view = host.activity.window.decorView
+                    val bitmap = Bitmap.createBitmap(
+                        view.width,
+                        view.height,
+                        Bitmap.Config.ARGB_8888
+                    )
+                    try {
+                        view.draw(Canvas(bitmap))
+                        bitmap.getPixel(bounds.center.x.toInt(), bounds.top.toInt() + 6)
+                    } finally {
+                        bitmap.recycle()
+                    }
+                }
+                assertEquals(
+                    "Both release buttons must preserve background: $tag/$mode",
+                    backdrop.toArgb(),
+                    actual
+                )
+            }
+        }
+    }
+
+    @Test
+    fun releaseButtonsHaveAtLeastTwelveDpSeparation() {
+        host.activity.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f)) {
+                ClenderTheme(AppearanceUiState(ThemeMode.LIGHT, 13, 13)) {
+                    Box(Modifier.size(360.dp, 640.dp)) {
+                        AboutUpdatesSection { true }
+                    }
+                }
+            }
+        }
+        val github = composeRule.onNodeWithTag("about_update_github")
+            .fetchSemanticsNode().boundsInRoot
+        val gitee = composeRule.onNodeWithTag("about_update_gitee")
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            "Release actions need at least 12dp separation",
+            gitee.top - github.bottom >= 12f
+        )
     }
 
     private fun click(tag: String) {

@@ -1,5 +1,17 @@
 # T76 Android 设置透明化与关于页版本更新
 
+## 第三阶段：用户截图反馈修订（2026-09-15，本地完成，待用户验收）
+
+基线main/210bd18干净。用户更偏好半透明蒙板，取消上一阶段纯透明+细边框视觉契约；本轮采用无描边、surface色24%不透明度圆角分组蒙板，全局背景强度与遮罩不变。设置标签栏去掉外框，保留透明底与选中指示。关于两站平等呈现、统一OutlinedButton，纵向保留大字适配且增加12dp间距，zh/en移除Gitee备用标注。版本保持1.3.1(3)，仅Android，不发布。
+
+范围：SettingsComponents.kt、SettingsScreen.kt、T76TransparentSettingsTest.kt；AboutUpdatesSection.kt、values{,-en}/about_updates.xml、AboutUpdatesTest.kt；本任务/progress/根与Android AGENTS。数据、权限、依赖、URL、导航与秘密草稿契约不改。风险是复杂背景文字对比与大字号可达；用轻薄主题蒙板、原文字色及真实截图核对。回滚本阶段提交，无数据迁移。
+
+矩阵：设置正常三tab九分组alpha合成像素/无外框，边界明暗/无背景/320dp与2x，异常原背景回退/禁用控件及dirty回归；关于两按钮同样式且间距至少12dp、zh/en无备用，边界2x换行与48dp触区，异常无浏览器/重试仍通过；先变更视觉回归并取得RED再生产实现。主agent串行完整verify-all/签名构建，最终同包背景明暗三tab与关于大字截图审查后提交。
+
+分工：settings子agent仅设置实现与测试；update子agent仅关于实现与测试；主agent负责串行测试调度、集成/设备验收、文档与提交。两agent不得同时启动Gradle，测试就绪通知主agent。完成定义：视觉反馈全部落实，完整Android门禁与签名产物、文档、Git本地提交齐备，无Windows修改或构建。
+
+第三阶段先行记录：settings 8tests/4 RED（蒙板/顶框），about 12tests/8 RED（填充/间距/文案），日志android/.tmp/t76c-{settings,about}-red.txt；实现后20tests全部通过，ktlint只发现AboutUpdatesTest四处长行，按报告换行无语义变化；首次GREEN组合exit1保留于t76c-green.txt。review独立确认生产改动及像素采样/12dp边界覆盖，不降低旧异常/秘密草稿测试。主agent随后启动完整verify-all，470源码/schema预先记录。设备helper首轮因Python默认GBK读取UTF8失败（未产生文件/设备动作），显式UTF8精确纠正后AST通过。
+
 日期：2026-09-15。基线：main/76ab3b5，开始时工作区干净。
 
 ## 目标与非目标
@@ -118,3 +130,15 @@
 - 主agent已读7张图（light-top/light-updates/no-browser-error/dark-updates/320dp-2x-top/github/gitee），文字与两个按钮完整可达，Gitee备用文案在2x自然两行。旧设置生产代码未改，65图仍是第一阶段证据，未重做；原Widget多行label局部压线/大字应用页未穷尽底部/未验厂商真机限制保留。
 - 清理回读font_scale=1.0、1080x1920、420dpi无覆盖，浏览器enabled=0恢复默认；按AVD身份卸载合成应用Success、emu kill完成。最终adb空与工作区状态以提交前回读为准。无Windows改动/测试/构建/真实数据读取，无推送或Release。
 - 根与Android AGENTS已同步新入口/错误语义/验证结果；任务与progress已标两项本地完成，待用户验收。提交哈希以Git日志及最终答复为准。
+
+### 第三阶段最终结果（取代前两阶段视觉约定）
+- Android cwd、指定Miniconda执行`powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-all.ps1 -PythonExecutable C:\Users\30910\Miniconda3\python.exe`，日志`.tmp/t76c-verify-all.txt`，exit0，Gradle9m40s。216 suites/2203 tests（UI85/935），failure/error/skipped全0，CloseGuard/SQLiteConnectionPool/SQLiteDatabase leaked/RoomDatabase leaked全部0；112发布夹具、foundation/boundary各109通过，lintDebug/lintRelease/detekt/ktlint全部通过。
+- 同一Python执行scripts/build-release.ps1，`.tmp/t76c-build-release.txt` exit0；APK/AAB签名、zipalign、aapt2/Bundletool清单、网络策略、证书一致性与归档审计通过。正式证书SHA256仍628248932cfd0587a04126290ac2af870591fc7ebe80259c5f29d266c944615f；版本1.3.1(3)。
+- `app/build/outputs/apk/release/app-release.apk`：1878621 bytes，SHA256 `c516e1b763f5095a51d8d2597f9d437a4b326aa35aed05c60035035e5f2a09d8`。
+- `app/build/outputs/bundle/release/app-release.aab`：4995662 bytes，SHA256 `887aa42de62b79986411a7abd8d35b8837cab5b2bf21becccd5d101867456fd2`。
+- 最终设备实际APK字节摘要匹配，`.tmp/t76-device/refinement.py --run refinement1`交互完成exit2（待读图）；44图已逐张读图，主5/review39。正常明暗三tab9组蒙板无外框、透出原创背景、文字清晰；about-normal两站样式相同、间距清楚、无备用；320dp/2x应用Widget label仍压前一字段边框，且应用5滚未穷尽页面底部，这两项历史限制未修复。AI/WebDAV大字底部操作完整。只对合成背景/API36截图负责，不声称任意背景对比度或厂商真机通过。
+- about-320dp-2x-updates中reveal仅保证文本部分露出，Gitee底部被viewport裁切，不能据此宣称完整。保留原图并追加`.tmp/t76c-about-bottom.py`（同一APK、无背景、320dp/2x、滚动到底）截图核验。设备第一次重启安装遇offline（尚未boot，未安装/未运行helper）；确认boot_completed=1后才安装验收。无生产改动或掩盖旧截图限制。
+- 初次与补验均恢复font_scale1.0、1080x1920、420dpi无覆盖；原背景测试图删除，合成应用卸载、按clender_api36_t67身份关闭模拟器。最终adb空、补图结论、工作区清洁和提交哈希以提交前回读及最终答复为准。
+- 470源码/schema摘要前后一致。根/Android AGENTS与progress已同步本次视觉约定、验证与限制。无Windows修改/测试/构建/真实数据读取；无推送或Release。本轮Git提交见日志。
+
+第三阶段最终回读：about-bottom补图已逐张审查，浅色无背景320dp/2x两按钮均完整可见且12dp间距清楚；共45截图（review39/主6）。补验恢复显示参数并卸载Success，AVD身份核对后关闭。
