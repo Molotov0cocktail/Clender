@@ -94,12 +94,12 @@ class AboutScreenTest {
     }
 
     @Test
-    fun aboutHasVerticalScrollAndNoExternalActionNodes() {
+    fun aboutHasVerticalScrollAndOnlyTheTwoAuthorizedUpdateActions() {
         setScreen(englishModel(), width = 360, theme = ThemeMode.DARK, fontSp = 20, fontScale = 2f)
 
         composeRule.onNodeWithTag("about_content").assert(hasScrollAction())
         assertEquals(
-            0,
+            2,
             composeRule.onAllNodes(hasClickAction(), useUnmergedTree = true)
                 .fetchSemanticsNodes().size
         )

@@ -1,6 +1,8 @@
-# T76 Android 设置透明化（本地验证完成；关于更新功能待确认）
+# T76 Android 设置透明化与关于更新（2026-09-15，本地完成，待用户验收）
 
-基线main/76ab3b5。独立agent完成设置透明分组/圆角透明三tab，Android 1.3.1(3)，Windows按用户要求跳过。verify-all exit0、2189应用测试/112发布夹具/两组109策略与签名APK/AAB审计通过，API36覆盖升级保留合成设置、65截图审查完成并清理设备。大字Widget浮动label局部压线及未穷尽应用页底部如实保留。关于更新方式用户尚未选择，检查/下载功能未实施，T76整体待续；本地交付不推送/Release。完整证据与SHA256见T76-android-transparent-settings-update.md。
+- 设置透明分组/顶栏已在5a17081交付；关于页现补充GitHub/Gitee固定发布页入口与失败重试，用户选择直接跳转。两项均完成，版本1.3.1(3)，仅Android，不推送/Release。
+- 216 suites/2197 tests零失败/错误/跳过；完整verify-all、签名APK/AAB审计通过；最终同包API36关于页7图和真实浏览器交接/异常恢复通过。设置65图为第一阶段历史证据。源码470摘要不变。
+- 任务、失败、产物完整SHA256与验收限制：[T76](T76-android-transparent-settings-update.md)。
 
 # T73 双端 v1.3.0 正式发布（2026-09-14，完成）
 

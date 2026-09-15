@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_updates_title">App updates</string>
+    <string name="about_updates_hint">Open a release page to download a new version.</string>
+    <string name="about_update_github">GitHub releases</string>
+    <string name="about_update_gitee">Gitee releases (alternative)</string>
+    <string name="about_update_open_failed">Could not open the release page. Please try again.</string>
+</resources>

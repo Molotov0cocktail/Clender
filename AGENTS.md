@@ -1,3 +1,9 @@
+# T76 Android 设置透明化与关于更新（2026-09-15，本地验证完成，待用户验收）
+
+两项请求均完成：设置九个分组及应用/AI/WebDAV顶栏透明化；关于页增加GitHub发布页与Gitee备用页。用户选择直接跳转，OfficialReleasePageOpener仅显式点击时发送固定HTTPS ACTION_VIEW/BROWSABLE Intent，捕获ActivityNotFoundException/SecurityException显示可重试通用提示；无自动版本检查、下载或安装权限。新增about_update_github/gitee/error tags，原metadata、隐私、导航及滚动契约保留。版本保持1.3.1(3)，原正式证书；只改/验/构建Android，不推送或Release。
+
+维护记录：Agent update实现、review独立审查，8 RED→57聚焦测试通过；完整verify-all第二轮exit0，216 suites/2197 tests（UI85/929）零失败/错误/跳过及四类泄漏，112发布夹具和foundation/boundary各109通过；lint/detekt/ktlint及签名APK/AAB审计通过，470源码/schema摘要无漂移。首轮UseKtx失败已改为既有toUri调用，失败留痕。最终同包API36关于页两站浏览器交接、无浏览器提示、恢复重试及明暗/320dp/2x共7图读图通过，测试应用卸载、显示和浏览器状态恢复、模拟器关闭。设置区域沿用第一阶段65图证据，未冒称新包重拍；320dp/2x设置Widget多行label局部压线和未验厂商真机限制保留。完整摘要、命令与失败见doc/tasks/T76-android-transparent-settings-update.md。下方为第一阶段历史记录，已由本段取代其待确认状态。
+
 # T76 Android 设置透明化（2026-09-15，本地验证完成；关于更新功能待确认）
 
 用户授权独立子 agent 修改Android设置透明分组与应用/AI/WebDAV顶栏，并在关于页增加应用更新。用户追加仅构建Android，跳过Windows修改/测试/构建与dist/data读取；版本定为1.3.1，本次Android从1.3.0(2)升为1.3.1(3)，保留applicationId与正式签名，不推送、不Release。

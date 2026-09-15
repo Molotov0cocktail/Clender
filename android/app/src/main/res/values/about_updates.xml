@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_updates_title">应用更新</string>
+    <string name="about_updates_hint">打开发布页下载新版本。</string>
+    <string name="about_update_github">GitHub 发布页</string>
+    <string name="about_update_gitee">Gitee 发布页（备用）</string>
+    <string name="about_update_open_failed">无法打开发布页，请重试。</string>
+</resources>

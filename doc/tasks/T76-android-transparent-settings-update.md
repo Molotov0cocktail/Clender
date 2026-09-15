@@ -78,3 +78,43 @@
 - cleanup：恢复命令通过且回读font_scale=1.0、1080x1920、420dpi无覆盖；身份clender_api36_t67已核对、卸载Success、emu kill完成，最终adb与进程核对见提交前回执。
 - 中途主agent误判helper缺少返回Application步骤，独立review指出该步骤原已存在，立即更正；未修改或停止harness，没有该项设备失败。
 - 当前仅设置透明化/版本子任务完成并可本地提交；第二项关于更新需用户选择，整体任务待续，不发布。
+
+
+## 第二项继续实施：用户选择直接跳转发布页（2026-09-15）
+
+基线main/5a17081，工作区干净。用户询问应用内下载安装复杂度，并明确复杂则用直接跳发布页；采用直接跳转，复杂度显著低于下载/校验/取消/安装授权闭环。无需再确认。版本保持1.3.1(3)，只构建Android、不推送/Release。
+
+### 设计与文件边界
+- 关于页新增“应用更新”区块，短说明“打开发布页下载新版本。”，GitHub与Gitee两个站点纵向全宽按钮，分别打开项目正式固定HTTPS发布页。明确展示站点，避免自动失败切换引发重复跳转。
+- 固定GitHub地址 https://github.com/Molotov0cocktail/Clender/releases/latest；备用Gitee地址 https://gitee.com/Molotov0coaktail/clender/releases。来源为项目README/历史正式Release；GitHub latest已实时回读到v1.3.0，Gitee web读取受工具限制，不冒称在线成功，设备只验证正确Intent交接。
+- 点击才ACTION_VIEW/BROWSABLE交给浏览器；不读取用户配置，不联网检查、不下载APK、不申请安装权限、不增加依赖/Manifest/后台服务，不声称“已是最新”。无浏览器或SecurityException时显示通用失败提示并可重试，不能展示底层异常。
+- Agent update：ui/about/AboutScreen.kt、新app/about/OfficialReleasePageOpener.kt（或同义文件），必要时ui/about独立更新组件；values/values-en/about_updates.xml；AboutScreenTest及新About更新UI/opener测试。旧metadata/隐私说明/tag/滚动/导航契约保留；只把“0外部操作”旧断言替换成精确新增的两站入口。
+- 主agent：文档、独立审查、完整verify-all、签名构建与设备小范围关于页验收、提交。设置透明化生产代码不再改；上一轮65图仅作为该不变区域历史证据，不重做全矩阵。
+
+### 先行矩阵与完成定义
+|范围|正常|边界|异常/非法|回归|
+|---|---|---|---|---|
+|更新入口|两站按钮仅点击启动正确固定HTTPS Intent|无版本metadata仍可打开；重复显式点击|无handler/SecurityException通用错误且可重试|打开About不自动launch；无秘密/extras/用户URL|
+|UI|zh/en标签与版本/隐私说明保留|API26/36、320dp/2x、明暗可滚动、48dp触区|失败不导航、不显示底层异常；重试成功清提示|Drawer/Back与其他About原测试|
+|集成|聚焦RED→GREEN、verify-all与签名审计|最终APK同包About明暗/大字截图|模拟器无浏览器时实际失败可见|1.3.1(3)/原证书/权限/依赖保持|
+
+完成须两项功能均落地、门禁通过、签名APK/AAB、About新设备证据、文档与本地提交。回滚本次追加提交即可，无数据迁移，禁止清真实库。历史待确认段落保留为上一交付事实，本节取代其当前状态。
+
+
+### 第二项聚焦结果与独立审查
+- 新AboutUpdatesTest API26/36共8 tests/8 RED（缺更新节点，可编译），实现后About/metadata/navigation共6 suites/57 tests全通过，ktlintCheck/detekt通过。green1仅新增测试import排序失败，交换两行后green2 exit0（1m2s）；失败日志保留，未降低断言。
+- 独立review检查固定enum地址/无自动launch/无extras/两个平台异常/重试清理/metadata及隐私/48dp触区，未发现阻断问题。
+- 主agent已启动完整verify-all（.tmp/t76b-verify-all.txt），待最终签名包与About新设备矩阵；470源码/schema预先记录摘要。上一轮设置透明65图为未变区域已有证据，当前不重做，不冒称全部由新包重新拍摄。
+
+- 完整门禁首轮在2197应用测试全通过后，lintDebug因新opener使用Uri.parse触发UseKtx error而exit1（5m4s）；主agent按报告仅改既有androidx.core.net.toUri调用/import，不加依赖或抑制。原日志t76b-verify-all.txt和修前470摘要保留，修后完整重验记录另列。
+
+### 最终完成记录（第二阶段，取代上方待确认状态）
+- 完整命令：Android cwd运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-all.ps1 -PythonExecutable C:\Users\30910\Miniconda3\python.exe`，日志 `.tmp/t76b-verify-all2.txt`，exit0/Gradle 8m7s。216 suites/2197 tests（UI85/929），零失败/错误/跳过；CloseGuard/SQLiteConnectionPool/SQLiteDatabase leaked/RoomDatabase leaked全部0。112发布夹具、foundation与boundary各109全部通过。
+- 同一Python执行 `scripts/build-release.ps1`，日志 `.tmp/t76b-build-release.txt`，exit0；apksigner/zipalign/aapt2/网络策略/bundletool/jarsigner/证书一致性/归档审计通过。版本1.3.1(3)，原证书SHA256 `628248932cfd0587a04126290ac2af870591fc7ebe80259c5f29d266c944615f`。
+- `app/build/outputs/apk/release/app-release.apk`：1878829 bytes，SHA256 `3ae6ac22a162aab6c2f84841f2f7cdc6fef665bfc39794354e64b8a375da6775`。
+- `app/build/outputs/bundle/release/app-release.aab`：4995885 bytes，SHA256 `3ceb831f91aa6a445305c37bf3d956231b221ab3eb3479f194619b7c3732c758`。
+- 470源码/schema预后摘要一致。构建期间曾安装仍存在的上一阶段APK，未对其执行本轮验收；构建exit0后重新安装最终包，并读取设备实际APK字节核对最终SHA256，以下验收只属于最终包。
+- `.tmp/t76-about-device.py --run final1`：API36/clender_api36_t67，helper exit2为交互完成待读图；两站与恢复重试的真实浏览器前台交接及hostname记录通过，精确URL路径由API26/36单测断言。禁用浏览器后实际失败提示可见，恢复default-state后成功重试且提示消失。不宣称外网站点加载或APK下载成功。
+- 主agent已读7张图（light-top/light-updates/no-browser-error/dark-updates/320dp-2x-top/github/gitee），文字与两个按钮完整可达，Gitee备用文案在2x自然两行。旧设置生产代码未改，65图仍是第一阶段证据，未重做；原Widget多行label局部压线/大字应用页未穷尽底部/未验厂商真机限制保留。
+- 清理回读font_scale=1.0、1080x1920、420dpi无覆盖，浏览器enabled=0恢复默认；按AVD身份卸载合成应用Success、emu kill完成。最终adb空与工作区状态以提交前回读为准。无Windows改动/测试/构建/真实数据读取，无推送或Release。
+- 根与Android AGENTS已同步新入口/错误语义/验证结果；任务与progress已标两项本地完成，待用户验收。提交哈希以Git日志及最终答复为准。

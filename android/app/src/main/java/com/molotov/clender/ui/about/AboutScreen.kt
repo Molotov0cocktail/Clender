@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.molotov.clender.R
 import com.molotov.clender.app.about.AboutMetadataReader
+import com.molotov.clender.app.about.OfficialReleasePage
 
 @Composable
 fun AboutScreen(modifier: Modifier = Modifier) {
@@ -30,7 +31,11 @@ fun AboutScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun AboutScreen(model: AboutUiModel, modifier: Modifier = Modifier) {
+fun AboutScreen(
+    model: AboutUiModel,
+    modifier: Modifier = Modifier,
+    onOpenReleasePage: ((OfficialReleasePage) -> Boolean)? = null
+) {
     val title = stringResource(R.string.about_title)
     Column(
         modifier = modifier
@@ -53,6 +58,7 @@ fun AboutScreen(model: AboutUiModel, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(8.dp))
         AboutContent(
             model = model,
+            onOpenReleasePage = onOpenReleasePage,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
@@ -61,7 +67,11 @@ fun AboutScreen(model: AboutUiModel, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun AboutContent(model: AboutUiModel, modifier: Modifier) {
+private fun AboutContent(
+    model: AboutUiModel,
+    onOpenReleasePage: ((OfficialReleasePage) -> Boolean)?,
+    modifier: Modifier
+) {
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
@@ -97,6 +107,7 @@ private fun AboutContent(model: AboutUiModel, modifier: Modifier) {
             tag = "about_ai_policy",
             value = model.aiText.ifBlank { stringResource(R.string.about_ai_policy) }
         )
+        AboutUpdatesSection(onOpenReleasePage)
     }
 }
 
