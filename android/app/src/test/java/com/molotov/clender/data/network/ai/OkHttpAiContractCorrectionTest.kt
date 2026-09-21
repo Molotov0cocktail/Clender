@@ -105,7 +105,7 @@ class OkHttpAiContractCorrectionTest {
         val error = assertThrows(AiAccountedException::class.java) {
             runBlocking { client.complete(limited, CharArray(8) { 'x' }, original) }
         }
-        assertTrue(error.failure is AiProtocolException)
+        assertTrue(error.failure is AiContextBudgetException)
         assertEquals(AiCompletionUsage(1, 1, 2), error.usage)
         assertEquals(1, server.requestCount)
     }
@@ -313,7 +313,7 @@ class OkHttpAiContractCorrectionTest {
         val error = assertThrows(AiAccountedException::class.java) {
             runBlocking { client.complete(small, CharArray(8) { 'x' }, request) }
         }
-        assertTrue(error.failure is AiProtocolException)
+        assertTrue(error.failure is AiContextBudgetException)
         assertEquals(AiCompletionUsage(1, 1, 2), error.usage)
         assertEquals(1, server.requestCount)
     }
@@ -360,10 +360,24 @@ class OkHttpAiContractCorrectionTest {
     @Test
     fun truncatedCompletionDoesNotTriggerFormatCorrection() {
         server.enqueue(MockResponse(body = response("123", 1).replace("\"stop\"", "\"length\"")))
-        assertThrows(AiProtocolException::class.java) {
+        val error = assertThrows(AiAccountedException::class.java) {
             runBlocking { client.complete(settings(), CharArray(8) { 'x' }, messages()) }
         }
+        assertTrue(error.failure is AiOutputLimitException)
+        assertEquals(AiCompletionUsage(1, 1, 2), error.usage)
         assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun truncatedCorrectionAccountsBothResponsesExactlyOnce() {
+        server.enqueue(MockResponse(body = response("123", 1)))
+        server.enqueue(MockResponse(body = response(VALID, 2).replace("\"stop\"", "\"length\"")))
+        val error = assertThrows(AiAccountedException::class.java) {
+            runBlocking { client.complete(settings(), CharArray(8) { 'x' }, messages()) }
+        }
+        assertTrue(error.failure is AiOutputLimitException)
+        assertEquals(AiCompletionUsage(3, 3, 6), error.usage)
+        assertEquals(2, server.requestCount)
     }
 
     @Test

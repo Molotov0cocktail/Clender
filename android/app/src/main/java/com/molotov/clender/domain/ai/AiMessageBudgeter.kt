@@ -6,6 +6,8 @@ import kotlin.math.ceil
 
 data class AiRequestMessage(val role: String, val content: String)
 
+class AiInputBudgetException(message: String) : IllegalArgumentException(message)
+
 data class AiBudgetInput(
     val mandatorySystemContract: String = DEFAULT_AI_SYSTEM_CONTRACT,
     val systemPrompt: String,
@@ -34,9 +36,9 @@ class AiMessageBudgeter {
     }
 
     fun build(input: AiBudgetInput): AiBudgetResult {
-        require(input.contextWindow > 0) { "Context window must be positive" }
-        require(input.maxOutputTokens > 0) { "Output budget must be positive" }
-        require(input.maxOutputTokens < input.contextWindow) {
+        requireBudget(input.contextWindow > 0) { "Context window must be positive" }
+        requireBudget(input.maxOutputTokens > 0) { "Output budget must be positive" }
+        requireBudget(input.maxOutputTokens < input.contextWindow) {
             "Output budget must be smaller than the context window"
         }
         require(input.mandatorySystemContract.isNotBlank()) {
@@ -47,7 +49,7 @@ class AiMessageBudgeter {
             input.contextWindow / SAFETY_MARGIN_DIVISOR
         )
         val inputLimit = input.contextWindow - input.maxOutputTokens - safetyMargin
-        require(inputLimit > MESSAGE_OVERHEAD_TOKENS) { "No input budget remains" }
+        requireBudget(inputLimit > MESSAGE_OVERHEAD_TOKENS) { "No input budget remains" }
 
         val systemContentBudget =
             inputLimit - MESSAGE_OVERHEAD_TOKENS - newestMessageReserve(input, inputLimit)
@@ -105,7 +107,9 @@ class AiMessageBudgeter {
         val newest = input.history.lastOrNull { it.role != MessageRole.THINK } ?: return 0
         val available =
             inputLimit - estimateTokens(requiredSystemContent(input)) - MESSAGE_OVERHEAD_TOKENS
-        require(available > MESSAGE_OVERHEAD_TOKENS) { "No budget remains for the latest message" }
+        requireBudget(available > MESSAGE_OVERHEAD_TOKENS) {
+            "No budget remains for the latest message"
+        }
         val currentUser = input.history.lastOrNull { it.role == MessageRole.USER }
         return minOf(
             estimateTokens(messageMetadata(newest, newest === currentUser) + newest.content) +
@@ -117,7 +121,7 @@ class AiMessageBudgeter {
     private fun fitSystemContent(input: AiBudgetInput, tokenBudget: Int): String {
         val required = requiredSystemContent(input)
         val mandatoryCost = estimateTokens(required)
-        require(mandatoryCost <= tokenBudget) {
+        requireBudget(mandatoryCost <= tokenBudget) {
             "Mandatory AI operation contract exceeds the input budget"
         }
         val optionalSections = listOf(
@@ -165,7 +169,7 @@ class AiMessageBudgeter {
 
     private fun truncateLatestMessage(content: String, tokenBudget: Int): String {
         val remaining = tokenBudget - estimateTokens(MESSAGE_TRUNCATION_MARKER)
-        require(remaining > 0) { "No usable budget remains for the latest message" }
+        requireBudget(remaining > 0) { "No usable budget remains for the latest message" }
         return MESSAGE_TRUNCATION_MARKER + truncateTail(content, remaining)
     }
 
@@ -182,6 +186,18 @@ class AiMessageBudgeter {
 
     companion object {
         const val MESSAGE_OVERHEAD_TOKENS = 4
+        val minimumInputReserveTokens: Int by lazy {
+            AiMessageBudgeter().estimateTokens(DEFAULT_AI_SYSTEM_CONTRACT) +
+                MESSAGE_OVERHEAD_TOKENS * 2 + MINIMUM_LATEST_MESSAGE_RESERVE
+        }
+
+        fun hasUsableInputBudget(contextWindow: Int, maxOutputTokens: Int): Boolean =
+            contextWindow > 0 && maxOutputTokens > 0 &&
+                contextWindow.toLong() - maxOutputTokens -
+                maxOf(MINIMUM_SAFETY_MARGIN_TOKENS, contextWindow / SAFETY_MARGIN_DIVISOR) >=
+                minimumInputReserveTokens
+
+        private const val MINIMUM_LATEST_MESSAGE_RESERVE = 128
         private const val MINIMUM_SAFETY_MARGIN_TOKENS = 32
         private const val SAFETY_MARGIN_DIVISOR = 10
         private const val UTF8_BYTES_PER_TOKEN = 3.0
@@ -239,6 +255,10 @@ private fun MessageRole.requestRole(): String = when (this) {
     MessageRole.USER -> "user"
     MessageRole.ASSISTANT -> "assistant"
     MessageRole.THINK -> "think"
+}
+
+private inline fun requireBudget(value: Boolean, message: () -> String) {
+    if (!value) throw AiInputBudgetException(message())
 }
 
 private fun messageMetadata(message: Message, currentUser: Boolean): String =

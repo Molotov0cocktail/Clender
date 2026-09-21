@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_maintenance_title">诊断与清理</string>
+    <string name="about_maintenance_hint">日志仅含诊断代码和耗时。清理会保留日程、对话与设置。</string>
+    <string name="about_export_logs">导出诊断日志</string>
+    <string name="about_clear_logs">清空诊断日志</string>
+    <string name="about_clear_cache">清理日志导出临时文件</string>
+    <string name="about_clear_logs_confirm">清空本设备的诊断日志？此操作无法撤销。日程、对话、设置、背景和铃声均会保留。</string>
+    <string name="about_clear_cache_confirm">只删除日志导出遗留的临时文件。已导出的文件、日程、对话、设置、背景和铃声均会保留。</string>
+    <string name="about_maintenance_confirm">清理</string>
+    <string name="about_maintenance_cancel">取消</string>
+    <string name="about_maintenance_busy">正在处理…</string>
+    <string name="about_logs_exported">诊断日志已导出。</string>
+    <string name="about_logs_cleared">诊断日志已清空。</string>
+    <string name="about_cache_cleared">日志导出临时文件已清理。</string>
+    <string name="about_maintenance_failed">未能完成操作，请重试。</string>
+</resources>

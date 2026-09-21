@@ -1,6 +1,7 @@
 package com.molotov.clender.ui.settings
 
 import com.molotov.clender.data.network.ai.AiModelCapabilities
+import com.molotov.clender.domain.ai.AiMessageBudgeter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -23,8 +24,16 @@ class AiModelSettingsTest {
         val draft = AiSettingsDraft()
         val updated = draft.applyCapabilities(AiModelCapabilities(4096, 4096))
         assertTrue(updated.validate().isEmpty())
-        assertEquals("2663", updated.maxOutputTokens)
-        assertEquals(draft, draft.applyCapabilities(AiModelCapabilities(16, 16)))
+        assertTrue(updated.maxOutputTokens.toInt() < 2663)
+        assertTrue(
+            AiMessageBudgeter.hasUsableInputBudget(
+                updated.contextWindow.toInt(),
+                updated.maxOutputTokens.toInt()
+            )
+        )
+        val tiny = draft.applyCapabilities(AiModelCapabilities(16, 16))
+        assertEquals("16", tiny.contextWindow)
+        assertTrue(SettingsValidationError.AI_CONTEXT_WINDOW in tiny.validate())
         assertEquals(draft, draft.applyCapabilities(AiModelCapabilities(-1, -1)))
     }
 }

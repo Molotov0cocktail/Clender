@@ -24,17 +24,19 @@ import androidx.compose.ui.unit.dp
 import com.molotov.clender.R
 import com.molotov.clender.app.about.AboutMetadataReader
 import com.molotov.clender.app.about.OfficialReleasePage
+import com.molotov.clender.diagnostics.DiagnosticMaintenance
 
 @Composable
-fun AboutScreen(modifier: Modifier = Modifier) {
-    AboutScreen(model = rememberAboutUiModel(), modifier = modifier)
+fun AboutScreen(modifier: Modifier = Modifier, maintenance: DiagnosticMaintenance? = null) {
+    AboutScreen(model = rememberAboutUiModel(), modifier = modifier, maintenance = maintenance)
 }
 
 @Composable
 fun AboutScreen(
     model: AboutUiModel,
     modifier: Modifier = Modifier,
-    onOpenReleasePage: ((OfficialReleasePage) -> Boolean)? = null
+    onOpenReleasePage: ((OfficialReleasePage) -> Boolean)? = null,
+    maintenance: DiagnosticMaintenance? = null
 ) {
     val title = stringResource(R.string.about_title)
     Column(
@@ -59,6 +61,7 @@ fun AboutScreen(
         AboutContent(
             model = model,
             onOpenReleasePage = onOpenReleasePage,
+            maintenance = maintenance,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
@@ -70,6 +73,7 @@ fun AboutScreen(
 private fun AboutContent(
     model: AboutUiModel,
     onOpenReleasePage: ((OfficialReleasePage) -> Boolean)?,
+    maintenance: DiagnosticMaintenance?,
     modifier: Modifier
 ) {
     Column(
@@ -108,6 +112,7 @@ private fun AboutContent(
             value = model.aiText.ifBlank { stringResource(R.string.about_ai_policy) }
         )
         AboutUpdatesSection(onOpenReleasePage)
+        AboutMaintenanceSection(maintenance)
     }
 }
 

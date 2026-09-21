@@ -110,8 +110,9 @@ class OkHttpAiClientTest {
         assertEquals(Duration.ofSeconds(15), policy.connect)
         assertEquals(Duration.ofSeconds(15), policy.modelsRead)
         assertEquals(Duration.ofSeconds(15), policy.modelsCall)
-        assertEquals(Duration.ofSeconds(180), policy.chatRead)
-        assertEquals(Duration.ofSeconds(180), policy.chatCall)
+        assertEquals(Duration.ofSeconds(600), policy.chatRead)
+        assertEquals(Duration.ofSeconds(600), policy.chatCall)
+        assertEquals(Duration.ofSeconds(60), policy.chatWrite)
     }
 
     @Test

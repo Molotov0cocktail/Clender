@@ -1,3 +1,7 @@
+# T80 Android AI 超时、上下文预算与本地诊断（本地完成，待用户验收）
+
+三agent实现并交叉review；修复超时配置/预算预检与错误分类，增加类型化有界日志及关于页导出/日志清空/导出临时文件清理。Android2252tests/完整门禁/原签名APK+AAB/API36同包导出清理与明暗大字号验收通过；Windows384tests及构建/隔离启动通过，用户数据完整性不变。USB手机全程只读，历史错误无可用栈，不称全部Provider故障已消除。契约、失败与产物见[T80](T80-android-diagnostics-timeout.md)。本地提交，不推送或Release。
+
 # T79 Windows 模型上下文与输出限制修复（本地完成，待用户验收）
 
 三个独立 agent 分工能力资料/解析、设置交互、HTTP 元数据与请求参数；主 agent 集成验证。范围及矩阵见[T79](T79-windows-model-capabilities.md)。仅 Windows，本地测试构建交付，不发布。

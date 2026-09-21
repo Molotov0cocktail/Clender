@@ -52,7 +52,17 @@ class OkHttpAiFinishReasonTest {
     }
 
     @Test
-    fun lengthFinishRejectsEvenSyntacticallyCompleteOperations() = rejects("\"length\"")
+    fun lengthFinishRejectsEvenSyntacticallyCompleteOperations() {
+        server.enqueue(MockResponse(body = response(",\"finish_reason\":\"length\"")))
+        val key = CharArray(8) { 'x' }
+        val error = assertThrows(AiAccountedException::class.java) {
+            runBlocking { client.complete(settings(), key, messages()) }
+        }
+        assertTrue(error.failure is AiOutputLimitException)
+        assertEquals(AiCompletionUsage(0, 0, 0), error.usage)
+        assertTrue(key.all { it == '\u0000' })
+        assertEquals(1, server.requestCount)
+    }
 
     @Test
     fun contentFilterFinishRejectsProviderContent() = rejects("\"content_filter\"")

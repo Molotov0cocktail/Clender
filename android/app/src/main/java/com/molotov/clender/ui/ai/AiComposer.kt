@@ -228,6 +228,10 @@ private fun errorResource(error: AiCoordinatorError?): Int = when (error) {
 
     AiCoordinatorError.REQUEST_PARAMETERS -> R.string.ai_error_request_parameters
 
+    AiCoordinatorError.CONTEXT_BUDGET -> R.string.ai_error_context_budget
+
+    AiCoordinatorError.OUTPUT_LIMIT -> R.string.ai_error_output_limit
+
     AiCoordinatorError.PROVIDER -> R.string.ai_error_provider
 
     AiCoordinatorError.INVALID_RESPONSE -> R.string.ai_error_invalid_response

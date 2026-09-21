@@ -3,6 +3,7 @@ package com.molotov.clender.app.sync
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.molotov.clender.data.settings.WebDavSectionSnapshot
+import com.molotov.clender.diagnostics.DiagnosticLogger
 import com.molotov.clender.domain.sync.SyncCancellationException
 import com.molotov.clender.domain.sync.SyncResult
 import com.molotov.clender.sync.SyncCoordinator
@@ -53,6 +54,7 @@ class WebDavSyncRuntime(
     private val lifecycle: Lifecycle,
     private val gate: WebDavOperationGate,
     signals: WebDavSyncSignals,
+    diagnostics: DiagnosticLogger = DiagnosticLogger.NONE,
     private val runSync: suspend (WebDavSectionSnapshot?) -> WebDavRunResult
 ) {
     constructor(
@@ -62,7 +64,13 @@ class WebDavSyncRuntime(
         availability: Flow<WebDavAvailability>,
         mutationVersion: Flow<Long>,
         runSync: suspend (WebDavSectionSnapshot?) -> WebDavRunResult
-    ) : this(scope, lifecycle, gate, WebDavSyncSignals(availability, mutationVersion), runSync)
+    ) : this(
+        scope,
+        lifecycle,
+        gate,
+        WebDavSyncSignals(availability, mutationVersion),
+        runSync = runSync
+    )
 
     private val classifier = WebDavFailureClassifier()
     private val lock = Any()
@@ -92,6 +100,7 @@ class WebDavSyncRuntime(
         isEnabled = { effectiveEnabled() },
         runSync = { executeRun() },
         onRemoteVisibleChanged = signals.onRemoteVisibleChanged,
+        diagnostics = diagnostics,
         onFailure = { error -> mutableState.value = SyncState.Failed(classifier.classify(error)) }
     )
 

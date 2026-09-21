@@ -1,5 +1,10 @@
 package com.molotov.clender.sync
 
+import com.molotov.clender.diagnostics.DiagnosticEvent
+import com.molotov.clender.diagnostics.DiagnosticLogger
+import com.molotov.clender.diagnostics.DiagnosticPhase
+import com.molotov.clender.diagnostics.DiagnosticRecord
+import com.molotov.clender.diagnostics.DiagnosticResult
 import com.molotov.clender.domain.sync.SyncCancellationException
 import com.molotov.clender.domain.sync.SyncFailureException
 import com.molotov.clender.domain.sync.SyncResult
@@ -32,6 +37,7 @@ class SyncCoordinator(
     private val isEnabled: () -> Boolean,
     private val runSync: suspend () -> SyncResult,
     private val onRemoteVisibleChanged: () -> Unit,
+    private val diagnostics: DiagnosticLogger = DiagnosticLogger.NONE,
     private val onFailure: (Throwable) -> Unit = {}
 ) {
     private val stateLock = Any()
@@ -134,20 +140,43 @@ class SyncCoordinator(
     }
 
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun runOneSync(): SyncResult? = try {
-        runMutex.withLock { runSync() }
-    } catch (error: SyncCancellationException) {
-        if (error.remoteVisibleChanged) notifyRemoteVisibleChanged()
-        throw error
-    } catch (error: CancellationException) {
-        throw error
-    } catch (error: SyncFailureException) {
-        if (error.remoteVisibleChanged) notifyRemoteVisibleChanged()
-        onFailure(error)
-        null
-    } catch (error: Exception) {
-        onFailure(error)
-        null
+    private suspend fun runOneSync(): SyncResult? {
+        val started = System.nanoTime()
+        diagnose(DiagnosticPhase.EXECUTE, DiagnosticResult.NONE, started)
+        return try {
+            runMutex.withLock { runSync() }.also {
+                diagnose(DiagnosticPhase.COMPLETE, DiagnosticResult.SUCCESS, started)
+            }
+        } catch (error: SyncCancellationException) {
+            diagnose(DiagnosticPhase.COMPLETE, DiagnosticResult.CANCELLED, started)
+            if (error.remoteVisibleChanged) notifyRemoteVisibleChanged()
+            throw error
+        } catch (error: CancellationException) {
+            diagnose(DiagnosticPhase.COMPLETE, DiagnosticResult.CANCELLED, started)
+            throw error
+        } catch (error: SyncFailureException) {
+            diagnose(DiagnosticPhase.COMPLETE, DiagnosticResult.FAILURE, started)
+            if (error.remoteVisibleChanged) notifyRemoteVisibleChanged()
+            onFailure(error)
+            null
+        } catch (error: Exception) {
+            diagnose(DiagnosticPhase.COMPLETE, DiagnosticResult.FAILURE, started)
+            onFailure(error)
+            null
+        }
+    }
+
+    private fun diagnose(phase: DiagnosticPhase, result: DiagnosticResult, started: Long) {
+        runCatching {
+            diagnostics.record(
+                DiagnosticRecord(
+                    DiagnosticEvent.SYNC,
+                    phase,
+                    result,
+                    elapsedMs = (System.nanoTime() - started) / 1_000_000
+                )
+            )
+        }
     }
 
     private fun notifyRemoteVisibleChanged() {

@@ -6,25 +6,31 @@ import com.molotov.clender.data.network.ai.AiAccountedException
 import com.molotov.clender.data.network.ai.AiClient
 import com.molotov.clender.data.network.ai.AiCompletion
 import com.molotov.clender.data.network.ai.AiConfigurationException
+import com.molotov.clender.data.network.ai.AiContextBudgetException
 import com.molotov.clender.data.network.ai.AiHttpException
 import com.molotov.clender.data.network.ai.AiNetworkException
+import com.molotov.clender.data.network.ai.AiOutputLimitException
 import com.molotov.clender.data.network.ai.AiProtocolException
 import com.molotov.clender.data.network.ai.AiRequestCancelledException
 import com.molotov.clender.data.network.ai.AiResponseTooLargeException
 import com.molotov.clender.data.network.ai.AiTimeoutException
 import com.molotov.clender.data.settings.AiSettings
+import com.molotov.clender.diagnostics.DiagnosticLogger
 import com.molotov.clender.domain.ai.AiBudgetInput
 import com.molotov.clender.domain.ai.AiContextProvider
 import com.molotov.clender.domain.ai.AiExecutionReport
+import com.molotov.clender.domain.ai.AiInputBudgetException
 import com.molotov.clender.domain.ai.AiMessageBudgeter
 import com.molotov.clender.domain.ai.AiOperationExecutor
 import com.molotov.clender.domain.ai.AiParseResult
+import com.molotov.clender.domain.ai.AiRequestMessage
 import com.molotov.clender.domain.ai.AiResponseParser
 import com.molotov.clender.domain.ai.DEFAULT_AI_SYSTEM_CONTRACT
 import com.molotov.clender.domain.conversation.ConversationRepository
 import java.time.Clock
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.CancellationException
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -45,6 +51,8 @@ enum class AiCoordinatorError {
     AUTHENTICATION,
     RATE_LIMIT,
     REQUEST_PARAMETERS,
+    CONTEXT_BUDGET,
+    OUTPUT_LIMIT,
     PROVIDER,
     INVALID_RESPONSE,
     INTERNAL
@@ -68,9 +76,12 @@ data class AiCoordinatorDependencies(
     val parser: AiResponseParser,
     val executor: AiOperationExecutor,
     val clock: Clock,
-    val contextProvider: AiContextProvider
+    val contextProvider: AiContextProvider,
+    val diagnostics: DiagnosticLogger = DiagnosticLogger.NONE
 )
 
+// Lifecycle, submission and accounted completion share the same cancellation owner.
+@Suppress("TooManyFunctions")
 class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinatorDependencies) :
     ApplicationVisibilityController {
     private val client = dependencies.client
@@ -80,6 +91,7 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
     private val executor = dependencies.executor
     private val clock = dependencies.clock
     private val contextProvider = dependencies.contextProvider
+    private val diagnostics = dependencies.diagnostics
     private val submissionMutex = Mutex()
     private val visibilityLock = Any()
     private val mutableState = MutableStateFlow<AiCoordinatorState>(AiCoordinatorState.Idle)
@@ -250,6 +262,7 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
         apiKey: CharArray,
         operationLease: AiOperationLease?
     ) {
+        val startedAt = System.nanoTime()
         val terminal = try {
             val failure = runCatching {
                 executeRequest(conversationId, settings, apiKey)
@@ -268,6 +281,10 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
             apiKey.fill('\u0000')
             operationLease?.close()
         }
+        diagnostics.recordAiTerminal(
+            terminal,
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+        )
         mutableState.value = terminal
     }
 
@@ -278,6 +295,7 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
     ) {
         val history = conversations.observeMessages(conversationId).first()
         val scheduleContext = contextProvider.build()
+        diagnostics.recordAiQueuedBudget(settings.maxOutputTokens, settings.contextWindow)
         val request = budgeter.build(
             AiBudgetInput(
                 mandatorySystemContract = DEFAULT_AI_SYSTEM_CONTRACT,
@@ -295,6 +313,11 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
                 contextWindow = settings.contextWindow,
                 maxOutputTokens = settings.maxOutputTokens
             )
+        )
+        diagnostics.recordAiBudget(
+            request.inputTokenEstimate,
+            settings.maxOutputTokens,
+            settings.contextWindow
         )
         currentCoroutineContext().ensureActive()
         val recorded = conversations.recordContextUsage(
@@ -316,20 +339,27 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
             }
         }
         currentCoroutineContext().ensureActive()
-        val completion = try {
-            client.complete(settings, apiKey, request.messages)
-        } catch (failure: AiAccountedException) {
-            currentCoroutineContext().ensureActive()
-            append(
-                conversationId,
-                MessageRole.ASSISTANT,
-                "AI 请求未完成，本轮未修改日程。",
-                failure.usage.totalTokens.coerceAtLeast(0)
-            )
-            throw failure.failure
-        }
+        val completion = completeAndAccount(conversationId, settings, apiKey, request.messages)
         currentCoroutineContext().ensureActive()
         persistCompletion(conversationId, completion)
+    }
+
+    private suspend fun completeAndAccount(
+        conversationId: String,
+        settings: AiSettings,
+        apiKey: CharArray,
+        messages: List<AiRequestMessage>
+    ): AiCompletion = try {
+        client.complete(settings, apiKey, messages)
+    } catch (failure: AiAccountedException) {
+        currentCoroutineContext().ensureActive()
+        append(
+            conversationId,
+            MessageRole.ASSISTANT,
+            "AI 请求未完成，本轮未修改日程。",
+            failure.usage.totalTokens.coerceAtLeast(0)
+        )
+        throw failure.failure
     }
 
     private suspend fun persistCompletion(conversationId: String, completion: AiCompletion) {
@@ -346,8 +376,12 @@ class AiCoordinator(private val scope: CoroutineScope, dependencies: AiCoordinat
         val parsed = parser.parse(completion.content)
         val replies = when (parsed) {
             is AiParseResult.PlainReply -> listOf(noChangeReply(listOf(parsed.message)))
+
             is AiParseResult.Rejected -> listOf(parsed.userMessage)
-            is AiParseResult.Operations -> executor.execute(parsed.operations).operationReplies()
+
+            is AiParseResult.Operations -> executor.execute(parsed.operations).also { report ->
+                diagnostics.recordAiExecution(report.outcomes.all { it.success })
+            }.operationReplies()
         }
         val safeReplies = replies.ifEmpty { listOf("本轮未修改日程。") }
         safeReplies.forEachIndexed { index, reply ->
@@ -425,6 +459,11 @@ private fun RuntimeException.toCoordinatorError(): AiCoordinatorError = when (th
     is AiConfigurationException -> AiCoordinatorError.CONFIGURATION
 
     is AiTimeoutException -> AiCoordinatorError.TIMEOUT
+
+    is AiContextBudgetException,
+    is AiInputBudgetException -> AiCoordinatorError.CONTEXT_BUDGET
+
+    is AiOutputLimitException -> AiCoordinatorError.OUTPUT_LIMIT
 
     is AiNetworkException -> AiCoordinatorError.NETWORK
 

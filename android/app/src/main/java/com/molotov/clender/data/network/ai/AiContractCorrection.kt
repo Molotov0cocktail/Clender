@@ -39,7 +39,7 @@ internal object AiContractCorrection {
             maxOf(MINIMUM_MARGIN, settings.contextWindow / MARGIN_DIVISOR)
         val available = inputLimit - budgeter.countTokens(original) -
             budgeter.countTokens(listOf(instruction)) - AiMessageBudgeter.MESSAGE_OVERHEAD_TOKENS
-        if (available < 0) throw AiProtocolException()
+        if (available < 0) throw AiContextBudgetException()
         var end = minOf(failed.content.length, MAX_FAILED_CONTENT_CHARS)
         if (end > 0 && failed.content[end - 1].isHighSurrogate()) end -= 1
         while (end > 0 && budgeter.estimateTokens(failed.content.substring(0, end)) > available) {

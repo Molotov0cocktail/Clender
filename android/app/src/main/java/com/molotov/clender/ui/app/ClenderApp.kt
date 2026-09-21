@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.molotov.clender.R
+import com.molotov.clender.diagnostics.DiagnosticMaintenance
 import com.molotov.clender.ui.about.AboutScreen
 import com.molotov.clender.ui.ai.AiConversationScreen
 import com.molotov.clender.ui.ai.AiConversationSubmissionActions
@@ -84,7 +85,8 @@ internal data class AppDependencies(
     val eventCrudViewModel: EventCrudViewModel,
     val conversationViewModel: ConversationViewModel?,
     val aiSubmissionViewModel: AiSubmissionViewModel?,
-    val settingsViewModel: SettingsViewModel?
+    val settingsViewModel: SettingsViewModel?,
+    val diagnosticMaintenance: DiagnosticMaintenance? = null
 )
 
 data class ClenderAppAiModels(
@@ -99,7 +101,8 @@ data class ClenderAppSettingsModels(
 
 data class ClenderAppModels(
     val ai: ClenderAppAiModels = ClenderAppAiModels(),
-    val settings: ClenderAppSettingsModels = ClenderAppSettingsModels()
+    val settings: ClenderAppSettingsModels = ClenderAppSettingsModels(),
+    val diagnosticMaintenance: DiagnosticMaintenance? = null
 )
 
 internal class CrudDialogState {
@@ -155,7 +158,8 @@ fun ClenderApp(
         eventCrudViewModel = eventCrudViewModel,
         conversationViewModel = models.ai.conversation,
         aiSubmissionViewModel = models.ai.submission,
-        settingsViewModel = models.settings.settings
+        settingsViewModel = models.settings.settings,
+        diagnosticMaintenance = models.diagnosticMaintenance
     )
     SynchronizeAppRoute(state, dependencies, dialogs)
     ClenderTheme(appearance = productionAppearance) {
@@ -373,7 +377,7 @@ private fun DestinationHost(
 
         AppDestination.SETTINGS -> SettingsDestination(dependencies.settingsViewModel)
 
-        AppDestination.ABOUT -> AboutScreen()
+        AppDestination.ABOUT -> AboutScreen(maintenance = dependencies.diagnosticMaintenance)
     }
 }
 

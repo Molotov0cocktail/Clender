@@ -10,6 +10,7 @@ import androidx.room.Room
 import androidx.work.WorkManager
 import com.molotov.clender.alert.PlatformEventAlerts
 import com.molotov.clender.alert.SharedPreferencesAlertLedger
+import com.molotov.clender.app.about.AboutMetadataReader
 import com.molotov.clender.app.ai.AiCoordinator
 import com.molotov.clender.app.ai.AiCoordinatorDependencies
 import com.molotov.clender.app.ai.AiOperationGate
@@ -73,6 +74,9 @@ import com.molotov.clender.data.settings.SecretStore
 import com.molotov.clender.data.settings.WebDavPasswordMutation
 import com.molotov.clender.data.settings.WebDavPreferences
 import com.molotov.clender.data.settings.WebDavSectionSnapshot
+import com.molotov.clender.diagnostics.DiagnosticMaintenance
+import com.molotov.clender.diagnostics.FileDiagnosticMaintenance
+import com.molotov.clender.diagnostics.FileDiagnosticStore
 import com.molotov.clender.domain.ai.AiContextProvider
 import com.molotov.clender.domain.ai.AiMessageBudgeter
 import com.molotov.clender.domain.ai.AiOperationExecutor
@@ -142,6 +146,19 @@ class AppContainer internal constructor(
     private val applicationContext = context.applicationContext
     private val closed = AtomicBoolean(false)
     private val appClock = Clock.systemUTC()
+
+    private val diagnosticStore by lazy {
+        (applicationContext as? ClenderApplication)?.diagnosticStore
+            ?: FileDiagnosticStore(File(applicationContext.filesDir, "diagnostics"))
+    }
+    val diagnosticMaintenance: DiagnosticMaintenance by lazy {
+        FileDiagnosticMaintenance(
+            store = diagnosticStore,
+            exportCacheDirectory = File(applicationContext.cacheDir, "diagnostic-exports"),
+            appVersionCode = AboutMetadataReader(applicationContext).read().versionCode ?: 0L,
+            sdkInt = Build.VERSION.SDK_INT
+        )
+    }
 
     private val databaseHolder = lazy {
         Room.databaseBuilder(
@@ -288,7 +305,7 @@ class AppContainer internal constructor(
         )
     }
     private val aiClientHolder = lazy {
-        OkHttpAiClient(OkHttpClient.Builder().build())
+        OkHttpAiClient(OkHttpClient.Builder().build(), diagnostics = diagnosticStore)
     }
     private val aiOperationGateHolder = lazy { AiOperationGate() }
     private val aiSettingsAtomicPortHolder = lazy {
@@ -354,6 +371,7 @@ class AppContainer internal constructor(
                     }
                 }
             ),
+            diagnostics = diagnosticStore,
             runSync = { binding -> runWebDavSync(binding) }
         )
     }
@@ -424,7 +442,8 @@ class AppContainer internal constructor(
             roomEventRepository::findById,
             PlatformEventAlerts(applicationContext),
             SharedPreferencesAlertLedger(applicationContext),
-            appClock
+            appClock,
+            diagnostics = diagnosticStore
         )
     }
     val alertRuntime: EventAlertRuntime
@@ -434,6 +453,7 @@ class AppContainer internal constructor(
             scope = aiScopeHolder.value,
             dependencies = AiCoordinatorDependencies(
                 client = aiClientHolder.value,
+                diagnostics = diagnosticStore,
                 conversations = roomConversationRepository,
                 budgeter = AiMessageBudgeter(),
                 parser = AiResponseParser(),

@@ -130,7 +130,9 @@
     <string name="ai_open_settings">Open settings</string>
     <string name="ai_dismiss_status">Dismiss status</string>
     <string name="ai_error_configuration">AI configuration is unavailable</string>
-    <string name="ai_error_timeout">AI request timed out</string>
+    <string name="ai_error_timeout">AI request timed out. No schedule changes were made. Try again later; if this repeats, export diagnostic logs from About.</string>
+    <string name="ai_error_context_budget">The AI context budget is insufficient. No schedule changes were made. Check the actual model context window, reduce the output token limit, or shorten your input.</string>
+    <string name="ai_error_output_limit">The AI output token limit was reached or exceeds the model limit. No schedule changes were made. Check the model limits; for truncated replies, increase the limit within the supported range or reduce thinking effort.</string>
     <string name="ai_error_network">Could not connect to the AI service</string>
     <string name="ai_error_provider">The AI service could not complete the request</string>
     <string name="ai_error_authentication">The AI service denied access. Check that the API Key is valid and the account can use this model.</string>

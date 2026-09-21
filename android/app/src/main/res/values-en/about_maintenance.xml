@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_maintenance_title">Diagnostics and cleanup</string>
+    <string name="about_maintenance_hint">Logs contain diagnostic codes and timing only. Clearing keeps schedules, chats and settings.</string>
+    <string name="about_export_logs">Export diagnostic logs</string>
+    <string name="about_clear_logs">Clear diagnostic logs</string>
+    <string name="about_clear_cache">Clear temporary log export files</string>
+    <string name="about_clear_logs_confirm">Clear diagnostic logs on this device? This cannot be undone. Schedules, chats, settings, backgrounds and alarm sounds will be kept.</string>
+    <string name="about_clear_cache_confirm">Only temporary files left by log exports will be removed. Exported files, schedules, chats, settings, backgrounds and alarm sounds will be kept.</string>
+    <string name="about_maintenance_confirm">Clear</string>
+    <string name="about_maintenance_cancel">Cancel</string>
+    <string name="about_maintenance_busy">Working…</string>
+    <string name="about_logs_exported">Diagnostic logs exported.</string>
+    <string name="about_logs_cleared">Diagnostic logs cleared.</string>
+    <string name="about_cache_cleared">Temporary log export files cleared.</string>
+    <string name="about_maintenance_failed">Could not complete the action. Please try again.</string>
+</resources>

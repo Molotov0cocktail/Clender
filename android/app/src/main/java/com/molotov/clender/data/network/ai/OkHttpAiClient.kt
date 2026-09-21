@@ -2,6 +2,7 @@ package com.molotov.clender.data.network.ai
 
 import com.molotov.clender.data.settings.AiSettings
 import com.molotov.clender.data.settings.ThinkingEffort
+import com.molotov.clender.diagnostics.DiagnosticLogger
 import com.molotov.clender.domain.ai.AiRequestMessage
 import java.io.IOException
 import java.io.InterruptedIOException
@@ -39,10 +40,11 @@ data class AiTimeoutPolicy(
     val modelsRead: Duration = Duration.ofSeconds(DEFAULT_MODELS_TIMEOUT_SECONDS),
     val modelsCall: Duration = Duration.ofSeconds(DEFAULT_MODELS_TIMEOUT_SECONDS),
     val chatRead: Duration = Duration.ofSeconds(DEFAULT_CHAT_TIMEOUT_SECONDS),
-    val chatCall: Duration = Duration.ofSeconds(DEFAULT_CHAT_TIMEOUT_SECONDS)
+    val chatCall: Duration = Duration.ofSeconds(DEFAULT_CHAT_TIMEOUT_SECONDS),
+    val chatWrite: Duration = Duration.ofSeconds(DEFAULT_CHAT_WRITE_TIMEOUT_SECONDS)
 ) {
     init {
-        listOf(connect, modelsRead, modelsCall, chatRead, chatCall).forEach { duration ->
+        listOf(connect, modelsRead, modelsCall, chatRead, chatCall, chatWrite).forEach { duration ->
             require(!duration.isZero && !duration.isNegative && duration.toMillis() > 0) {
                 "AI timeout values must be positive millisecond durations"
             }
@@ -56,7 +58,8 @@ class OkHttpAiClient(
     private val timeoutPolicy: AiTimeoutPolicy = AiTimeoutPolicy(),
     private val maxErrorCharacters: Int = DEFAULT_MAX_ERROR_CHARACTERS,
     private val maxResponseBytes: Long = DEFAULT_MAX_RESPONSE_BYTES,
-    private val json: Json = Json { ignoreUnknownKeys = false }
+    private val json: Json = Json { ignoreUnknownKeys = false },
+    private val diagnostics: DiagnosticLogger = DiagnosticLogger.NONE
 ) : AiClient {
     private val client = httpClient.newBuilder()
         .followRedirects(false)
@@ -158,11 +161,19 @@ class OkHttpAiClient(
             usage = AiContractCorrection.usage(original.usage, corrected.usage)
             AiContractCorrection.ensureAccepted(corrected)
             corrected.copy(usage = usage)
-        } catch (cancelled: AiRequestCancelledException) {
-            throw cancelled
         } catch (error: AiClientException) {
             session.ensureActive()
-            throw AiAccountedException(error, usage)
+            throw when (error) {
+                is AiRequestCancelledException -> error
+
+                is AiAccountedException -> AiAccountedException(
+                    error.failure,
+                    AiContractCorrection.usage(usage, error.usage),
+                    error
+                )
+
+                else -> AiAccountedException(error, usage)
+            }
         }
     }
 
@@ -177,7 +188,12 @@ class OkHttpAiClient(
             .header("Authorization", session.authorization)
             .post(payload.toRequestBody(JSON_MEDIA_TYPE))
             .build()
-        val body = execute(request, session.remaining(), timeoutPolicy.chatRead)
+        val body = execute(
+            request,
+            session.remaining(),
+            timeoutPolicy.chatRead,
+            timeoutPolicy.chatWrite
+        )
         val completion = parseCompletion(body)
         session.ensureActive()
         return completion
@@ -186,11 +202,17 @@ class OkHttpAiClient(
     private suspend fun execute(
         request: Request,
         callTimeout: Duration,
-        readTimeout: Duration
+        readTimeout: Duration,
+        writeTimeout: Duration = timeoutPolicy.modelsCall
     ): String {
+        val trace = AiCallDiagnostics(diagnostics)
         val call = client.newBuilder()
             .connectTimeout(timeoutPolicy.connect.toMillis(), TimeUnit.MILLISECONDS)
             .readTimeout(readTimeout.toMillis(), TimeUnit.MILLISECONDS)
+            .writeTimeout(writeTimeout.toMillis(), TimeUnit.MILLISECONDS)
+            .eventListenerFactory { value ->
+                client.eventListenerFactory.create(value) + trace.listener
+            }
             .build()
             .newCall(request)
         call.timeout().timeout(callTimeout.toMillis(), TimeUnit.MILLISECONDS)
@@ -208,12 +230,13 @@ class OkHttpAiClient(
                         completeCall(
                             call,
                             continuation,
-                            TerminalOutcome.Failure(failureOrCancellation(call, e))
+                            TerminalOutcome.Failure(failureOrCancellation(call, e)),
+                            trace
                         )
                     }
 
                     override fun onResponse(call: Call, response: Response) {
-                        completeCall(call, continuation, responseOutcome(call, response))
+                        completeCall(call, continuation, responseOutcome(call, response), trace)
                     }
                 }
             )
@@ -224,7 +247,7 @@ class OkHttpAiClient(
         response.use { value ->
             val body = readLimited(value)
             if (!value.isSuccessful) {
-                TerminalOutcome.Failure(AiHttpException(value.code, sanitizeError(body)))
+                TerminalOutcome.Failure(httpFailure(value.code, body))
             } else {
                 TerminalOutcome.Success(body)
             }
@@ -247,6 +270,22 @@ class OkHttpAiClient(
         else -> AiNetworkException(error)
     }
 
+    private fun httpFailure(status: Int, body: String): AiClientException {
+        val code = runCatching {
+            val error = parseObject(body)["error"] as? JsonObject
+            (error?.get("code") as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.contentOrNull
+        }.getOrNull()
+        return when {
+            status in THINKING_FALLBACK_STATUS_CODES && code == "context_length_exceeded" ->
+                AiContextBudgetException()
+
+            status in THINKING_FALLBACK_STATUS_CODES && code in OUTPUT_LIMIT_CODES ->
+                AiOutputLimitException()
+
+            else -> AiHttpException(status, sanitizeError(body))
+        }
+    }
+
     private fun timeoutOrCancellation(call: Call): AiClientException = if (
         cancellationRequested.get() === call
     ) {
@@ -266,13 +305,15 @@ class OkHttpAiClient(
     private fun completeCall(
         call: Call,
         continuation: CancellableContinuation<String>,
-        outcome: TerminalOutcome
+        outcome: TerminalOutcome,
+        trace: AiCallDiagnostics
     ) {
         val terminalOutcome = if (cancellationRequested.get() === call) {
             TerminalOutcome.Failure(AiRequestCancelledException())
         } else {
             outcome
         }
+        trace.finish((terminalOutcome as? TerminalOutcome.Failure)?.error)
         releaseCall(call)
         if (!continuation.isActive) return
         when (terminalOutcome) {
@@ -319,28 +360,36 @@ class OkHttpAiClient(
         val root = parseObject(body)
         val choices = root["choices"]?.jsonArray ?: throw AiProtocolException()
         val choice = choices.firstOrNull()?.jsonObject ?: throw AiProtocolException()
-        requireCompletedChoice(choice)
+        val usage = parseUsage(root)
+        requireCompletedChoice(choice, usage)
         val message = choice["message"]?.jsonObject
             ?: throw AiProtocolException()
         val content = message["content"]?.jsonPrimitive?.contentOrNull
             ?: throw AiProtocolException()
         val reasoning = message["reasoning_content"]?.jsonPrimitive?.contentOrNull.orEmpty()
-        val usage = root["usage"] as? JsonObject
-        val prompt = usage?.get("prompt_tokens")?.jsonPrimitive?.intOrNull ?: 0
-        val completion = usage?.get("completion_tokens")?.jsonPrimitive?.intOrNull ?: 0
-        val total = usage?.get("total_tokens")?.jsonPrimitive?.intOrNull
-            ?: prompt + completion
-        if (prompt < 0 || completion < 0 || total < 0) throw AiProtocolException()
-        AiCompletion(content, reasoning, AiCompletionUsage(prompt, completion, total))
-    } catch (error: AiProtocolException) {
+        AiCompletion(content, reasoning, usage)
+    } catch (error: AiClientException) {
         throw error
     } catch (_: RuntimeException) {
         throw AiProtocolException()
     }
 
-    private fun requireCompletedChoice(choice: JsonObject) {
+    private fun parseUsage(root: JsonObject): AiCompletionUsage {
+        val usage = root["usage"] as? JsonObject
+        val prompt = usage?.get("prompt_tokens")?.jsonPrimitive?.intOrNull ?: 0
+        val completion = usage?.get("completion_tokens")?.jsonPrimitive?.intOrNull ?: 0
+        val total = usage?.get("total_tokens")?.jsonPrimitive?.intOrNull
+            ?: (prompt.toLong() + completion).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        if (prompt < 0 || completion < 0 || total < 0) throw AiProtocolException()
+        return AiCompletionUsage(prompt, completion, total)
+    }
+
+    private fun requireCompletedChoice(choice: JsonObject, usage: AiCompletionUsage) {
         if ("finish_reason" in choice) {
             val reason = choice["finish_reason"] as? JsonPrimitive
+            if (reason?.isString == true && reason.contentOrNull == "length") {
+                throw AiAccountedException(AiOutputLimitException(), usage)
+            }
             if (reason?.isString != true || reason.contentOrNull != "stop") {
                 throw AiProtocolException()
             }
@@ -429,12 +478,14 @@ class OkHttpAiClient(
             STATUS_UNPROCESSABLE_CONTENT
         )
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+        val OUTPUT_LIMIT_CODES = setOf("max_tokens_exceeded", "max_completion_tokens_exceeded")
     }
 }
 
 private const val DEFAULT_CONNECT_TIMEOUT_SECONDS = 15L
 private const val DEFAULT_MODELS_TIMEOUT_SECONDS = 15L
-private const val DEFAULT_CHAT_TIMEOUT_SECONDS = 180L
+private const val DEFAULT_CHAT_TIMEOUT_SECONDS = 600L
+private const val DEFAULT_CHAT_WRITE_TIMEOUT_SECONDS = 60L
 private const val DEFAULT_MAX_ERROR_CHARACTERS = 512
 private const val DEFAULT_MAX_RESPONSE_BYTES = 2L * 1_024 * 1_024
 private const val STATUS_BAD_REQUEST = 400

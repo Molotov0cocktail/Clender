@@ -83,14 +83,13 @@ class MainActivity : ComponentActivity() {
             val shellState by shellViewModel.state.collectAsStateWithLifecycle()
             val needsAiModels = shellState.destination == AppDestination.AI ||
                 shellState.childRoutes.lastOrNull() == AppRoute.QuickAi
-            val needsSettingsModel = needsAiModels ||
-                shellState.destination == AppDestination.SETTINGS
+            val needsSettings = needsAiModels || shellState.destination == AppDestination.SETTINGS
             val aiSubmissionViewModel = if (needsAiModels) {
                 aiSubmissionViewModel(container)
             } else {
                 null
             }
-            val settingsViewModel = if (needsSettingsModel) {
+            val settingsViewModel = if (needsSettings) {
                 settingsViewModel(container)
             } else {
                 null
@@ -101,6 +100,7 @@ class MainActivity : ComponentActivity() {
                     calendarViewModel = calendarViewModel,
                     eventCrudViewModel = eventCrudViewModel,
                     models = ClenderAppModels(
+                        diagnosticMaintenance = container.diagnosticMaintenance,
                         ai = ClenderAppAiModels(
                             conversation = conversationViewModel,
                             submission = aiSubmissionViewModel

@@ -11,6 +11,11 @@ import com.molotov.clender.app.ai.AiSubmissionGateway
 import com.molotov.clender.app.alert.EventAlertRuntime
 import com.molotov.clender.app.widget.WidgetAutomaticRefreshPort
 import com.molotov.clender.app.widget.WidgetConfigurationRuntimePort
+import com.molotov.clender.diagnostics.DiagnosticCrashHandler
+import com.molotov.clender.diagnostics.DiagnosticEvent
+import com.molotov.clender.diagnostics.DiagnosticRecord
+import com.molotov.clender.diagnostics.DiagnosticResult
+import com.molotov.clender.diagnostics.FileDiagnosticStore
 import com.molotov.clender.domain.conversation.ConversationIdGenerator
 import com.molotov.clender.domain.conversation.ConversationManager
 import com.molotov.clender.ui.ai.ConversationViewModel
@@ -22,6 +27,7 @@ import com.molotov.clender.widget.WidgetAutomaticRefreshOwner
 import com.molotov.clender.widget.WidgetConfigurationActivityOwner
 import com.molotov.clender.widget.WidgetProviderRuntime
 import com.molotov.clender.widget.WidgetProviderRuntimeOwner
+import java.io.File
 import java.time.Clock
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +41,12 @@ class ClenderApplication :
     WidgetAutomaticRefreshOwner,
     QuickAiActivityOwner,
     EventAlertRuntimeOwner {
+    val diagnosticStore: FileDiagnosticStore by lazy {
+        FileDiagnosticStore(File(filesDir, "diagnostics"))
+    }
+    private var diagnosticCrashHandler: DiagnosticCrashHandler? = null
+    private var previousCrashHandler: Thread.UncaughtExceptionHandler? = null
+
     val container: AppContainer by lazy {
         AppContainer(this).also { created ->
             if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -49,10 +61,27 @@ class ClenderApplication :
 
     override fun onCreate() {
         super.onCreate()
+        diagnosticStore.record(
+            DiagnosticRecord(DiagnosticEvent.APP_START, result = DiagnosticResult.SUCCESS)
+        )
+        Thread.getDefaultUncaughtExceptionHandler()?.let { previous ->
+            previousCrashHandler = previous
+            DiagnosticCrashHandler(diagnosticStore, previous).also {
+                diagnosticCrashHandler = it
+                Thread.setDefaultUncaughtExceptionHandler(it)
+            }
+        }
         val provider = ComponentName(this, ClenderWidgetProvider::class.java)
         if (AppWidgetManager.getInstance(this).getAppWidgetIds(provider).any { it > 0 }) {
             container
         }
+    }
+
+    override fun onTerminate() {
+        if (Thread.getDefaultUncaughtExceptionHandler() === diagnosticCrashHandler) {
+            Thread.setDefaultUncaughtExceptionHandler(previousCrashHandler)
+        }
+        super.onTerminate()
     }
 
     override val widgetAutomaticRefreshScope: CoroutineScope

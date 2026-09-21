@@ -17,6 +17,7 @@ import androidx.compose.ui.res.stringResource
 import com.molotov.clender.R
 import com.molotov.clender.data.network.ai.AiModelCapabilities
 import com.molotov.clender.data.settings.ThinkingEffort
+import com.molotov.clender.domain.ai.AiMessageBudgeter
 
 internal fun AiSettingsDraft.applyCapabilities(
     capabilities: AiModelCapabilities?
@@ -26,21 +27,22 @@ internal fun AiSettingsDraft.applyCapabilities(
     val context = suppliedContext ?: contextWindow.toIntOrNull()
     val requestedOutput = suppliedOutput ?: maxOutputTokens.toIntOrNull()
     val availableOutput = context?.let { limit ->
-        limit - maxOf(MIN_INPUT_RESERVE, limit / INPUT_RESERVE_DIVISOR) -
+        limit - maxOf(AiMessageBudgeter.minimumInputReserveTokens, limit / INPUT_RESERVE_DIVISOR) -
             maxOf(MIN_SAFETY_RESERVE, limit / SAFETY_RESERVE_DIVISOR)
     }
     val hasSuppliedLimits = suppliedContext != null || suppliedOutput != null
     val hasUsableOutputBudget = availableOutput != null && availableOutput > 0
-    val hasRequiredValues = context != null && requestedOutput != null
-    return if (!hasSuppliedLimits || !hasRequiredValues || !hasUsableOutputBudget) {
+    return if (!hasSuppliedLimits) {
         this
     } else {
+        val output = if (requestedOutput != null && hasUsableOutputBudget) {
+            minOf(requestedOutput, requireNotNull(availableOutput))
+        } else {
+            requestedOutput
+        }
         copy(
-            contextWindow = requireNotNull(context).toString(),
-            maxOutputTokens = minOf(
-                requireNotNull(requestedOutput),
-                requireNotNull(availableOutput)
-            ).toString()
+            contextWindow = suppliedContext?.toString() ?: contextWindow,
+            maxOutputTokens = output?.toString() ?: maxOutputTokens
         )
     }
 }
@@ -77,7 +79,6 @@ internal fun ThinkingEffortSelector(
     }
 }
 
-private const val MIN_INPUT_RESERVE = 1_024
 private const val MIN_SAFETY_RESERVE = 32
 private const val INPUT_RESERVE_DIVISOR = 4
 private const val SAFETY_RESERVE_DIVISOR = 10

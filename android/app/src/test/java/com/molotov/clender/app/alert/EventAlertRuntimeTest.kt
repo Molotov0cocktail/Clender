@@ -3,6 +3,10 @@ package com.molotov.clender.app.alert
 import com.molotov.clender.alert.AlertPermissionState
 import com.molotov.clender.core.model.Event
 import com.molotov.clender.core.model.EventType
+import com.molotov.clender.diagnostics.DiagnosticEvent
+import com.molotov.clender.diagnostics.DiagnosticLogger
+import com.molotov.clender.diagnostics.DiagnosticRecord
+import com.molotov.clender.diagnostics.DiagnosticResult
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDateTime
@@ -18,6 +22,32 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class EventAlertRuntimeTest {
+    @Test
+    fun deliveryFailureProducesOnlyTypedDiagnosticAndBrokenLoggerCannotPreventDelivery() =
+        runBlocking {
+            val records = java.util.concurrent.CopyOnWriteArrayList<DiagnosticRecord>()
+            Fixture(event(), diagnostics = DiagnosticLogger { records += it }).use {
+                it.runtime.refresh().join()
+                val token = it.platform.scheduled.single().token
+                it.clock.now = Instant.ofEpochMilli(token.triggerAtMillis)
+                it.platform.showSucceeds = false
+                it.runtime.handle(token).join()
+                assertTrue(
+                    records.any { record ->
+                        record.event == DiagnosticEvent.ALERT &&
+                            record.result == DiagnosticResult.FAILURE
+                    }
+                )
+            }
+            Fixture(event(), diagnostics = DiagnosticLogger { throw IllegalStateException() }).use {
+                it.runtime.refresh().join()
+                val token = it.platform.scheduled.single().token
+                it.clock.now = Instant.ofEpochMilli(token.triggerAtMillis)
+                it.runtime.handle(token).join()
+                assertEquals(AlertReceipt.DELIVERED, it.ledger.receipt(token))
+            }
+        }
+
     @Test
     fun stoppingAlarmBeforeTimerKeepsTimerAndDoesNotReplayAlarm() = runBlocking {
         Fixture(event().copy(alarmEnabled = true, timerMinutes = 1)).use {
@@ -316,13 +346,14 @@ private class Fixture(
     event: Event,
     val clock: MutableAlertClock = MutableAlertClock(),
     val ledger: MemoryAlertLedger = MemoryAlertLedger(),
-    val platform: FakeAlertPlatform = FakeAlertPlatform()
+    val platform: FakeAlertPlatform = FakeAlertPlatform(),
+    diagnostics: DiagnosticLogger = DiagnosticLogger.NONE
 ) : AutoCloseable {
     val events = MutableStateFlow(listOf(event))
     val runtime =
         EventAlertRuntime(events, { id ->
             events.value.find { it.id == id }
-        }, platform, ledger, clock) {
+        }, platform, ledger, clock, diagnostics) {
             ZoneOffset.UTC
         }
 

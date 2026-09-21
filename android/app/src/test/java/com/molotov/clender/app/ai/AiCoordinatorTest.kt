@@ -10,10 +10,15 @@ import com.molotov.clender.data.network.ai.AiClientException
 import com.molotov.clender.data.network.ai.AiCompletion
 import com.molotov.clender.data.network.ai.AiCompletionUsage
 import com.molotov.clender.data.network.ai.AiHttpException
+import com.molotov.clender.data.network.ai.AiOutputLimitException
 import com.molotov.clender.data.network.ai.AiProtocolException
 import com.molotov.clender.data.network.ai.AiTimeoutException
 import com.molotov.clender.data.settings.AiSettings
 import com.molotov.clender.data.settings.ThinkingEffort
+import com.molotov.clender.diagnostics.DiagnosticEvent
+import com.molotov.clender.diagnostics.DiagnosticLogger
+import com.molotov.clender.diagnostics.DiagnosticPhase
+import com.molotov.clender.diagnostics.DiagnosticRecord
 import com.molotov.clender.domain.ai.AiContextProvider
 import com.molotov.clender.domain.ai.AiMessageBudgeter
 import com.molotov.clender.domain.ai.AiOperationExecutor
@@ -64,6 +69,34 @@ class AiCoordinatorTest {
     }
 
     @Test
+    fun unusableSavedBudgetReportsContextFailureWithoutCallingProvider() = runBlocking {
+        conversations.create(conversation("a"))
+        val key = testKey()
+        val records = mutableListOf<DiagnosticRecord>()
+        val observed = coordinator(diagnostics = DiagnosticLogger { records.add(it) })
+        assertTrue(
+            observed.submit(
+                "a",
+                "合成请求",
+                settings().copy(contextWindow = 8192, maxOutputTokens = 8191),
+                key
+            )
+        )
+        waitUntil { observed.state.value is AiCoordinatorState.Failed }
+        val failure = observed.state.value as AiCoordinatorState.Failed
+        assertEquals("CONTEXT_BUDGET", failure.error.name)
+        assertEquals(0, client.completeCalls.get())
+        assertEquals(0, events.writeCalls)
+        assertTrue(key.all { it == '\u0000' })
+        val budget = records.single { it.event == DiagnosticEvent.AI_BUDGET }
+        assertEquals(DiagnosticPhase.QUEUED, budget.phase)
+        assertEquals(8191L, budget.outputTokens)
+        assertEquals(8192L, budget.contextTokens)
+        assertEquals(null, budget.inputTokens)
+        assertFalse(records.toString().contains("合成请求"))
+    }
+
+    @Test
     fun workingStateIdentifiesThePersistedUserMessageForCurrentRoundFeedback() = runBlocking {
         conversations.create(conversation("a"))
         assertTrue(coordinator.submit("a", "本轮合成请求", settings(), testKey()))
@@ -89,6 +122,10 @@ class AiCoordinatorTest {
     @Test
     fun timedOutCorrectionAccountsFirstResponseAndRetainsFailureCategory() =
         accountedFailure(AiTimeoutException(), AiCoordinatorError.TIMEOUT)
+
+    @Test
+    fun truncatedOutputIsAccountedOnceWithoutExecutingAnyScheduleOperation() =
+        accountedFailure(AiOutputLimitException(), AiCoordinatorError.OUTPUT_LIMIT)
 
     private fun accountedFailure(failure: AiClientException, expected: AiCoordinatorError) =
         runBlocking {
@@ -527,7 +564,8 @@ class AiCoordinatorTest {
     private fun coordinator(
         coordinatorScope: CoroutineScope = scope,
         contextProvider: AiContextProvider =
-            AiContextProvider(fixedClock, events) { fixedClock.zone }
+            AiContextProvider(fixedClock, events) { fixedClock.zone },
+        diagnostics: DiagnosticLogger = DiagnosticLogger.NONE
     ): AiCoordinator {
         val eventService = EventService(
             repository = events,
@@ -544,7 +582,8 @@ class AiCoordinatorTest {
                 parser = AiResponseParser(),
                 executor = AiOperationExecutor(eventService),
                 clock = fixedClock,
-                contextProvider = contextProvider
+                contextProvider = contextProvider,
+                diagnostics = diagnostics
             )
         ).also(AiCoordinator::onAppForegrounded)
     }

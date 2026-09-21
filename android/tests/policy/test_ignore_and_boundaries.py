@@ -79,6 +79,8 @@ class IgnoreAndBoundaryTests(PolicyTestCase):
             paths.append(path.replace("\\", "/"))
 
         allowed_exact = {
+            # T80: Android timeout repair and private diagnostics task record.
+            "doc/tasks/T80-android-diagnostics-timeout.md",
             # T76: transparent Android settings and About update task record.
             "doc/tasks/T76-android-transparent-settings-update.md",
             # T75: dual-platform UI refinement task record and Windows chrome tests.

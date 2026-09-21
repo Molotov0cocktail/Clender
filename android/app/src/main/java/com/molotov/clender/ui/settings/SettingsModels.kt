@@ -4,6 +4,7 @@ import com.molotov.clender.data.network.ai.AiModelCapabilities
 import com.molotov.clender.data.settings.AiEndpointPolicy
 import com.molotov.clender.data.settings.ThinkingEffort
 import com.molotov.clender.data.settings.WebDavSettingsPolicy
+import com.molotov.clender.domain.ai.AiMessageBudgeter
 import com.molotov.clender.ui.foundation.AppearanceUiState
 import com.molotov.clender.ui.foundation.ThemeMode
 import kotlinx.coroutines.flow.Flow
@@ -84,13 +85,13 @@ data class AiSettingsDraft(
             add(SettingsValidationError.AI_MAX_OUTPUT_TOKENS)
         }
         val contextValue = contextWindow.toIntOrNull()
-        val contextIsInvalid = contextValue == null || contextValue <= 0
-        val orderingIsInvalid = contextValue != null &&
-            maxOutputValue != null && contextValue <= maxOutputValue
-        if (contextIsInvalid || maxOutputValue == null || orderingIsInvalid) {
+        if (!validInputBudget(contextValue, maxOutputValue)) {
             add(SettingsValidationError.AI_CONTEXT_WINDOW)
         }
     }
+
+    private fun validInputBudget(context: Int?, output: Int?): Boolean =
+        context != null && output != null && AiMessageBudgeter.hasUsableInputBudget(context, output)
 
     private fun isValidEndpoint(value: String): Boolean = runCatching {
         AiEndpointPolicy.resolve(value, "models")

@@ -2,6 +2,11 @@ package com.molotov.clender.app.alert
 
 import com.molotov.clender.alert.AlertPermissionState
 import com.molotov.clender.core.model.Event
+import com.molotov.clender.diagnostics.DiagnosticEvent
+import com.molotov.clender.diagnostics.DiagnosticLogger
+import com.molotov.clender.diagnostics.DiagnosticPhase
+import com.molotov.clender.diagnostics.DiagnosticRecord
+import com.molotov.clender.diagnostics.DiagnosticResult
 import java.time.Clock
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
@@ -22,12 +27,15 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 
+// Preserve existing adapter API with optional diagnostics.
+@Suppress("LongParameterList", "TooManyFunctions")
 class EventAlertRuntime(
     private val events: Flow<List<Event>>,
     private val findEvent: suspend (Long) -> Event?,
     private val platform: EventAlertPlatform,
     private val ledger: AlertLedger,
     private val clock: Clock = Clock.systemUTC(),
+    private val diagnostics: DiagnosticLogger = DiagnosticLogger.NONE,
     private val zone: () -> ZoneId = { ZoneId.systemDefault() }
 ) : AutoCloseable {
     internal val scopeJob = SupervisorJob()
@@ -46,6 +54,7 @@ class EventAlertRuntime(
                             ledger.receipt(token) == AlertReceipt.DELIVERED
                         ) {
                             ledger.failed(token)
+                            diagnose(DiagnosticPhase.PLAYBACK, DiagnosticResult.FAILURE)
                             mutableStatus.setStatus(token.eventId, AlertScheduleStatus.FAILED)
                         }
                     }
@@ -58,6 +67,7 @@ class EventAlertRuntime(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: RuntimeException) {
+                diagnose(DiagnosticPhase.READ, DiagnosticResult.FAILURE)
                 failKnownEvents()
             }
         }
@@ -86,10 +96,12 @@ class EventAlertRuntime(
         try {
             withTimeout(OPERATION_TIMEOUT_MILLIS) { block() }
         } catch (_: TimeoutCancellationException) {
+            diagnose(DiagnosticPhase.EXECUTE, DiagnosticResult.TIMEOUT)
             failKnownEvents()
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: RuntimeException) {
+            diagnose(DiagnosticPhase.EXECUTE, DiagnosticResult.FAILURE)
             failKnownEvents()
         }
     }
@@ -138,15 +150,18 @@ class EventAlertRuntime(
             for (token in future) {
                 val blocked = blockedStatus(token, permission)
                 if (blocked != null) {
+                    diagnose(DiagnosticPhase.SCHEDULE, DiagnosticResult.PERMISSION_DENIED)
                     status = stronger(status, blocked)
                     continue
                 }
                 val plan = AlertSchedule(token, permission.exactAllowed)
                 try {
                     platform.schedule(plan)
+                    diagnose(DiagnosticPhase.SCHEDULE, DiagnosticResult.SUCCESS)
                     next += plan
                     status = stronger(status, scheduledStatus(plan))
                 } catch (_: RuntimeException) {
+                    diagnose(DiagnosticPhase.SCHEDULE, DiagnosticResult.FAILURE)
                     val failed =
                         blockedStatus(token, platform.permissions()) ?: AlertScheduleStatus.FAILED
                     status = stronger(status, failed)
@@ -184,6 +199,7 @@ class EventAlertRuntime(
         if (!isCurrentDue(event, token, clock, zone())) return
         val blocked = blockedStatus(token, platform.permissions())
         if (blocked != null) {
+            diagnose(DiagnosticPhase.DELIVER, DiagnosticResult.PERMISSION_DENIED)
             mutableStatus.setStatus(token.eventId, blocked)
         } else if (ledger.claim(token)) {
             showClaimed(event, token)
@@ -197,9 +213,11 @@ class EventAlertRuntime(
             false
         }
         if (shown) {
+            diagnose(DiagnosticPhase.DELIVER, DiagnosticResult.SUCCESS)
             ledger.delivered(token)
             mutableStatus.setStatus(token.eventId, AlertScheduleStatus.DELIVERED)
         } else {
+            diagnose(DiagnosticPhase.DELIVER, DiagnosticResult.FAILURE)
             if (token.kind == AlertKind.ALARM) ledger.failed(token) else ledger.release(token)
             mutableStatus.setStatus(
                 token.eventId,
@@ -210,6 +228,10 @@ class EventAlertRuntime(
 
     private fun failKnownEvents() {
         mutableStatus.value = mutableStatus.value.mapValues { AlertScheduleStatus.FAILED }
+    }
+
+    private fun diagnose(phase: DiagnosticPhase, result: DiagnosticResult) {
+        runCatching { diagnostics.record(DiagnosticRecord(DiagnosticEvent.ALERT, phase, result)) }
     }
 }
 

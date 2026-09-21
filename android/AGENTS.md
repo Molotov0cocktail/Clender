@@ -1,3 +1,15 @@
+# T80 Android AI超时、预算与诊断维护（2026-09-21，本地验证完成，待用户验收）
+
+用户授权USB尽量只读调查、独立子agent修复和日志/关于页清理导出，追加历史上下文上限错误。基线main/12a63e8；任务、矩阵与失败见doc/tasks/T80-android-diagnostics-timeout.md。三agent实现并交叉审查；真机仅只读系统/应用日志元信息，无可用历史AI错误栈，未安装/清数据/读秘密或真实DB/发Provider请求，不把代码推测称真机根因。
+
+Android当前AI契约：非流式chat写时限60秒、read与全会话总时限600秒，connect/models15秒；Thinking兼容与格式纠正仍共享deadline、原取消/完整验证前不执行保持。设置/自动填充预留固定契约与输入空间，有效小窗口如实显示并拒绝不可用预算，未知能力手填。明确CONTEXT_BUDGET/OUTPUT_LIMIT；结构化context_length_exceeded不误重试，finish_reason=length保留usage且拒绝执行。
+
+新增diagnostics共享模块：DiagnosticLogger/DiagnosticRecord枚举与数字白名单，FileDiagnosticStore私有diagnostics/current.log与previous.log各128KiB。Application启动/委托式崩溃handler，AppContainer接AI阶段/预算/执行、同步、提醒；无URL/密钥/正文/日程/会话标识或异常message。崩溃仅有限栈位点SHA256数值指纹及行号，支持混淆帧；导出固定schema/版本码/SDK与再次校验的记录，源码位点需同包mapping复算，mapping不导出。
+
+关于页新增DiagnosticMaintenance经MainActivity→ClenderAppModels/AppDependencies→AboutScreen接入：CreateDocument后台导出、清空日志、清理导出临时文件；两清理均确认、busy防重入、取消/失败可重试，DocumentProvider RuntimeException不会逃逸。仅操作上述两日志及cacheDir/diagnostic-exports/export.tmp，保留日程/对话/设置/背景/铃声/秘密。无新增依赖/权限/Manifest/Room v3/WebDAV v1/版本变更，不推送、不Release。USB手机不覆盖安装；隔离模拟器验收另记录。
+
+维护记录：三agent有效RED→GREEN及交叉review；最终完整verify-all exit0/6m1s，224suites/2252tests（UI88/954）零失败/错误/跳过/四类泄漏，112发布夹具与foundation/boundary各109通过，lint/detekt/ktlint与原证书APK/AAB审计通过。最终同包API36真实CreateDocument取消/保存、清理确认取消/执行/导出回读，以及明暗/320dp两倍字号读图通过；设备语言英文，不称中文或厂商真机验收。255生产源码/资源/schema摘要零漂移。Windows仅根契约回归384tests/37导入/完整EXE/双场景隔离启动通过，dist/data5文件187185bytes完整性一致。APK1897977bytes/SHA256 c18196f98504f6c833e7418da46c46cec5cb334e02689c02ace654d05d0665e6；AAB5037818bytes/SHA256 3f75af383623833bd2c2a39fc5eb6e8da66451e63dce0c3c1cdda46a31ff7d70。命令失败、位点复算、设备恢复及产物摘要见T80任务；本地提交以Git日志为准，不推送或Release。
+
 # T76 第三阶段视觉修订（2026-09-15，本地验证完成，待用户验收）
 
 用户截图反馈已落实：九个设置分组为无描边、surface色24%不透明度圆角蒙板（76%透底），保留onBackground与0dp抬升；应用/AI/WebDAV顶栏删外框、透明底与选中线保留。关于GitHub/Gitee统一OutlinedButton、12dp纵向间距，两语言均去备用标注；URL/错误重试/草稿/秘密作用域/全局背景强度不变。版本保持1.3.1(3)，仅Android，不推送或Release。

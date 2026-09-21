@@ -128,7 +128,9 @@
     <string name="ai_open_settings">打开设置</string>
     <string name="ai_dismiss_status">关闭状态</string>
     <string name="ai_error_configuration">AI 配置不可用</string>
-    <string name="ai_error_timeout">AI 请求超时</string>
+    <string name="ai_error_timeout">AI 请求超时，本轮未修改日程。请稍后重试；若反复发生，可在关于页导出诊断日志。</string>
+    <string name="ai_error_context_budget">AI 上下文预算不足，本轮未修改日程。请核对模型实际上下文窗口、降低输出 Token 上限，或缩短输入后重试。</string>
+    <string name="ai_error_output_limit">AI 输出 Token 上限不足或超出模型限制，本轮未修改日程。请核对模型输出限制；回复被截断时可在允许范围内提高上限或降低思考强度。</string>
     <string name="ai_error_network">无法连接 AI 服务</string>
     <string name="ai_error_provider">AI 服务暂时无法完成请求</string>
     <string name="ai_error_authentication">AI 服务拒绝访问，请检查 API Key 是否有效，以及账号是否有该模型的使用权限。</string>

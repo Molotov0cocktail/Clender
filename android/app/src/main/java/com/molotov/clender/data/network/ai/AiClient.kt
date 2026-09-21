@@ -43,6 +43,10 @@ class AiProtocolException : AiClientException("AI provider returned an invalid r
 
 class AiTimeoutException : AiClientException("AI request timed out")
 
+class AiContextBudgetException : AiClientException("AI context budget is insufficient")
+
+class AiOutputLimitException : AiClientException("AI output token limit was reached")
+
 class AiNetworkException : AiClientException {
     constructor() : super("AI network request failed")
 

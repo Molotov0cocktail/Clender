@@ -93,7 +93,7 @@ class SettingsDraftContractTest {
             assertTrue(validAiDraft().copy(temperature = temperature).validate().isEmpty())
         }
         assertTrue(
-            validAiDraft().copy(maxOutputTokens = "1", contextWindow = "2").validate().isEmpty()
+            validAiDraft().copy(maxOutputTokens = "1", contextWindow = "8192").validate().isEmpty()
         )
     }
 
