@@ -79,6 +79,8 @@ class IgnoreAndBoundaryTests(PolicyTestCase):
             paths.append(path.replace("\\", "/"))
 
         allowed_exact = {
+            # T81: explicitly authorized GitHub release and product README.
+            "doc/tasks/T81-github-v1.3.2-release.md",
             # T80: Android timeout repair and private diagnostics task record.
             "doc/tasks/T80-android-diagnostics-timeout.md",
             # T76: transparent Android settings and About update task record.

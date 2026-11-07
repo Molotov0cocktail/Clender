@@ -616,11 +616,11 @@ class ReleaseToolsTests(unittest.TestCase):
 
 
 class ReleaseEntrypointTests(unittest.TestCase):
-    def test_release_version_metadata_is_v131_with_monotonic_code(self):
+    def test_release_version_metadata_is_v132_with_monotonic_code(self):
         source = (ANDROID_ROOT / "app/build.gradle.kts").read_text(encoding="utf-8")
         expected_fields = (
-            ("versionCode", r'^\s*versionCode\s*=\s*(\d+)\s*$', "3"),
-            ("versionName", r'^\s*versionName\s*=\s*"([^"]+)"\s*$', "1.3.1"),
+            ("versionCode", r'^\s*versionCode\s*=\s*(\d+)\s*$', "4"),
+            ("versionName", r'^\s*versionName\s*=\s*"([^"]+)"\s*$', "1.3.2"),
             ("applicationId", r'^\s*applicationId\s*=\s*"([^"]+)"\s*$', "com.molotov.clender"),
         )
         for field, pattern, expected in expected_fields:

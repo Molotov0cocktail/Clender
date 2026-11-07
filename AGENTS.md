@@ -1,3 +1,9 @@
+# T81 GitHub v1.3.2 发布与产品首页（2026-11-08，发布中）
+
+用户明确授权推送GitHub、更新最新Release和重写README，取代T79/T80的本地待发布状态；仅GitHub，Gitee保持原样。基线main/0467db8。发布汇总T79 Windows模型能力修复、T80 Android超时/预算/诊断，Android升1.3.2(4)，applicationId/正式签名/Room v3/WebDAV v1保持。README按产品首页整理，不宣称未提供的商业授权或服务。
+
+本轮112发布夹具、109策略与原证书APK/AAB构建审计通过，aapt2回读1.3.2(4)，255生产源码/资源/schema零漂移；Windows复用T80已验同摘要EXE，不重复业务全量测试。三附件仅EXE/APK/AAB，凭据仅进程内读取。任务、产物摘要与远程发布回执见doc/tasks/T81-github-v1.3.2-release.md。安全快进、不强推、不修改旧标签，不上传秘密/用户数据/日志/mapping。远程完成状态以任务回执为准。
+
 # T80 Android AI超时、预算与诊断维护（2026-09-21，本地验证完成，待用户验收）
 
 用户授权USB尽量只读调查、独立子agent修复和日志/关于页清理导出，追加历史上下文上限错误。基线main/12a63e8；任务、矩阵与失败见doc/tasks/T80-android-diagnostics-timeout.md。三agent实现并交叉审查；真机仅只读系统/应用日志元信息，无可用历史AI错误栈，未安装/清数据/读秘密或真实DB/发Provider请求，不把代码推测称真机根因。

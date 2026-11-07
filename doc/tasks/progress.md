@@ -1,3 +1,7 @@
+# T81 GitHub v1.3.2 与产品首页（发布中）
+
+用户授权GitHub发布；版本、112发布夹具、签名构建审计与产物核对完成，README产品化重写。[任务与回执](T81-github-v1.3.2-release.md)。
+
 # T80 Android AI 超时、上下文预算与本地诊断（本地完成，待用户验收）
 
 三agent实现并交叉review；修复超时配置/预算预检与错误分类，增加类型化有界日志及关于页导出/日志清空/导出临时文件清理。Android2252tests/完整门禁/原签名APK+AAB/API36同包导出清理与明暗大字号验收通过；Windows384tests及构建/隔离启动通过，用户数据完整性不变。USB手机全程只读，历史错误无可用栈，不称全部Provider故障已消除。契约、失败与产物见[T80](T80-android-diagnostics-timeout.md)。本地提交，不推送或Release。
