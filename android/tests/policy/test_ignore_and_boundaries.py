@@ -79,6 +79,12 @@ class IgnoreAndBoundaryTests(PolicyTestCase):
             paths.append(path.replace("\\", "/"))
 
         allowed_exact = {
+            # T82: Android chat screenshots and documented README artwork.
+            "doc/tasks/T82-readme-product-gallery.md",
+            "assets/readme/README.md",
+            "assets/readme/clender-banner.png",
+            "assets/readme/android-chat-light.png",
+            "assets/readme/android-chat-dark.png",
             # T81: explicitly authorized GitHub release and product README.
             "doc/tasks/T81-github-v1.3.2-release.md",
             # T80: Android timeout repair and private diagnostics task record.

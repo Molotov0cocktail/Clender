@@ -1,3 +1,13 @@
+# T82 README Android对话展示（2026-11-08，完成）
+
+用户要求展示实际使用界面，可用生图美化，追加指定Android对话优先；延续GitHub README更新授权。正式1.3.2(4)在专用API36 AVD初始化合成数据，用两轮中文示例对话展示真实Compose浅/深主题界面；无Provider调用或实际AI操作，不使用真实数据。顶部品牌插画由内置imagegen原创生成，与实截图分别标注。
+
+范围仅README、assets/readme图片/来源说明、精确任务边界和维护文档。应用源码、版本、正式附件及v1.3.2标签不改；复用已有应用验证，不重构建或重跑业务全量测试。来源/提示词/设备恢复及公开图片回执见doc/tasks/T82-readme-product-gallery.md。图片须逐张读图、链接/解码/边界与敏感检查后本地提交并安全快进GitHub。
+
+维护回执：正式APK浅/深两图1080x1920、15sp、中文演示内容/英文控件，真实unknown/0用量；逐图双人审查通过。新增一张imagegen原创品牌横幅及提示词来源说明，三PNG约2.03MiB，本地链接/解码/diff及109策略通过，255生产文件与正式APK/EXE摘要保持。隔离应用卸载、设置回读、AVD关闭完成。GitHub安全推送及公开图片回读以最终回执为准；不改变v1.3.2发行。
+
+用户新增GitHub MIT LICENSE提交089707a已安全快进保留；README补MIT徽章与原文入口，不改许可正文。
+
 # T81 GitHub v1.3.2 发布与产品首页（2026-11-08，完成）
 
 用户明确授权推送GitHub、更新最新Release和重写README，取代T79/T80的本地待发布状态；仅GitHub，Gitee保持原样。基线main/0467db8。发布汇总T79 Windows模型能力修复、T80 Android超时/预算/诊断，Android升1.3.2(4)，applicationId/正式签名/Room v3/WebDAV v1保持。README按产品首页整理，不宣称未提供的商业授权或服务。

@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/clender-icon.svg" width="88" alt="Clender 应用图标">
+<img src="assets/readme/clender-banner.png" width="960" alt="Clender：让计划落在日历里，本地日历与 AI 日程助手品牌插画">
 
 # Clender
 
@@ -11,6 +11,7 @@
 [![Release](https://img.shields.io/github/v/release/Molotov0cocktail/Clender?label=最新版本)](https://github.com/Molotov0cocktail/Clender/releases/latest)
 ![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4)
 ![Android](https://img.shields.io/badge/Android-8.0%2B-3DDC84)
+[![License: MIT](https://img.shields.io/badge/License-MIT-4968e8)](LICENSE)
 
 [下载 Windows 版](https://github.com/Molotov0cocktail/Clender/releases/download/v1.3.2/Clender-Windows-v1.3.2.exe) · [下载 Android 版](https://github.com/Molotov0cocktail/Clender/releases/download/v1.3.2/Clender-Android-v1.3.2.apk) · [更新日志](https://github.com/Molotov0cocktail/Clender/releases) · [反馈问题](https://github.com/Molotov0cocktail/Clender/issues)
 
@@ -21,6 +22,23 @@
 Clender 将日历、提醒与 AI 助手放在同一个工作流里：用月、周、日视图安排生活，在电脑上查看今日计划，在手机上接收提醒，也可以通过对话创建和调整日程。日程保存在本机，跨设备同步和 AI 服务由你自行配置。
 
 适合需要统筹工作、学习与个人生活，希望保留本地数据，同时使用自己选择的 AI 与同步服务的人。
+
+## 像聊天一样，整理好一天
+
+说出安排，继续补充，再回到日历核对。Android 助手把对话、可折叠思考和消息输入放在同一页，日间与夜间主题也能搭配自己的背景。
+
+<table>
+  <tr>
+    <td align="center" width="50%"><strong>把想法说出来 · 浅色</strong><br>用一段话描述自己的节奏与安排</td>
+    <td align="center" width="50%"><strong>把计划聊明白 · 深色</strong><br>继续补充偏好，逐步调整细节</td>
+  </tr>
+  <tr>
+    <td align="center"><a href="assets/readme/android-chat-light.png"><img src="assets/readme/android-chat-light.png" width="360" alt="Android AI 助手浅色主题真实截图：中文示例对话与日程安排"></a></td>
+    <td align="center"><a href="assets/readme/android-chat-dark.png"><img src="assets/readme/android-chat-dark.png" width="360" alt="Android AI 助手深色主题真实截图：继续调整计划的中文示例对话"></a></td>
+  </tr>
+</table>
+
+截图来自 Android v1.3.2 正式应用，对话为本地演示内容；点击可查看原图。顶部横幅为 AI 生成的品牌插画。[图片来源与演示说明](assets/readme/README.md)
 
 ## 从计划到行动
 
@@ -129,3 +147,7 @@ Windows 构建输出为 `dist/Clender.exe`。Android 的工具链、离线检查
 [报告问题](https://github.com/Molotov0cocktail/Clender/issues) · [查看版本](https://github.com/Molotov0cocktail/Clender/releases) · [GitHub 仓库](https://github.com/Molotov0cocktail/Clender) · [Gitee 历史镜像](https://gitee.com/Molotov0coaktail/clender)
 
 Gitee 的版本可能落后于 GitHub，最新发布以本页 GitHub 下载入口为准。
+
+## 许可证
+
+本项目采用 [MIT License](LICENSE)。Copyright © 2026 Molotov0cocktail。

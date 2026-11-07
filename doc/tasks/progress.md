@@ -1,3 +1,7 @@
+# T82 README Android对话展示（完成）
+
+按用户指定，以Android真实对话浅深两图为主，配原创生图横幅；对话为隔离环境本地示例。[任务与来源](T82-readme-product-gallery.md)。
+
 # T81 GitHub v1.3.2 与产品首页（完成）
 
 用户授权GitHub发布；版本、112发布夹具、签名构建审计与产物核对完成，README产品化重写。GitHub正式v1.3.2 Release437837835已设Latest，三附件服务端摘要匹配且公开下载HTTP200，main/注释标签已推送，Gitee保持原样。[任务与回执](T81-github-v1.3.2-release.md)。
