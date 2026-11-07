@@ -20,3 +20,12 @@
 - `Clender-Windows-v1.3.2.exe`：45598278bytes / SHA256 `e345784d8f10a0b3021897398daed72d57f01df9e0e3132ef6173a2d37a7884c`。
 - `Clender-Android-v1.3.2.apk`：1897977bytes / SHA256 `f09d2816881c7960abb009d7508e0e3d8acf7194f4ec78b48a9195aaccb39677`。
 - `Clender-Android-v1.3.2.aab`：5037809bytes / SHA256 `0faf829ffcc492528b3502e8f3097ade11fc563a409d5992f917b3f2934aaea4`。
+
+## GitHub 完成回执
+
+- 发布提交`c430d3875bb4e789ccbc542e40859c6e7a371911`已安全快进GitHub main（此前a4fa91e）。注释标签`v1.3.2`对象`0171cc0d6b439b7463cdfaacc104eff54910f10b`解引用同一发布提交，未修改历史标签或Gitee。
+- 正式Release **437837835**：https://github.com/Molotov0cocktail/Clender/releases/tag/v1.3.2 。draft=false/prerelease=false，已设为Latest；匿名`releases/latest`回读v1.3.2。
+- 三附件名称、大小、GitHub服务端digest逐项与上表一致；匿名公开下载三入口HEAD最终HTTP200。README下载链接均指向该标签，最新Release与README已公开。
+- 发布夹具/109策略、staged diff与敏感模式检查通过；只提交8个工程文件，未提交安装产物、签名材料、mapping、凭据、日志或用户数据。实际上传仅三应用产物。
+- 草稿上传后首次按tag查询草稿返回404，publish阶段在改变公开状态前断言退出；通过认证Release列表找到同一草稿，再核对原附件后发布，没有重复Release或重传正确附件。初次回执读取的是草稿阶段untagged链接，正式发布后重新匿名读取，已核对三个v1.3.2正式下载链接。
+- 本轮发布后的回执只更新文档与AGENTS/progress，另作提交安全快进main；标签固定绑定发布提交，不移动。最终回执提交对象以Git日志与最终答复为准。

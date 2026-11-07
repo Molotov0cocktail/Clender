@@ -1,6 +1,6 @@
-# T81 GitHub v1.3.2 与产品首页（发布中）
+# T81 GitHub v1.3.2 与产品首页（完成）
 
-用户授权GitHub发布；版本、112发布夹具、签名构建审计与产物核对完成，README产品化重写。[任务与回执](T81-github-v1.3.2-release.md)。
+用户授权GitHub发布；版本、112发布夹具、签名构建审计与产物核对完成，README产品化重写。GitHub正式v1.3.2 Release437837835已设Latest，三附件服务端摘要匹配且公开下载HTTP200，main/注释标签已推送，Gitee保持原样。[任务与回执](T81-github-v1.3.2-release.md)。
 
 # T80 Android AI 超时、上下文预算与本地诊断（本地完成，待用户验收）
 
